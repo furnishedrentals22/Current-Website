@@ -149,6 +149,11 @@ class NotificationCreate(BaseModel):
     notification_date: str
     message: Optional[str] = ""
 
+class NoteCreate(BaseModel):
+    title: str
+    content: Optional[str] = ""
+    color: Optional[str] = "default"  # default, yellow, green, blue, pink
+
 # ============================================================
 # PROPERTIES ENDPOINTS
 # ============================================================
@@ -964,6 +969,50 @@ async def get_dashboard():
         'leads_count': lead_count,
         'unread_notifications': unread_notif
     }
+
+# ============================================================
+# NOTES ENDPOINTS
+# ============================================================
+@api_router.get("/notes")
+async def list_notes():
+    docs = await db.notes.find().sort("updated_at", -1).to_list(1000)
+    return [serialize_doc(d) for d in docs]
+
+@api_router.get("/notes/{note_id}")
+async def get_note(note_id: str):
+    doc = await db.notes.find_one({"_id": ObjectId(note_id)})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Note not found")
+    return serialize_doc(doc)
+
+@api_router.post("/notes")
+async def create_note(data: NoteCreate):
+    doc = data.model_dump()
+    doc["created_at"] = datetime.now(timezone.utc).isoformat()
+    doc["updated_at"] = datetime.now(timezone.utc).isoformat()
+    result = await db.notes.insert_one(doc)
+    doc["_id"] = result.inserted_id
+    return serialize_doc(doc)
+
+@api_router.put("/notes/{note_id}")
+async def update_note(note_id: str, data: NoteCreate):
+    update_doc = data.model_dump()
+    update_doc["updated_at"] = datetime.now(timezone.utc).isoformat()
+    result = await db.notes.update_one(
+        {"_id": ObjectId(note_id)},
+        {"$set": update_doc}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Note not found")
+    doc = await db.notes.find_one({"_id": ObjectId(note_id)})
+    return serialize_doc(doc)
+
+@api_router.delete("/notes/{note_id}")
+async def delete_note(note_id: str):
+    result = await db.notes.delete_one({"_id": ObjectId(note_id)})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Note not found")
+    return {"message": "Note deleted"}
 
 # Include router
 app.include_router(api_router)

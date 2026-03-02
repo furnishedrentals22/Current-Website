@@ -1,18 +1,18 @@
 [
   {
-    "content": "Phase 3: Backend - Add new lead fields (price_offered, preferred_contact_method, notes, is_unassigned)",
+    "content": "Phase 3: Backend - Notes CRUD endpoints",
     "status": "completed"
   },
   {
-    "content": "Phase 3: Frontend - Redesign Leads page (grouped by property, unassigned section)",
+    "content": "Phase 3: Frontend - Notes page with add/edit/delete",
     "status": "completed"
   },
   {
-    "content": "Phase 3: Frontend - Updated lead form with new fields + unassigned option",
+    "content": "Phase 3: Add Notes to sidebar navigation",
     "status": "completed"
   },
   {
-    "content": "Phase 3: Test redesigned Leads page",
+    "content": "Phase 3: Test Notes page",
     "status": "completed"
   }
 ]

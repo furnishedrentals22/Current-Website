@@ -1,7 +1,7 @@
 import { useState, useEffect, createContext, useContext, useCallback } from 'react';
 import '@/App.css';
 import { BrowserRouter, Routes, Route, NavLink, useLocation } from 'react-router-dom';
-import { Building2, Users, DollarSign, BarChart3, UserSearch, Calendar, Bell, FileText, ChevronLeft, ChevronRight, Menu } from 'lucide-react';
+import { Building2, Users, DollarSign, BarChart3, UserSearch, Calendar, Bell, FileText, StickyNote, ChevronLeft, ChevronRight, Menu } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
@@ -16,6 +16,7 @@ import IncomePage from '@/pages/IncomePage';
 import VacancyPage from '@/pages/VacancyPage';
 import CalendarPage from '@/pages/CalendarPage';
 import FeaturesPage from '@/pages/FeaturesPage';
+import NotesPage from '@/pages/NotesPage';
 
 export const NotificationContext = createContext();
 
@@ -28,6 +29,7 @@ const NAV_ITEMS = [
   { path: '/income', label: 'Income', icon: DollarSign, testId: 'sidebar-nav-income' },
   { path: '/vacancy', label: 'Vacancy', icon: BarChart3, testId: 'sidebar-nav-vacancies' },
   { path: '/calendar', label: 'Calendar', icon: Calendar, testId: 'sidebar-nav-calendar' },
+  { path: '/notes', label: 'Notes', icon: StickyNote, testId: 'sidebar-nav-notes' },
   { path: '/features', label: 'Features', icon: FileText, testId: 'sidebar-nav-features' },
 ];
 
@@ -226,6 +228,7 @@ function App() {
           <Route path="/income" element={<IncomePage />} />
           <Route path="/vacancy" element={<VacancyPage />} />
           <Route path="/calendar" element={<CalendarPage />} />
+          <Route path="/notes" element={<NotesPage />} />
           <Route path="/features" element={<FeaturesPage />} />
         </Routes>
       </AppShell>
