@@ -132,6 +132,12 @@ class LeadCreate(BaseModel):
     showing_date: Optional[str] = None
     converted_to_tenant: bool = False
     tenant_id: Optional[str] = None
+    # New fields
+    price_offered: Optional[float] = None
+    preferred_contact_method: Optional[str] = ""
+    notes: Optional[str] = ""
+    is_unassigned: bool = False
+    unassigned_note: Optional[str] = ""
 
 class NotificationCreate(BaseModel):
     lead_id: Optional[str] = None

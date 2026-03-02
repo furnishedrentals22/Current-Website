@@ -342,7 +342,7 @@ class PropertyManagementTester:
             "Get lead stages", "GET", "lead-stages", 200
         )
         
-        # Test creating lead
+        # Test creating lead with new fields
         today = date.today()
         lead_data = {
             "name": "Jane Prospect",
@@ -358,7 +358,13 @@ class PropertyManagementTester:
             "progress_stage": 1,
             "showing_date": None,
             "converted_to_tenant": False,
-            "tenant_id": None
+            "tenant_id": None,
+            # New fields
+            "price_offered": 1400.0,
+            "preferred_contact_method": "Text message",
+            "notes": "Very interested, good credit score",
+            "is_unassigned": False,
+            "unassigned_note": ""
         }
         
         success, response = self.run_test(
@@ -377,6 +383,61 @@ class PropertyManagementTester:
             self.run_test(
                 "Advance lead to stage 2", "PUT", f"leads/{lead_id}", 200, advanced_lead
             )
+            
+            # Test creating unassigned lead
+            unassigned_lead_data = {
+                "name": "Unassigned Prospect",
+                "source": "Referral",
+                "phone": "555-8888",
+                "email": "unassigned@test.com",
+                "desired_start_date": (today + timedelta(days=30)).isoformat(),
+                "desired_end_date": (today + timedelta(days=60)).isoformat(),
+                "potential_unit_ids": [],
+                "pets": "",
+                "parking_request": "",
+                "lead_strength": 2,
+                "progress_stage": 1,
+                "showing_date": None,
+                "converted_to_tenant": False,
+                "tenant_id": None,
+                "price_offered": None,
+                "preferred_contact_method": "Email",
+                "notes": "Flexible on dates, waiting for right unit",
+                "is_unassigned": True,
+                "unassigned_note": "Good candidate but no current availability"
+            }
+            
+            success, response = self.run_test(
+                "Create unassigned lead", "POST", "leads", 200, unassigned_lead_data
+            )
+            if success and 'id' in response:
+                unassigned_lead_id = response['id']
+                self.created_ids['leads'].append(unassigned_lead_id)
+                self.log(f"   Created unassigned lead ID: {unassigned_lead_id}")
+                
+                # Verify the new fields were saved correctly
+                success, retrieved_lead = self.run_test(
+                    "Get unassigned lead to verify fields", "GET", f"leads/{unassigned_lead_id}", 200
+                )
+                if success:
+                    if retrieved_lead.get('price_offered') is None:
+                        self.log("   ✅ price_offered field correctly handled as null")
+                    if retrieved_lead.get('preferred_contact_method') == "Email":
+                        self.log("   ✅ preferred_contact_method field saved correctly")
+                    if retrieved_lead.get('notes') == "Flexible on dates, waiting for right unit":
+                        self.log("   ✅ notes field saved correctly")
+                    if retrieved_lead.get('is_unassigned') == True:
+                        self.log("   ✅ is_unassigned field saved correctly")
+                    if retrieved_lead.get('unassigned_note') == "Good candidate but no current availability":
+                        self.log("   ✅ unassigned_note field saved correctly")
+                
+                # Test updating unassigned note
+                updated_unassigned = unassigned_lead_data.copy()
+                updated_unassigned['unassigned_note'] = "Updated note about usefulness"
+                
+                self.run_test(
+                    "Update unassigned lead note", "PUT", f"leads/{unassigned_lead_id}", 200, updated_unassigned
+                )
 
     def test_notifications(self):
         """Test Notifications CRUD operations"""
