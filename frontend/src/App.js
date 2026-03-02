@@ -1,7 +1,7 @@
 import { useState, useEffect, createContext, useContext, useCallback } from 'react';
 import '@/App.css';
 import { BrowserRouter, Routes, Route, NavLink, useLocation } from 'react-router-dom';
-import { Building2, Home, Users, DollarSign, BarChart3, UserSearch, Calendar, Bell, FileText, ChevronLeft, ChevronRight, Menu } from 'lucide-react';
+import { Building2, Users, DollarSign, BarChart3, UserSearch, Calendar, Bell, FileText, ChevronLeft, ChevronRight, Menu } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
@@ -10,7 +10,6 @@ import { Toaster } from '@/components/ui/sonner';
 import { getNotifications, markNotificationRead, deleteNotification } from '@/lib/api';
 
 import PropertiesPage from '@/pages/PropertiesPage';
-import UnitsPage from '@/pages/UnitsPage';
 import TenantsPage from '@/pages/TenantsPage';
 import LeadsPage from '@/pages/LeadsPage';
 import IncomePage from '@/pages/IncomePage';
@@ -24,7 +23,6 @@ export const useNotifications = () => useContext(NotificationContext);
 
 const NAV_ITEMS = [
   { path: '/', label: 'Properties', icon: Building2, testId: 'sidebar-nav-properties' },
-  { path: '/units', label: 'Units', icon: Home, testId: 'sidebar-nav-units' },
   { path: '/tenants', label: 'Tenants', icon: Users, testId: 'sidebar-nav-tenants' },
   { path: '/leads', label: 'Leads', icon: UserSearch, testId: 'sidebar-nav-leads' },
   { path: '/income', label: 'Income', icon: DollarSign, testId: 'sidebar-nav-income' },
@@ -223,7 +221,6 @@ function App() {
       <AppShell>
         <Routes>
           <Route path="/" element={<PropertiesPage />} />
-          <Route path="/units" element={<UnitsPage />} />
           <Route path="/tenants" element={<TenantsPage />} />
           <Route path="/leads" element={<LeadsPage />} />
           <Route path="/income" element={<IncomePage />} />

@@ -1,34 +1,20 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Building2, Home, Users, UserSearch, DollarSign, BarChart3, Calendar, Bell, FileText } from 'lucide-react';
+import { Building2, Users, UserSearch, DollarSign, BarChart3, Calendar, Bell, FileText } from 'lucide-react';
 
 const features = [
   {
     icon: Building2,
-    title: 'Properties Management',
-    description: 'Full CRUD for properties/buildings.',
+    title: 'Properties & Units Management',
+    description: 'Combined view for properties and their units on a single page.',
     details: [
-      'Create, edit, and delete properties',
-      'Track owner/manager contact info (name, phone, email)',
-      'Available parking (number or description)',
-      'Pets permitted toggle with optional pet notes',
-      'Building amenities as a tag list',
-      'Additional notes field',
-      'Cannot delete property with existing units'
-    ]
-  },
-  {
-    icon: Home,
-    title: 'Units Management',
-    description: 'Units belong to properties with rent and cost tracking.',
-    details: [
-      'Unit number and size (dropdown: 0/1, 1/1, 2/1, 2/2, 3/1, 3/2, 3/3, or custom Other)',
-      'Base rent amount',
-      'Additional fixed monthly costs (repeatable name + amount fields)',
-      'Availability start date (when unit becomes rentable)',
-      'Optional close date (after which unit is not rentable)',
-      'Filter units by property',
-      'Cannot delete unit with existing tenants'
+      'Properties listed as expandable cards with summary info always visible',
+      'Summary shows: property name, address, unit count badge, and unit number badges with sizes',
+      'Expandable "Property Details" section: owner/manager name, phone, email, parking, pets toggle with notes, amenities tags, additional notes',
+      'Expandable "Units" section: table of all units with full CRUD (add, edit, delete)',
+      'Unit fields: number, size (0/1, 1/1, 2/1, 2/2, 3/1, 3/2, 3/3, or custom Other), base rent, additional monthly costs (repeatable), availability start date, optional close date',
+      'Cannot delete property with existing units; cannot delete unit with existing tenants',
+      'Create, edit, and delete both properties and units from the same page'
     ]
   },
   {

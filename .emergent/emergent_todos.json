@@ -32,8 +32,16 @@
     "status": "completed"
   },
   {
-    "content": "Phase 3: Hardening + UX improvements",
-    "status": "pending"
+    "content": "Phase 3: Merge Properties + Units pages into one combined page",
+    "status": "completed"
+  },
+  {
+    "content": "Phase 3: Remove Units from sidebar navigation",
+    "status": "completed"
+  },
+  {
+    "content": "Phase 3: Test merged Properties/Units page",
+    "status": "in_progress"
   },
   {
     "content": "Features reference page",
