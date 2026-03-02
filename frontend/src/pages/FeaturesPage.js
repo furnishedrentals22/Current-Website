@@ -20,13 +20,17 @@ const features = [
   {
     icon: Users,
     title: 'Tenants Management',
-    description: 'Tenant assignment with full date validation and Airbnb support.',
+    description: 'Redesigned tenant view with current, future, and past sections plus move-out confirmation flow.',
     details: [
-      'Select property then unit (filtered by property)',
-      'Name, phone, email, move-in date, move-out date',
-      'Airbnb/VRBO toggle changes the form fields:',
-      '  Long-term: deposit, monthly rent, partial month overrides, pets, parking, notes',
-      '  Airbnb: total rent input, auto-calculated nights/rate/monthly breakdown',
+      'Top section: Current tenants grouped by property and unit',
+      'Each unit has a dropdown to view future tenants in date order',
+      'Pending move-out tenants (past move-out date, not yet confirmed) shown with amber badge and Confirm button',
+      'Auto-popup notification when a tenant\'s move-out date passes to confirm move-out',
+      'On move-out confirmation: long-term tenants with deposits get a deposit return reminder notification 3 days later',
+      'Bottom section: Past tenants shown via collapsible dropdown, divided by property and unit',
+      'Click on any tenant row to see full detail dialog with all available info',
+      'Airbnb/VRBO toggle changes form: long-term shows deposit, monthly rent, payment method, rent due date, pets, parking, notes',
+      'Airbnb/VRBO shows total rent, auto-calculated nights/rate/monthly breakdown, and notes field',
       'Date validation: no overlapping tenants, move-in >= unit availability, move-out <= close date',
       'Same-day turnover allowed (move-out date can equal next move-in)',
       'Airbnb monthly breakdown stored and feeds into Income page'

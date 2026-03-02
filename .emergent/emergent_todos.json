@@ -9,26 +9,26 @@
   },
   {
     "content": "Phase 3: Backend - Add new tenant fields (payment_method, rent_due_date, moveout_confirmed)",
-    "status": "in_progress"
+    "status": "completed"
   },
   {
     "content": "Phase 3: Backend - Add move-out confirmation endpoint with deposit notification",
-    "status": "pending"
+    "status": "completed"
   },
   {
     "content": "Phase 3: Frontend - Redesign Tenants page (current/future/past sections)",
-    "status": "pending"
+    "status": "completed"
   },
   {
     "content": "Phase 3: Frontend - Tenant detail view on click",
-    "status": "pending"
+    "status": "completed"
   },
   {
     "content": "Phase 3: Frontend - Updated tenant form with new fields",
-    "status": "pending"
+    "status": "completed"
   },
   {
     "content": "Phase 3: Test redesigned Tenants page",
-    "status": "pending"
+    "status": "completed"
   }
 ]
