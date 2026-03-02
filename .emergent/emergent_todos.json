@@ -1,18 +1,18 @@
 [
   {
     "content": "Phase 3: Backend - Add new lead fields (price_offered, preferred_contact_method, notes, is_unassigned)",
-    "status": "in_progress"
+    "status": "completed"
   },
   {
     "content": "Phase 3: Frontend - Redesign Leads page (grouped by property, unassigned section)",
-    "status": "pending"
+    "status": "completed"
   },
   {
     "content": "Phase 3: Frontend - Updated lead form with new fields + unassigned option",
-    "status": "pending"
+    "status": "completed"
   },
   {
     "content": "Phase 3: Test redesigned Leads page",
-    "status": "pending"
+    "status": "completed"
   }
 ]
