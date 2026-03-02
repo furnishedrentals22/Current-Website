@@ -192,7 +192,7 @@ class PropertyManagementTester:
         unit_id = self.created_ids['units'][0]
         property_id = self.created_ids['properties'][0]
         
-        # Test creating long-term tenant
+        # Test creating long-term tenant with new fields
         today = date.today()
         move_in = today + timedelta(days=1)
         move_out = today + timedelta(days=365)
@@ -214,7 +214,11 @@ class PropertyManagementTester:
             "pets": "1 small dog",
             "parking": "Space #1",
             "notes": "Test long-term tenant",
-            "total_rent": None
+            "total_rent": None,
+            "payment_method": "Bank Transfer",
+            "rent_due_date": "1st",
+            "moveout_confirmed": False,
+            "moveout_confirmed_date": None
         }
         
         success, response = self.run_test(
@@ -225,7 +229,7 @@ class PropertyManagementTester:
             self.created_ids['tenants'].append(tenant_id)
             self.log(f"   Created long-term tenant ID: {tenant_id}")
         
-        # Test creating Airbnb/VRBO tenant (different unit)
+        # Test creating Airbnb/VRBO tenant with notes field (different unit)
         if len(self.created_ids['units']) > 1:
             unit_id2 = self.created_ids['units'][1]
             airbnb_move_in = today + timedelta(days=30)
@@ -247,8 +251,12 @@ class PropertyManagementTester:
                 "partial_last_month": None,
                 "pets": "",
                 "parking": "",
-                "notes": "Test Airbnb guest",
-                "total_rent": 840.0  # 7 nights at $120/night
+                "notes": "Guest from California, traveling with family",
+                "total_rent": 840.0,  # 7 nights at $120/night
+                "payment_method": "",
+                "rent_due_date": "",
+                "moveout_confirmed": False,
+                "moveout_confirmed_date": None
             }
             
             success, response = self.run_test(
@@ -259,6 +267,60 @@ class PropertyManagementTester:
                 # Check if breakdown was calculated
                 if 'total_nights' in response:
                     self.log(f"   Airbnb breakdown: {response['total_nights']} nights at ${response['rent_per_night']}/night")
+
+        # Test creating past tenant for pending moveout testing
+        past_move_in = today - timedelta(days=30)
+        past_move_out = today - timedelta(days=1)  # Moved out yesterday
+        
+        if len(self.created_ids['units']) > 1:
+            past_tenant_data = {
+                "property_id": property_id,
+                "unit_id": self.created_ids['units'][1],
+                "name": "Past Tenant",
+                "phone": "555-9999",
+                "email": "past@email.com",
+                "move_in_date": past_move_in.isoformat(),
+                "move_out_date": past_move_out.isoformat(),
+                "is_airbnb_vrbo": False,
+                "monthly_rent": 1200.0,
+                "deposit_amount": 1200.0,
+                "deposit_date": past_move_in.isoformat(),
+                "payment_method": "Zelle",
+                "rent_due_date": "15th",
+                "moveout_confirmed": False,
+                "notes": "Should appear in pending moveouts"
+            }
+            
+            success, response = self.run_test(
+                "Create past tenant (for pending moveout)", "POST", "tenants", 200, past_tenant_data
+            )
+            if success and 'id' in response:
+                past_tenant_id = response['id']
+                self.created_ids['tenants'].append(past_tenant_id)
+                self.log(f"   Created past tenant for moveout testing: {past_tenant_id}")
+
+        # Test pending moveouts endpoint
+        success, pending_moveouts = self.run_test(
+            "Get pending moveouts", "GET", "tenants/pending-moveouts", 200
+        )
+        if success:
+            self.log(f"   Found {len(pending_moveouts)} pending moveouts")
+            if pending_moveouts:
+                # Test confirming moveout
+                moveout_tenant_id = pending_moveouts[0]['id']
+                success, response = self.run_test(
+                    "Confirm tenant moveout", "POST", f"tenants/{moveout_tenant_id}/confirm-moveout", 200
+                )
+                if success:
+                    self.log(f"   Confirmed moveout for tenant {moveout_tenant_id}")
+                    # Check if moveout_confirmed is now True
+                    success, updated_tenant = self.run_test(
+                        "Get updated tenant after moveout", "GET", f"tenants/{moveout_tenant_id}", 200
+                    )
+                    if success and updated_tenant.get('moveout_confirmed'):
+                        self.log(f"   ✅ Moveout confirmation status updated correctly")
+                    else:
+                        self.log(f"   ❌ Moveout confirmation status not updated", "FAIL")
 
         # Test date validation - overlapping dates
         if self.created_ids['tenants']:

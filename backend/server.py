@@ -111,6 +111,11 @@ class TenantCreate(BaseModel):
     parking: Optional[str] = ""
     notes: Optional[str] = ""
     total_rent: Optional[float] = None
+    # New fields
+    payment_method: Optional[str] = ""       # Long-term: method of payment
+    rent_due_date: Optional[str] = ""        # Long-term: day rent is due (e.g. "1st", "15th")
+    moveout_confirmed: bool = False
+    moveout_confirmed_date: Optional[str] = None
 
 class LeadCreate(BaseModel):
     name: str
@@ -129,9 +134,12 @@ class LeadCreate(BaseModel):
     tenant_id: Optional[str] = None
 
 class NotificationCreate(BaseModel):
-    lead_id: str
-    lead_name: str
-    stage_name: str
+    lead_id: Optional[str] = None
+    lead_name: Optional[str] = ""
+    tenant_id: Optional[str] = None
+    tenant_name: Optional[str] = ""
+    stage_name: Optional[str] = ""
+    notification_type: Optional[str] = "lead"  # "lead", "moveout", "deposit_return"
     notification_date: str
     message: Optional[str] = ""
 
@@ -251,6 +259,19 @@ async def list_tenants(property_id: Optional[str] = None, unit_id: Optional[str]
     docs = await db.tenants.find(query).sort("move_in_date", -1).to_list(1000)
     return [serialize_doc(d) for d in docs]
 
+@api_router.get("/tenants/pending-moveouts")
+async def get_pending_moveouts():
+    """Get tenants whose move_out_date has passed but moveout not confirmed."""
+    today_str = date.today().isoformat()
+    docs = await db.tenants.find({
+        "move_out_date": {"$lte": today_str},
+        "$or": [
+            {"moveout_confirmed": {"$exists": False}},
+            {"moveout_confirmed": False}
+        ]
+    }).to_list(1000)
+    return [serialize_doc(d) for d in docs]
+
 @api_router.get("/tenants/{tenant_id}")
 async def get_tenant(tenant_id: str):
     doc = await db.tenants.find_one({"_id": ObjectId(tenant_id)})
@@ -348,6 +369,45 @@ async def delete_tenant(tenant_id: str):
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Tenant not found")
     return {"message": "Tenant deleted"}
+
+@api_router.post("/tenants/{tenant_id}/confirm-moveout")
+async def confirm_moveout(tenant_id: str):
+    """Confirm a tenant has moved out. Creates deposit return notification for long-term tenants."""
+    tenant = await db.tenants.find_one({"_id": ObjectId(tenant_id)})
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    
+    now = datetime.now(timezone.utc).isoformat()
+    confirmed_date = date.today().isoformat()
+    
+    await db.tenants.update_one(
+        {"_id": ObjectId(tenant_id)},
+        {"$set": {
+            "moveout_confirmed": True,
+            "moveout_confirmed_date": confirmed_date,
+            "updated_at": now
+        }}
+    )
+    
+    # For long-term tenants with a deposit, create a deposit return reminder notification
+    if not tenant.get("is_airbnb_vrbo") and tenant.get("deposit_amount"):
+        deposit_return_date = (date.today() + timedelta(days=3)).isoformat()
+        notif_doc = {
+            "lead_id": None,
+            "lead_name": "",
+            "tenant_id": tenant_id,
+            "tenant_name": tenant.get("name", ""),
+            "stage_name": "Deposit Return",
+            "notification_type": "deposit_return",
+            "notification_date": deposit_return_date,
+            "message": f"Return deposit of ${tenant.get('deposit_amount', 0):,.2f} to {tenant.get('name', '')}",
+            "is_read": False,
+            "created_at": now
+        }
+        await db.notifications.insert_one(notif_doc)
+    
+    updated = await db.tenants.find_one({"_id": ObjectId(tenant_id)})
+    return serialize_doc(updated)
 
 # ============================================================
 # LEADS ENDPOINTS
