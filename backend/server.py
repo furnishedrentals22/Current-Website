@@ -789,7 +789,7 @@ async def get_vacancy(year: int = Query(default=None)):
     }
 
 # ============================================================
-# CALENDAR ENDPOINT
+# CALENDAR ENDPOINT (legacy day-by-day)
 # ============================================================
 @api_router.get("/calendar")
 async def get_calendar(year: int = Query(default=None)):
@@ -873,6 +873,151 @@ async def get_calendar(year: int = Query(default=None)):
     
     return {
         'year': year,
+        'properties': properties_data
+    }
+
+# ============================================================
+# CALENDAR TIMELINE ENDPOINT (segment-based)
+# ============================================================
+@api_router.get("/calendar/timeline")
+async def get_calendar_timeline(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    property_id: Optional[str] = None
+):
+    """Return tenant bookings and lead segments per unit for timeline view.
+    
+    Defaults: 3 months before today → 15 months after today.
+    Returns segments (not day-by-day) for efficient rendering.
+    """
+    today = date.today()
+    if start_date:
+        range_start = parse_date(start_date)
+    else:
+        # 3 months back
+        m = today.month - 3
+        y = today.year
+        while m < 1:
+            m += 12
+            y -= 1
+        range_start = date(y, m, 1)
+    
+    if end_date:
+        range_end = parse_date(end_date)
+    else:
+        # 15 months forward
+        m = today.month + 15
+        y = today.year
+        while m > 12:
+            m -= 12
+            y += 1
+        # Last day of that month
+        range_end = date(y, m, days_in_month(y, m))
+    
+    # Fetch data
+    query = {}
+    if property_id:
+        query["property_id"] = property_id
+    
+    all_properties = await db.properties.find().to_list(1000)
+    all_units = await db.units.find(query if property_id else {}).to_list(5000)
+    all_tenants = await db.tenants.find().to_list(5000)
+    all_leads = await db.leads.find({"converted_to_tenant": {"$ne": True}}).to_list(1000)
+    
+    if property_id:
+        all_properties = [p for p in all_properties if str(p['_id']) == property_id]
+    
+    prop_map = {str(p['_id']): p for p in all_properties}
+    
+    properties_data = []
+    for prop in all_properties:
+        pid = str(prop['_id'])
+        prop_units = [u for u in all_units if u.get('property_id') == pid]
+        
+        units_data = []
+        for unit in prop_units:
+            uid = str(unit['_id'])
+            
+            # Tenant bookings overlapping our range
+            bookings = []
+            unit_tenants = [t for t in all_tenants if t.get('unit_id') == uid]
+            for t in unit_tenants:
+                t_in = parse_date(t['move_in_date'])
+                t_out = parse_date(t['move_out_date'])
+                # Check overlap with visible range
+                if t_in >= range_end or t_out <= range_start:
+                    continue
+                
+                # Determine rent amount to display
+                rent_amount = None
+                if t.get('is_airbnb_vrbo'):
+                    rent_amount = t.get('total_rent')
+                else:
+                    rent_amount = t.get('monthly_rent')
+                
+                bookings.append({
+                    'tenant_id': str(t['_id']),
+                    'name': t.get('name', ''),
+                    'start_date': t_in.isoformat(),
+                    'end_date': t_out.isoformat(),
+                    'is_airbnb_vrbo': t.get('is_airbnb_vrbo', False),
+                    'rent_amount': rent_amount
+                })
+            
+            # Sort bookings by start date
+            bookings.sort(key=lambda b: b['start_date'])
+            
+            # Lead overlays overlapping our range
+            leads_segments = []
+            for lead in all_leads:
+                if uid not in lead.get('potential_unit_ids', []):
+                    continue
+                l_start_str = lead.get('desired_start_date')
+                l_end_str = lead.get('desired_end_date')
+                if not l_start_str or not l_end_str:
+                    continue
+                l_start = parse_date(l_start_str)
+                l_end = parse_date(l_end_str)
+                # Check overlap with visible range
+                if l_start > range_end or l_end < range_start:
+                    continue
+                
+                leads_segments.append({
+                    'lead_id': str(lead['_id']),
+                    'name': lead.get('name', ''),
+                    'start_date': l_start.isoformat(),
+                    'end_date': l_end.isoformat(),
+                    'rent_amount': lead.get('price_offered'),
+                    'strength': lead.get('lead_strength', 1)
+                })
+            
+            leads_segments.sort(key=lambda l: l['start_date'])
+            
+            units_data.append({
+                'unit_id': uid,
+                'unit_number': unit.get('unit_number', ''),
+                'unit_size': unit.get('unit_size', ''),
+                'base_rent': unit.get('base_rent', 0),
+                'bookings': bookings,
+                'leads': leads_segments
+            })
+        
+        # Sort units by unit number
+        units_data.sort(key=lambda u: u['unit_number'])
+        
+        properties_data.append({
+            'property_id': pid,
+            'property_name': prop.get('name', ''),
+            'units': units_data
+        })
+    
+    # Sort properties by name
+    properties_data.sort(key=lambda p: p['property_name'])
+    
+    return {
+        'range_start': range_start.isoformat(),
+        'range_end': range_end.isoformat(),
+        'today': today.isoformat(),
         'properties': properties_data
     }
 

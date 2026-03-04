@@ -1,18 +1,30 @@
 [
   {
-    "content": "Phase 3: Backend - Notes CRUD endpoints",
+    "content": "Add backend endpoint GET /api/calendar/timeline (segments per unit)",
     "status": "completed"
   },
   {
-    "content": "Phase 3: Frontend - Notes page with add/edit/delete",
+    "content": "Add getCalendarTimeline API call to frontend api.js",
     "status": "completed"
   },
   {
-    "content": "Phase 3: Add Notes to sidebar navigation",
+    "content": "Rewrite CalendarPage.js as horizontal scrollable occupancy timeline",
     "status": "completed"
   },
   {
-    "content": "Phase 3: Test Notes page",
+    "content": "Update FeaturesPage.js with Notes feature + updated Calendar description",
     "status": "completed"
+  },
+  {
+    "content": "Frontend lint check + screenshot verification",
+    "status": "completed"
+  },
+  {
+    "content": "Run testing_agent_v3 for comprehensive validation",
+    "status": "in_progress"
+  },
+  {
+    "content": "Fix any bugs found by testing agent",
+    "status": "pending"
   }
 ]

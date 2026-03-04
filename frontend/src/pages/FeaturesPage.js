@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Building2, Users, UserSearch, DollarSign, BarChart3, Calendar, Bell, FileText } from 'lucide-react';
+import { Building2, Users, UserSearch, DollarSign, BarChart3, Calendar, Bell, FileText, StickyNote } from 'lucide-react';
 
 const features = [
   {
@@ -88,15 +88,22 @@ const features = [
   },
   {
     icon: Calendar,
-    title: 'Calendar Page',
-    description: '12-month visual calendar showing occupancy per unit.',
+    title: 'Occupancy Timeline (Calendar)',
+    description: 'Horizontal, scrollable occupancy timeline inspired by Airbnb host calendars.',
     details: [
-      'Shows all 12 months in a 3-column grid layout',
-      'Units grouped by property',
-      'Color-coded day cells: green (occupied), blue (Airbnb), gray (vacant)',
-      'Lead interest shown as amber ring overlay on requested dates',
-      'Hover tooltip shows tenant name, lead names, and status',
-      'Year navigation with arrow buttons'
+      'Continuous horizontal timeline divided visually by month (no individual day squares)',
+      'Units stacked vertically, grouped by property with clear headers',
+      'Confirmed tenants shown as solid proportional bars (green for long-term, blue for Airbnb/VRBO)',
+      'Vacant periods shown as light gray background',
+      'Lead interest shown as striped/dashed overlay on vacant dates only — booking always overrides lead visually',
+      'Hover tooltip shows tenant/lead name, dates, and rent amount',
+      'Click on booking navigates to tenant page; click on lead navigates to leads page',
+      'Sticky left column with property and unit names, sticky month header row',
+      '"Today" red marker line for quick orientation',
+      'Property selector dropdown to filter by a specific property',
+      'Scroll navigation buttons (left, right, Today) for quick timeline movement',
+      'Date math powered by date-fns for accurate month-length handling',
+      'Responsive: desktop priority, tablet functional'
     ]
   },
   {
@@ -111,6 +118,19 @@ const features = [
       'Delete individual notifications',
       'Created when advancing lead through stages (optional per stage)',
       'Auto-refreshes every 30 seconds'
+    ]
+  },
+  {
+    icon: StickyNote,
+    title: 'Notes',
+    description: 'General-purpose notes for quick reference and reminders.',
+    details: [
+      'Create, view, edit, and delete notes',
+      'Each note has a title, content body, and optional color tag',
+      'Color options: default (neutral), yellow, green, blue, pink',
+      'Notes displayed as a card grid for quick visual scanning',
+      'Sorted by most recently updated',
+      'Useful for property reminders, maintenance notes, or general to-dos'
     ]
   },
   {

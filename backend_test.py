@@ -10,7 +10,7 @@ from datetime import datetime, date, timedelta
 import json
 
 class PropertyManagementTester:
-    def __init__(self, base_url="https://tenant-income-system.preview.emergentagent.com"):
+    def __init__(self, base_url="https://property-notes-build.preview.emergentagent.com"):
         self.base_url = base_url
         self.api_url = f"{base_url}/api"
         self.tests_run = 0
@@ -497,12 +497,12 @@ class PropertyManagementTester:
         if success:
             self.log(f"   Vacancy data: {len(vacancy_data.get('by_building', []))} buildings")
         
-        # Test calendar data
+        # Test legacy calendar data
         success, calendar_data = self.run_test(
-            "Get calendar data", "GET", "calendar", 200, params={"year": current_year}
+            "Get calendar data (legacy)", "GET", "calendar", 200, params={"year": current_year}
         )
         if success:
-            self.log(f"   Calendar data: {len(calendar_data.get('properties', []))} properties")
+            self.log(f"   Legacy calendar data: {len(calendar_data.get('properties', []))} properties")
         
         # Test available units
         today = date.today()
@@ -515,6 +515,98 @@ class PropertyManagementTester:
         )
         if success:
             self.log(f"   Available units: {len(available_units)} units available")
+    
+    def test_calendar_timeline(self):
+        """Test new Calendar Timeline endpoint for Airbnb-style horizontal timeline"""
+        self.log("\n=== TESTING CALENDAR TIMELINE ENDPOINT ===")
+        
+        # Test basic timeline endpoint without filters
+        success, timeline_data = self.run_test(
+            "Get calendar timeline (no filters)", "GET", "calendar/timeline", 200
+        )
+        if success:
+            # Validate required fields
+            required_fields = ['range_start', 'range_end', 'today', 'properties']
+            for field in required_fields:
+                if field in timeline_data:
+                    self.log(f"   ✅ Timeline contains required field: {field}")
+                else:
+                    self.log(f"   ❌ Timeline missing required field: {field}", "FAIL")
+            
+            # Validate date format
+            try:
+                from datetime import datetime
+                datetime.fromisoformat(timeline_data['range_start'])
+                datetime.fromisoformat(timeline_data['range_end']) 
+                datetime.fromisoformat(timeline_data['today'])
+                self.log(f"   ✅ Date fields are valid ISO format")
+            except:
+                self.log(f"   ❌ Date fields are not valid ISO format", "FAIL")
+            
+            # Validate properties structure
+            properties = timeline_data.get('properties', [])
+            self.log(f"   Timeline properties: {len(properties)}")
+            
+            for prop in properties:
+                if 'property_id' in prop and 'property_name' in prop and 'units' in prop:
+                    self.log(f"   ✅ Property '{prop['property_name']}' has correct structure")
+                    
+                    # Check units structure
+                    for unit in prop.get('units', []):
+                        required_unit_fields = ['unit_id', 'unit_number', 'unit_size', 'base_rent', 'bookings', 'leads']
+                        if all(field in unit for field in required_unit_fields):
+                            self.log(f"     ✅ Unit {unit['unit_number']} has all required fields")
+                            
+                            # Check bookings structure
+                            for booking in unit.get('bookings', []):
+                                required_booking_fields = ['tenant_id', 'name', 'start_date', 'end_date', 'is_airbnb_vrbo']
+                                if all(field in booking for field in required_booking_fields):
+                                    self.log(f"       ✅ Booking for '{booking['name']}' has correct structure")
+                                else:
+                                    self.log(f"       ❌ Booking missing required fields", "FAIL")
+                            
+                            # Check leads structure
+                            for lead in unit.get('leads', []):
+                                required_lead_fields = ['lead_id', 'name', 'start_date', 'end_date']
+                                if all(field in lead for field in required_lead_fields):
+                                    self.log(f"       ✅ Lead for '{lead['name']}' has correct structure")
+                                else:
+                                    self.log(f"       ❌ Lead missing required fields", "FAIL")
+                        else:
+                            self.log(f"     ❌ Unit {unit.get('unit_number', 'Unknown')} missing required fields", "FAIL")
+                else:
+                    self.log(f"   ❌ Property missing required fields", "FAIL")
+        
+        # Test timeline with property filter
+        if self.created_ids['properties']:
+            property_id = self.created_ids['properties'][0]
+            success, filtered_timeline = self.run_test(
+                "Get calendar timeline (with property filter)", "GET", "calendar/timeline", 200,
+                params={"property_id": property_id}
+            )
+            if success:
+                filtered_props = filtered_timeline.get('properties', [])
+                if len(filtered_props) <= 1:
+                    self.log(f"   ✅ Property filter working: {len(filtered_props)} properties returned")
+                else:
+                    self.log(f"   ❌ Property filter not working: {len(filtered_props)} properties returned", "FAIL")
+        
+        # Test timeline with custom date range
+        today = date.today()
+        start_date = (today - timedelta(days=30)).isoformat()
+        end_date = (today + timedelta(days=60)).isoformat()
+        
+        success, custom_timeline = self.run_test(
+            "Get calendar timeline (custom date range)", "GET", "calendar/timeline", 200,
+            params={"start_date": start_date, "end_date": end_date}
+        )
+        if success:
+            custom_start = custom_timeline.get('range_start')
+            custom_end = custom_timeline.get('range_end')
+            if custom_start and custom_end:
+                self.log(f"   ✅ Custom date range accepted: {custom_start} to {custom_end}")
+            else:
+                self.log(f"   ❌ Custom date range not working", "FAIL")
 
     def test_dashboard(self):
         """Test dashboard summary endpoint"""
@@ -563,6 +655,7 @@ class PropertyManagementTester:
             self.test_leads()
             self.test_notifications()
             self.test_calculations()
+            self.test_calendar_timeline()  # Test new timeline endpoint
             self.test_dashboard()
             
         finally:

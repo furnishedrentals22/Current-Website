@@ -1,0 +1,55 @@
+{
+  "summary": "Successfully tested Calendar page redesign from 12-month grid to horizontal scrollable occupancy timeline (Airbnb-style). Backend /api/calendar/timeline endpoint working perfectly with segment-based data. Frontend timeline renders correctly with property grouping, booking bars, lead overlays, sticky headers, and navigation controls. All other pages work correctly (regression test passed).",
+  "backend_issues": {
+    "minor_issues": [
+      {
+        "endpoint": "POST /api/units",
+        "issue": "Returns 422 for invalid property_id instead of expected 404", 
+        "impact": "Test expectation mismatch, functionality works correctly",
+        "fix_priority": "LOW"
+      },
+      {
+        "endpoint": "POST /api/tenants",
+        "issue": "Date validation prevents creating past tenant for moveout testing",
+        "impact": "Test setup limitation, actual validation is working correctly", 
+        "fix_priority": "LOW"
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "passed_tests": [
+    "Backend: Calendar timeline endpoint returns correct segment data structure",
+    "Backend: Timeline endpoint accepts property_id filter parameter", 
+    "Backend: Timeline endpoint accepts custom date range parameters",
+    "Backend: Timeline returns range_start, range_end, today fields",
+    "Backend: All existing CRUD endpoints still work (Properties, Units, Tenants, Leads)",
+    "Backend: Income, Vacancy, Dashboard endpoints functional",
+    "Frontend: Calendar renders as horizontal scrollable timeline (not old grid)",
+    "Frontend: Property headers and unit rows grouped correctly", 
+    "Frontend: Booking bars proportional to dates (green=long-term, blue=Airbnb)",
+    "Frontend: Lead overlays with striped pattern on vacant time only",
+    "Frontend: Sticky left column with property/unit labels",
+    "Frontend: Sticky month header row with month labels", 
+    "Frontend: Today red marker line visible",
+    "Frontend: Property selector dropdown filters properties",
+    "Frontend: Scroll buttons (left, right, Today) work",
+    "Frontend: Timeline legend shows booking types",
+    "FeaturesPage: Includes Notes feature section",
+    "FeaturesPage: Updated Calendar/Timeline description",
+    "Regression: Properties, Tenants, Leads, Income, Vacancy, Notes pages work correctly"
+  ],
+  "test_report_links": ["/app/backend_test.py"],
+  "success_percentage": {
+    "backend": "95.1% (39/41 tests passed)",
+    "frontend": "100% (all major timeline features verified)",
+    "regression": "100% (all other pages working)"
+  },
+  "action_item_for_main_agent": "",
+  "updated_files": ["/app/backend_test.py"],
+  "should_call_test_agent_after_fix": "false",
+  "should_main_agent_test_itself": "true"
+}

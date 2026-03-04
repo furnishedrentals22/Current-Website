@@ -54,6 +54,9 @@ export const getIncome = (year) => api.get('/income', { params: { year } }).then
 export const getVacancy = (year) => api.get('/vacancy', { params: { year } }).then(r => r.data);
 export const getCalendarData = (year) => api.get('/calendar', { params: { year } }).then(r => r.data);
 
+// Calendar timeline (segment-based)
+export const getCalendarTimeline = (params = {}) => api.get('/calendar/timeline', { params }).then(r => r.data);
+
 // Available units
 export const getAvailableUnits = (startDate, endDate) => {
   const params = {};
@@ -64,5 +67,12 @@ export const getAvailableUnits = (startDate, endDate) => {
 
 // Dashboard
 export const getDashboard = () => api.get('/dashboard').then(r => r.data);
+
+// Notes
+export const getNotes = () => api.get('/notes').then(r => r.data);
+export const getNote = (id) => api.get(`/notes/${id}`).then(r => r.data);
+export const createNote = (data) => api.post('/notes', data).then(r => r.data);
+export const updateNote = (id, data) => api.put(`/notes/${id}`, data).then(r => r.data);
+export const deleteNote = (id) => api.delete(`/notes/${id}`).then(r => r.data);
 
 export default api;
