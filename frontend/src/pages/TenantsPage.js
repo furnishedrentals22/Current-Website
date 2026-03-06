@@ -885,6 +885,7 @@ export default function TenantsPage() {
                 {detailTenant?.is_airbnb_vrbo ? 'Airbnb/VRBO' : 'Long-term'}
               </Badge>
             </DialogTitle>
+            <DialogDescription className="sr-only">Tenant details</DialogDescription>
           </DialogHeader>
           {detailTenant && (
             <div className="space-y-4 py-2">
@@ -1081,6 +1082,7 @@ export default function TenantsPage() {
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="font-heading">{editing ? 'Edit Tenant' : 'Add Tenant'}</DialogTitle>
+            <DialogDescription className="sr-only">{editing ? 'Edit tenant information' : 'Add a new tenant'}</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
