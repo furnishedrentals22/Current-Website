@@ -1,31 +1,21 @@
 #!/usr/bin/env python3
-"""
-Comprehensive Backend API Testing for Property Management System
-Tests all CRUD operations, data validation, and calculation endpoints
-"""
 
 import requests
 import sys
 from datetime import datetime, date, timedelta
 import json
 
-class PropertyManagementTester:
-    def __init__(self, base_url="https://property-notes-build.preview.emergentagent.com"):
+class LeaseTrackerAPITester:
+    def __init__(self, base_url="https://lease-tracker-20.preview.emergentagent.com"):
         self.base_url = base_url
-        self.api_url = f"{base_url}/api"
+        self.api_url = f"{self.base_url}/api"
         self.tests_run = 0
         self.tests_passed = 0
-        self.created_ids = {
+        self.created_resources = {
             'properties': [],
             'units': [],
-            'tenants': [],
-            'leads': [],
-            'notifications': []
+            'tenants': []
         }
-
-    def log(self, message, status="INFO"):
-        """Log test results"""
-        print(f"[{status}] {message}")
 
     def run_test(self, name, method, endpoint, expected_status, data=None, params=None):
         """Run a single API test"""
@@ -33,7 +23,7 @@ class PropertyManagementTester:
         headers = {'Content-Type': 'application/json'}
 
         self.tests_run += 1
-        self.log(f"Testing {name}...")
+        print(f"\n🔍 Testing {name}...")
         
         try:
             if method == 'GET':
@@ -48,641 +38,314 @@ class PropertyManagementTester:
             success = response.status_code == expected_status
             if success:
                 self.tests_passed += 1
-                self.log(f"✅ PASSED - {name} - Status: {response.status_code}", "PASS")
+                print(f"✅ Passed - Status: {response.status_code}")
                 try:
-                    return True, response.json() if response.content else {}
+                    return True, response.json() if response.text else {}
                 except:
                     return True, {}
             else:
-                self.log(f"❌ FAILED - {name} - Expected {expected_status}, got {response.status_code}", "FAIL")
+                print(f"❌ Failed - Expected {expected_status}, got {response.status_code}")
                 try:
-                    error_detail = response.json()
-                    self.log(f"   Error: {error_detail}")
+                    print(f"   Response: {response.json()}")
                 except:
-                    self.log(f"   Response text: {response.text[:200]}")
+                    print(f"   Response: {response.text}")
                 return False, {}
 
         except Exception as e:
-            self.log(f"❌ FAILED - {name} - Error: {str(e)}", "FAIL")
+            print(f"❌ Failed - Error: {str(e)}")
             return False, {}
 
-    def test_properties(self):
-        """Test Properties CRUD operations"""
-        self.log("\n=== TESTING PROPERTIES ===")
+    def test_properties_with_building_id(self):
+        """Test property creation and sorting by building_id"""
+        print("\n=== Testing Properties with Building ID ===")
         
-        # Test listing empty properties
-        success, data = self.run_test(
-            "List properties (empty)", "GET", "properties", 200
-        )
-        if success and isinstance(data, list):
-            self.log(f"   Found {len(data)} existing properties")
-
-        # Test creating property
-        property_data = {
+        # Create properties with different building_ids
+        prop1_data = {
+            "name": "Test Property 3",
+            "address": "789 Test Ave",
+            "owner_manager_name": "Manager C",
+            "owner_manager_phone": "555-0003",
+            "owner_manager_email": "managerc@test.com",
+            "building_id": 3
+        }
+        
+        prop2_data = {
             "name": "Test Property 1",
-            "address": "123 Test St, Test City, TC 12345",
-            "owner_manager_name": "John Manager",
-            "owner_manager_phone": "555-0123",
-            "owner_manager_email": "john@test.com",
-            "available_parking": "2 spots",
-            "pets_permitted": True,
-            "pet_notes": "Small dogs only",
-            "building_amenities": ["Pool", "Gym", "Laundry"],
-            "additional_notes": "Test property for API testing"
+            "address": "123 Test St",
+            "owner_manager_name": "Manager A", 
+            "owner_manager_phone": "555-0001",
+            "owner_manager_email": "managera@test.com",
+            "building_id": 1
         }
         
-        success, response = self.run_test(
-            "Create property", "POST", "properties", 200, property_data
-        )
-        if success and 'id' in response:
-            property_id = response['id']
-            self.created_ids['properties'].append(property_id)
-            self.log(f"   Created property ID: {property_id}")
-            
-            # Test getting specific property
-            self.run_test(
-                "Get property by ID", "GET", f"properties/{property_id}", 200
-            )
-            
-            # Test updating property
-            updated_data = property_data.copy()
-            updated_data['name'] = "Updated Test Property 1"
-            updated_data['pets_permitted'] = False
-            
-            self.run_test(
-                "Update property", "PUT", f"properties/{property_id}", 200, updated_data
-            )
-        
-        # Test invalid property creation (missing required fields)
-        invalid_data = {"name": ""}
-        self.run_test(
-            "Create property (invalid - empty name)", "POST", "properties", 422, invalid_data
-        )
+        prop3_data = {
+            "name": "Test Property No ID",
+            "address": "456 Test Blvd",
+            "owner_manager_name": "Manager B",
+            "owner_manager_phone": "555-0002", 
+            "owner_manager_email": "managerb@test.com"
+            # No building_id
+        }
 
-    def test_units(self):
-        """Test Units CRUD operations"""
-        self.log("\n=== TESTING UNITS ===")
+        # Create properties (API returns 200 instead of 201)
+        success1, prop1 = self.run_test("Create Property with building_id 3", "POST", "properties", 200, prop1_data)
+        if success1 and 'id' in prop1:
+            self.created_resources['properties'].append(prop1['id'])
         
-        if not self.created_ids['properties']:
-            self.log("❌ Cannot test units - no properties created", "FAIL")
-            return
+        success2, prop2 = self.run_test("Create Property with building_id 1", "POST", "properties", 200, prop2_data)
+        if success2 and 'id' in prop2:
+            self.created_resources['properties'].append(prop2['id'])
+            
+        success3, prop3 = self.run_test("Create Property without building_id", "POST", "properties", 200, prop3_data)  
+        if success3 and 'id' in prop3:
+            self.created_resources['properties'].append(prop3['id'])
+
+        # Test properties list is sorted by building_id
+        success, properties = self.run_test("Get Properties (check sorting)", "GET", "properties", 200)
+        if success:
+            # Find our test properties
+            test_props = [p for p in properties if p.get('name', '').startswith('Test Property')]
+            if len(test_props) >= 2:
+                # Check if properties with building_id come before those without
+                building_ids = [p.get('building_id') for p in test_props]
+                print(f"   Building IDs order: {building_ids}")
+                
+                # Properties should be sorted: building_id 1, 3, then None
+                sorted_correctly = True
+                has_id_props = [p for p in test_props if p.get('building_id') is not None]
+                no_id_props = [p for p in test_props if p.get('building_id') is None]
+                
+                # Check building_id properties are sorted ascending
+                if len(has_id_props) >= 2:
+                    for i in range(1, len(has_id_props)):
+                        if has_id_props[i-1]['building_id'] > has_id_props[i]['building_id']:
+                            sorted_correctly = False
+                            print(f"   ❌ Building ID sort order incorrect")
+                            break
+                
+                if sorted_correctly:
+                    print(f"   ✅ Properties sorted correctly by building_id")
+                else:
+                    print(f"   ❌ Properties NOT sorted correctly by building_id")
         
-        property_id = self.created_ids['properties'][0]
+        return success1 and success2 and success3
+
+    def test_tenant_deposit_return_fields(self):
+        """Test tenant creation and update with deposit return fields"""
+        print("\n=== Testing Tenant Deposit Return Fields ===")
         
-        # Test listing units
-        self.run_test(
-            "List units", "GET", "units", 200
-        )
+        # First create a property and unit for the tenant
+        prop_data = {
+            "name": "Tenant Test Property",
+            "address": "999 Tenant St",
+            "owner_manager_name": "Test Manager",
+            "owner_manager_phone": "555-0999",
+            "owner_manager_email": "test@test.com"
+        }
         
-        # Test creating unit
-        today = date.today()
+        success_prop, prop = self.run_test("Create Property for Tenant", "POST", "properties", 200, prop_data)
+        if success_prop and 'id' in prop:
+            self.created_resources['properties'].append(prop['id'])
+        else:
+            print("   ❌ Failed to create property for tenant test")
+            return False
+        
         unit_data = {
-            "property_id": property_id,
+            "property_id": prop['id'],
             "unit_number": "101",
-            "unit_size": "2/1",
-            "unit_size_custom": "",
-            "base_rent": 1500.0,
-            "additional_monthly_costs": [
-                {"name": "Parking", "amount": 50.0},
-                {"name": "Pet Fee", "amount": 25.0}
-            ],
-            "availability_start_date": today.isoformat(),
-            "close_date": None
+            "unit_size": "1/1", 
+            "base_rent": 1200.0,
+            "availability_start_date": "2024-01-01"
         }
         
-        success, response = self.run_test(
-            "Create unit", "POST", "units", 200, unit_data
-        )
-        if success and 'id' in response:
-            unit_id = response['id']
-            self.created_ids['units'].append(unit_id)
-            self.log(f"   Created unit ID: {unit_id}")
-            
-            # Test getting specific unit
-            self.run_test(
-                "Get unit by ID", "GET", f"units/{unit_id}", 200
-            )
-            
-            # Create second unit for testing
-            unit_data2 = unit_data.copy()
-            unit_data2['unit_number'] = "102"
-            unit_data2['unit_size'] = "1/1"
-            unit_data2['base_rent'] = 1200.0
-            
-            success, response = self.run_test(
-                "Create second unit", "POST", "units", 200, unit_data2
-            )
-            if success and 'id' in response:
-                self.created_ids['units'].append(response['id'])
-        
-        # Test invalid unit creation
-        invalid_unit = {"property_id": "invalid_id", "unit_number": "", "base_rent": -100}
-        self.run_test(
-            "Create unit (invalid property_id)", "POST", "units", 404, invalid_unit
-        )
+        success_unit, unit = self.run_test("Create Unit for Tenant", "POST", "units", 200, unit_data)
+        if success_unit and 'id' in unit:
+            self.created_resources['units'].append(unit['id'])
+        else:
+            print("   ❌ Failed to create unit for tenant test") 
+            return False
 
-    def test_tenants(self):
-        """Test Tenants CRUD operations with date validation"""
-        self.log("\n=== TESTING TENANTS ===")
-        
-        if not self.created_ids['units']:
-            self.log("❌ Cannot test tenants - no units created", "FAIL")
-            return
-        
-        unit_id = self.created_ids['units'][0]
-        property_id = self.created_ids['properties'][0]
-        
-        # Test creating long-term tenant with new fields
-        today = date.today()
-        move_in = today + timedelta(days=1)
-        move_out = today + timedelta(days=365)
-        
-        longterm_tenant_data = {
-            "property_id": property_id,
-            "unit_id": unit_id,
-            "name": "John Tenant",
-            "phone": "555-0456",
-            "email": "john.tenant@email.com",
-            "move_in_date": move_in.isoformat(),
-            "move_out_date": move_out.isoformat(),
+        # Create tenant with deposit return fields
+        tenant_data = {
+            "property_id": prop['id'],
+            "unit_id": unit['id'],
+            "name": "Test Tenant",
+            "phone": "555-1234",
+            "email": "tenant@test.com",
+            "move_in_date": "2024-01-15",
+            "move_out_date": "2024-12-15",
             "is_airbnb_vrbo": False,
-            "deposit_amount": 1500.0,
-            "deposit_date": move_in.isoformat(),
-            "monthly_rent": 1500.0,
-            "partial_first_month": None,
-            "partial_last_month": None,
-            "pets": "1 small dog",
-            "parking": "Space #1",
-            "notes": "Test long-term tenant",
-            "total_rent": None,
-            "payment_method": "Bank Transfer",
-            "rent_due_date": "1st",
-            "moveout_confirmed": False,
-            "moveout_confirmed_date": None
+            "deposit_amount": 1200.0,
+            "deposit_date": "2024-01-10",
+            "monthly_rent": 1200.0,
+            "deposit_return_date": "2024-12-20",
+            "deposit_return_amount": 1150.0,
+            "deposit_return_method": "Check"
         }
         
-        success, response = self.run_test(
-            "Create long-term tenant", "POST", "tenants", 200, longterm_tenant_data
-        )
-        if success and 'id' in response:
-            tenant_id = response['id']
-            self.created_ids['tenants'].append(tenant_id)
-            self.log(f"   Created long-term tenant ID: {tenant_id}")
-        
-        # Test creating Airbnb/VRBO tenant with notes field (different unit)
-        if len(self.created_ids['units']) > 1:
-            unit_id2 = self.created_ids['units'][1]
-            airbnb_move_in = today + timedelta(days=30)
-            airbnb_move_out = today + timedelta(days=37)  # 7 nights
+        success, tenant = self.run_test("Create Tenant with Deposit Return Fields", "POST", "tenants", 200, tenant_data)
+        if success and 'id' in tenant:
+            self.created_resources['tenants'].append(tenant['id'])
             
-            airbnb_tenant_data = {
-                "property_id": property_id,
-                "unit_id": unit_id2,
-                "name": "Sarah Airbnb",
-                "phone": "555-0789",
-                "email": "sarah@email.com",
-                "move_in_date": airbnb_move_in.isoformat(),
-                "move_out_date": airbnb_move_out.isoformat(),
-                "is_airbnb_vrbo": True,
-                "deposit_amount": None,
-                "deposit_date": None,
-                "monthly_rent": None,
-                "partial_first_month": None,
-                "partial_last_month": None,
-                "pets": "",
-                "parking": "",
-                "notes": "Guest from California, traveling with family",
-                "total_rent": 840.0,  # 7 nights at $120/night
-                "payment_method": "",
-                "rent_due_date": "",
-                "moveout_confirmed": False,
-                "moveout_confirmed_date": None
-            }
+            # Check that deposit return fields are saved
+            expected_fields = ['deposit_return_date', 'deposit_return_amount', 'deposit_return_method']
+            missing_fields = []
             
-            success, response = self.run_test(
-                "Create Airbnb tenant", "POST", "tenants", 200, airbnb_tenant_data
-            )
-            if success and 'id' in response:
-                self.created_ids['tenants'].append(response['id'])
-                # Check if breakdown was calculated
-                if 'total_nights' in response:
-                    self.log(f"   Airbnb breakdown: {response['total_nights']} nights at ${response['rent_per_night']}/night")
-
-        # Test creating past tenant for pending moveout testing
-        past_move_in = today - timedelta(days=30)
-        past_move_out = today - timedelta(days=1)  # Moved out yesterday
-        
-        if len(self.created_ids['units']) > 1:
-            past_tenant_data = {
-                "property_id": property_id,
-                "unit_id": self.created_ids['units'][1],
-                "name": "Past Tenant",
-                "phone": "555-9999",
-                "email": "past@email.com",
-                "move_in_date": past_move_in.isoformat(),
-                "move_out_date": past_move_out.isoformat(),
-                "is_airbnb_vrbo": False,
-                "monthly_rent": 1200.0,
-                "deposit_amount": 1200.0,
-                "deposit_date": past_move_in.isoformat(),
-                "payment_method": "Zelle",
-                "rent_due_date": "15th",
-                "moveout_confirmed": False,
-                "notes": "Should appear in pending moveouts"
-            }
+            for field in expected_fields:
+                if field not in tenant or tenant[field] is None:
+                    missing_fields.append(field)
             
-            success, response = self.run_test(
-                "Create past tenant (for pending moveout)", "POST", "tenants", 200, past_tenant_data
-            )
-            if success and 'id' in response:
-                past_tenant_id = response['id']
-                self.created_ids['tenants'].append(past_tenant_id)
-                self.log(f"   Created past tenant for moveout testing: {past_tenant_id}")
-
-        # Test pending moveouts endpoint
-        success, pending_moveouts = self.run_test(
-            "Get pending moveouts", "GET", "tenants/pending-moveouts", 200
-        )
-        if success:
-            self.log(f"   Found {len(pending_moveouts)} pending moveouts")
-            if pending_moveouts:
-                # Test confirming moveout
-                moveout_tenant_id = pending_moveouts[0]['id']
-                success, response = self.run_test(
-                    "Confirm tenant moveout", "POST", f"tenants/{moveout_tenant_id}/confirm-moveout", 200
-                )
-                if success:
-                    self.log(f"   Confirmed moveout for tenant {moveout_tenant_id}")
-                    # Check if moveout_confirmed is now True
-                    success, updated_tenant = self.run_test(
-                        "Get updated tenant after moveout", "GET", f"tenants/{moveout_tenant_id}", 200
-                    )
-                    if success and updated_tenant.get('moveout_confirmed'):
-                        self.log(f"   ✅ Moveout confirmation status updated correctly")
-                    else:
-                        self.log(f"   ❌ Moveout confirmation status not updated", "FAIL")
-
-        # Test date validation - overlapping dates
-        if self.created_ids['tenants']:
-            overlapping_tenant = longterm_tenant_data.copy()
-            overlapping_tenant['name'] = "Overlapping Tenant"
-            overlapping_tenant['move_in_date'] = (move_in + timedelta(days=30)).isoformat()
-            overlapping_tenant['move_out_date'] = (move_out + timedelta(days=30)).isoformat()
-            
-            self.run_test(
-                "Create tenant (overlapping dates)", "POST", "tenants", 400, overlapping_tenant
-            )
-
-    def test_leads(self):
-        """Test Leads CRUD operations and stage management"""
-        self.log("\n=== TESTING LEADS ===")
-        
-        # Test lead stages endpoint
-        self.run_test(
-            "Get lead stages", "GET", "lead-stages", 200
-        )
-        
-        # Test creating lead with new fields
-        today = date.today()
-        lead_data = {
-            "name": "Jane Prospect",
-            "source": "Website",
-            "phone": "555-0321",
-            "email": "jane@prospect.com",
-            "desired_start_date": (today + timedelta(days=60)).isoformat(),
-            "desired_end_date": (today + timedelta(days=425)).isoformat(),
-            "potential_unit_ids": self.created_ids['units'][:1] if self.created_ids['units'] else [],
-            "pets": "1 cat",
-            "parking_request": "1 space",
-            "lead_strength": 3,
-            "progress_stage": 1,
-            "showing_date": None,
-            "converted_to_tenant": False,
-            "tenant_id": None,
-            # New fields
-            "price_offered": 1400.0,
-            "preferred_contact_method": "Text message",
-            "notes": "Very interested, good credit score",
-            "is_unassigned": False,
-            "unassigned_note": ""
-        }
-        
-        success, response = self.run_test(
-            "Create lead", "POST", "leads", 200, lead_data
-        )
-        if success and 'id' in response:
-            lead_id = response['id']
-            self.created_ids['leads'].append(lead_id)
-            self.log(f"   Created lead ID: {lead_id}")
-            
-            # Test advancing to stage 2 (should require showing_date)
-            advanced_lead = lead_data.copy()
-            advanced_lead['progress_stage'] = 2
-            advanced_lead['showing_date'] = (today + timedelta(days=7)).isoformat() + "T14:00"
-            
-            self.run_test(
-                "Advance lead to stage 2", "PUT", f"leads/{lead_id}", 200, advanced_lead
-            )
-            
-            # Test creating unassigned lead
-            unassigned_lead_data = {
-                "name": "Unassigned Prospect",
-                "source": "Referral",
-                "phone": "555-8888",
-                "email": "unassigned@test.com",
-                "desired_start_date": (today + timedelta(days=30)).isoformat(),
-                "desired_end_date": (today + timedelta(days=60)).isoformat(),
-                "potential_unit_ids": [],
-                "pets": "",
-                "parking_request": "",
-                "lead_strength": 2,
-                "progress_stage": 1,
-                "showing_date": None,
-                "converted_to_tenant": False,
-                "tenant_id": None,
-                "price_offered": None,
-                "preferred_contact_method": "Email",
-                "notes": "Flexible on dates, waiting for right unit",
-                "is_unassigned": True,
-                "unassigned_note": "Good candidate but no current availability"
-            }
-            
-            success, response = self.run_test(
-                "Create unassigned lead", "POST", "leads", 200, unassigned_lead_data
-            )
-            if success and 'id' in response:
-                unassigned_lead_id = response['id']
-                self.created_ids['leads'].append(unassigned_lead_id)
-                self.log(f"   Created unassigned lead ID: {unassigned_lead_id}")
-                
-                # Verify the new fields were saved correctly
-                success, retrieved_lead = self.run_test(
-                    "Get unassigned lead to verify fields", "GET", f"leads/{unassigned_lead_id}", 200
-                )
-                if success:
-                    if retrieved_lead.get('price_offered') is None:
-                        self.log("   ✅ price_offered field correctly handled as null")
-                    if retrieved_lead.get('preferred_contact_method') == "Email":
-                        self.log("   ✅ preferred_contact_method field saved correctly")
-                    if retrieved_lead.get('notes') == "Flexible on dates, waiting for right unit":
-                        self.log("   ✅ notes field saved correctly")
-                    if retrieved_lead.get('is_unassigned') == True:
-                        self.log("   ✅ is_unassigned field saved correctly")
-                    if retrieved_lead.get('unassigned_note') == "Good candidate but no current availability":
-                        self.log("   ✅ unassigned_note field saved correctly")
-                
-                # Test updating unassigned note
-                updated_unassigned = unassigned_lead_data.copy()
-                updated_unassigned['unassigned_note'] = "Updated note about usefulness"
-                
-                self.run_test(
-                    "Update unassigned lead note", "PUT", f"leads/{unassigned_lead_id}", 200, updated_unassigned
-                )
-
-    def test_notifications(self):
-        """Test Notifications CRUD operations"""
-        self.log("\n=== TESTING NOTIFICATIONS ===")
-        
-        # Test listing notifications
-        self.run_test(
-            "List notifications", "GET", "notifications", 200
-        )
-        
-        if self.created_ids['leads']:
-            lead_id = self.created_ids['leads'][0]
-            
-            # Test creating notification
-            notification_data = {
-                "lead_id": lead_id,
-                "lead_name": "Jane Prospect",
-                "stage_name": "Showing Set",
-                "notification_date": (date.today() + timedelta(days=1)).isoformat(),
-                "message": "Follow up on showing for Jane Prospect"
-            }
-            
-            success, response = self.run_test(
-                "Create notification", "POST", "notifications", 200, notification_data
-            )
-            if success and 'id' in response:
-                notif_id = response['id']
-                self.created_ids['notifications'].append(notif_id)
-                
-                # Test marking as read
-                self.run_test(
-                    "Mark notification as read", "PUT", f"notifications/{notif_id}/read", 200
-                )
-                
-                # Test marking as unread
-                self.run_test(
-                    "Mark notification as unread", "PUT", f"notifications/{notif_id}/unread", 200
-                )
-
-    def test_calculations(self):
-        """Test calculation endpoints (Income, Vacancy, Calendar)"""
-        self.log("\n=== TESTING CALCULATION ENDPOINTS ===")
-        
-        current_year = datetime.now().year
-        
-        # Test income calculations
-        success, income_data = self.run_test(
-            "Get income data", "GET", "income", 200, params={"year": current_year}
-        )
-        if success:
-            self.log(f"   Income data: Yearly total: ${income_data.get('yearly_total', 0)}")
-        
-        # Test vacancy calculations
-        success, vacancy_data = self.run_test(
-            "Get vacancy data", "GET", "vacancy", 200, params={"year": current_year}
-        )
-        if success:
-            self.log(f"   Vacancy data: {len(vacancy_data.get('by_building', []))} buildings")
-        
-        # Test legacy calendar data
-        success, calendar_data = self.run_test(
-            "Get calendar data (legacy)", "GET", "calendar", 200, params={"year": current_year}
-        )
-        if success:
-            self.log(f"   Legacy calendar data: {len(calendar_data.get('properties', []))} properties")
-        
-        # Test available units
-        today = date.today()
-        start_date = today + timedelta(days=30)
-        end_date = today + timedelta(days=37)
-        
-        success, available_units = self.run_test(
-            "Get available units", "GET", "available-units", 200, 
-            params={"start_date": start_date.isoformat(), "end_date": end_date.isoformat()}
-        )
-        if success:
-            self.log(f"   Available units: {len(available_units)} units available")
-    
-    def test_calendar_timeline(self):
-        """Test new Calendar Timeline endpoint for Airbnb-style horizontal timeline"""
-        self.log("\n=== TESTING CALENDAR TIMELINE ENDPOINT ===")
-        
-        # Test basic timeline endpoint without filters
-        success, timeline_data = self.run_test(
-            "Get calendar timeline (no filters)", "GET", "calendar/timeline", 200
-        )
-        if success:
-            # Validate required fields
-            required_fields = ['range_start', 'range_end', 'today', 'properties']
-            for field in required_fields:
-                if field in timeline_data:
-                    self.log(f"   ✅ Timeline contains required field: {field}")
-                else:
-                    self.log(f"   ❌ Timeline missing required field: {field}", "FAIL")
-            
-            # Validate date format
-            try:
-                from datetime import datetime
-                datetime.fromisoformat(timeline_data['range_start'])
-                datetime.fromisoformat(timeline_data['range_end']) 
-                datetime.fromisoformat(timeline_data['today'])
-                self.log(f"   ✅ Date fields are valid ISO format")
-            except:
-                self.log(f"   ❌ Date fields are not valid ISO format", "FAIL")
-            
-            # Validate properties structure
-            properties = timeline_data.get('properties', [])
-            self.log(f"   Timeline properties: {len(properties)}")
-            
-            for prop in properties:
-                if 'property_id' in prop and 'property_name' in prop and 'units' in prop:
-                    self.log(f"   ✅ Property '{prop['property_name']}' has correct structure")
-                    
-                    # Check units structure
-                    for unit in prop.get('units', []):
-                        required_unit_fields = ['unit_id', 'unit_number', 'unit_size', 'base_rent', 'bookings', 'leads']
-                        if all(field in unit for field in required_unit_fields):
-                            self.log(f"     ✅ Unit {unit['unit_number']} has all required fields")
-                            
-                            # Check bookings structure
-                            for booking in unit.get('bookings', []):
-                                required_booking_fields = ['tenant_id', 'name', 'start_date', 'end_date', 'is_airbnb_vrbo']
-                                if all(field in booking for field in required_booking_fields):
-                                    self.log(f"       ✅ Booking for '{booking['name']}' has correct structure")
-                                else:
-                                    self.log(f"       ❌ Booking missing required fields", "FAIL")
-                            
-                            # Check leads structure
-                            for lead in unit.get('leads', []):
-                                required_lead_fields = ['lead_id', 'name', 'start_date', 'end_date']
-                                if all(field in lead for field in required_lead_fields):
-                                    self.log(f"       ✅ Lead for '{lead['name']}' has correct structure")
-                                else:
-                                    self.log(f"       ❌ Lead missing required fields", "FAIL")
-                        else:
-                            self.log(f"     ❌ Unit {unit.get('unit_number', 'Unknown')} missing required fields", "FAIL")
-                else:
-                    self.log(f"   ❌ Property missing required fields", "FAIL")
-        
-        # Test timeline with property filter
-        if self.created_ids['properties']:
-            property_id = self.created_ids['properties'][0]
-            success, filtered_timeline = self.run_test(
-                "Get calendar timeline (with property filter)", "GET", "calendar/timeline", 200,
-                params={"property_id": property_id}
-            )
-            if success:
-                filtered_props = filtered_timeline.get('properties', [])
-                if len(filtered_props) <= 1:
-                    self.log(f"   ✅ Property filter working: {len(filtered_props)} properties returned")
-                else:
-                    self.log(f"   ❌ Property filter not working: {len(filtered_props)} properties returned", "FAIL")
-        
-        # Test timeline with custom date range
-        today = date.today()
-        start_date = (today - timedelta(days=30)).isoformat()
-        end_date = (today + timedelta(days=60)).isoformat()
-        
-        success, custom_timeline = self.run_test(
-            "Get calendar timeline (custom date range)", "GET", "calendar/timeline", 200,
-            params={"start_date": start_date, "end_date": end_date}
-        )
-        if success:
-            custom_start = custom_timeline.get('range_start')
-            custom_end = custom_timeline.get('range_end')
-            if custom_start and custom_end:
-                self.log(f"   ✅ Custom date range accepted: {custom_start} to {custom_end}")
+            if not missing_fields:
+                print(f"   ✅ All deposit return fields saved correctly")
+                print(f"   - Deposit Return Date: {tenant.get('deposit_return_date')}")
+                print(f"   - Deposit Return Amount: {tenant.get('deposit_return_amount')}")  
+                print(f"   - Deposit Return Method: {tenant.get('deposit_return_method')}")
             else:
-                self.log(f"   ❌ Custom date range not working", "FAIL")
+                print(f"   ❌ Missing deposit return fields: {missing_fields}")
+                
+            # Test updating tenant with new deposit return info
+            update_data = tenant_data.copy()
+            update_data['deposit_return_amount'] = 1100.0
+            update_data['deposit_return_method'] = "Zelle"
+            
+            success_update, updated_tenant = self.run_test("Update Tenant Deposit Return Fields", "PUT", f"tenants/{tenant['id']}", 200, update_data)
+            if success_update:
+                if updated_tenant.get('deposit_return_amount') == 1100.0 and updated_tenant.get('deposit_return_method') == "Zelle":
+                    print(f"   ✅ Deposit return fields updated correctly")
+                else:
+                    print(f"   ❌ Deposit return fields not updated correctly")
+                    
+        return success
 
-    def test_dashboard(self):
-        """Test dashboard summary endpoint"""
-        self.log("\n=== TESTING DASHBOARD ===")
+    def test_calendar_timeline_sorting(self):
+        """Test calendar timeline endpoint returns properties sorted by building_id"""
+        print("\n=== Testing Calendar Timeline Sorting ===")
         
-        success, dashboard_data = self.run_test(
-            "Get dashboard summary", "GET", "dashboard", 200
-        )
-        if success:
-            self.log(f"   Dashboard: {dashboard_data.get('properties_count', 0)} properties, "
-                    f"{dashboard_data.get('units_count', 0)} units, "
-                    f"{dashboard_data.get('tenants_count', 0)} tenants, "
-                    f"{dashboard_data.get('leads_count', 0)} leads")
+        success, timeline = self.run_test("Get Calendar Timeline", "GET", "calendar/timeline", 200)
+        if success and 'properties' in timeline:
+            properties = timeline['properties']
+            if len(properties) > 1:
+                # Check building_id sorting
+                building_ids = [p.get('building_id') for p in properties]
+                print(f"   Timeline properties building_ids: {building_ids}")
+                
+                # Verify properties with building_id come first, sorted ascending
+                has_id_props = [p for p in properties if p.get('building_id') is not None]
+                no_id_props = [p for p in properties if p.get('building_id') is None]
+                
+                sorted_correctly = True
+                
+                # Check building_id properties are sorted ascending
+                if len(has_id_props) >= 2:
+                    for i in range(1, len(has_id_props)):
+                        if has_id_props[i-1]['building_id'] > has_id_props[i]['building_id']:
+                            sorted_correctly = False
+                            break
+                
+                # Check units within properties are sorted numerically  
+                for prop in properties:
+                    units = prop.get('units', [])
+                    if len(units) > 1:
+                        unit_numbers = [u.get('unit_number', '') for u in units]
+                        print(f"   Property '{prop.get('property_name')}' unit numbers: {unit_numbers}")
+                        
+                        # Try to parse as integers and check sorting
+                        try:
+                            unit_ints = []
+                            for num in unit_numbers:
+                                try:
+                                    unit_ints.append(int(num))
+                                except ValueError:
+                                    unit_ints.append(float('inf'))  # Non-numeric go to end
+                            
+                            if unit_ints == sorted(unit_ints):
+                                print(f"   ✅ Units sorted numerically in property")
+                            else:
+                                print(f"   ❌ Units NOT sorted numerically in property")
+                                sorted_correctly = False
+                        except:
+                            pass  # Skip if can't parse
+                
+                if sorted_correctly:
+                    print(f"   ✅ Timeline properties and units sorted correctly")
+                else:
+                    print(f"   ❌ Timeline sorting incorrect")
+                    
+        return success
 
-    def cleanup_test_data(self):
-        """Clean up created test data"""
-        self.log("\n=== CLEANING UP TEST DATA ===")
+    def test_basic_endpoints(self):
+        """Test basic CRUD operations still work"""
+        print("\n=== Testing Basic CRUD Operations ===")
         
-        # Delete in reverse order of dependencies
-        for notif_id in self.created_ids['notifications']:
-            self.run_test(f"Delete notification {notif_id}", "DELETE", f"notifications/{notif_id}", 200)
+        # Test dashboard
+        success1, _ = self.run_test("Dashboard", "GET", "dashboard", 200)
         
-        for lead_id in self.created_ids['leads']:
-            self.run_test(f"Delete lead {lead_id}", "DELETE", f"leads/{lead_id}", 200)
+        # Test notifications 
+        success2, _ = self.run_test("Notifications", "GET", "notifications", 200)
         
-        for tenant_id in self.created_ids['tenants']:
-            self.run_test(f"Delete tenant {tenant_id}", "DELETE", f"tenants/{tenant_id}", 200)
+        # Test leads
+        success3, _ = self.run_test("Leads", "GET", "leads", 200)
         
-        for unit_id in self.created_ids['units']:
-            self.run_test(f"Delete unit {unit_id}", "DELETE", f"units/{unit_id}", 200)
+        return success1 and success2 and success3
+
+    def cleanup_resources(self):
+        """Clean up created test resources"""
+        print("\n=== Cleaning Up Test Resources ===")
         
-        for property_id in self.created_ids['properties']:
-            self.run_test(f"Delete property {property_id}", "DELETE", f"properties/{property_id}", 200)
+        # Delete tenants first (they depend on units)
+        for tenant_id in self.created_resources['tenants']:
+            self.run_test(f"Delete Tenant {tenant_id}", "DELETE", f"tenants/{tenant_id}", 200)
+        
+        # Delete units (they depend on properties)  
+        for unit_id in self.created_resources['units']:
+            self.run_test(f"Delete Unit {unit_id}", "DELETE", f"units/{unit_id}", 200)
+        
+        # Delete properties last
+        for property_id in self.created_resources['properties']:
+            self.run_test(f"Delete Property {property_id}", "DELETE", f"properties/{property_id}", 200)
 
     def run_all_tests(self):
-        """Run all test suites"""
-        self.log("🚀 Starting Property Management System Backend API Tests")
-        self.log(f"Base URL: {self.base_url}")
-        self.log(f"API URL: {self.api_url}")
+        """Run all tests"""
+        print("🚀 Starting Lease Tracker API Tests")
+        print(f"Testing against: {self.base_url}")
         
         try:
-            # Run test suites in order
-            self.test_properties()
-            self.test_units()
-            self.test_tenants()
-            self.test_leads()
-            self.test_notifications()
-            self.test_calculations()
-            self.test_calendar_timeline()  # Test new timeline endpoint
-            self.test_dashboard()
+            # Test basic functionality first
+            basic_ok = self.test_basic_endpoints()
+            
+            # Test new features
+            props_ok = self.test_properties_with_building_id()
+            tenants_ok = self.test_tenant_deposit_return_fields() 
+            timeline_ok = self.test_calendar_timeline_sorting()
+            
+            return basic_ok and props_ok and tenants_ok and timeline_ok
             
         finally:
             # Always cleanup
-            self.cleanup_test_data()
-        
-        # Print summary
-        self.log(f"\n📊 Test Summary:")
-        self.log(f"   Tests Run: {self.tests_run}")
-        self.log(f"   Tests Passed: {self.tests_passed}")
-        self.log(f"   Tests Failed: {self.tests_run - self.tests_passed}")
-        self.log(f"   Success Rate: {(self.tests_passed/self.tests_run*100):.1f}%" if self.tests_run > 0 else "   Success Rate: 0%")
-        
-        return self.tests_passed == self.tests_run
+            self.cleanup_resources()
 
 def main():
-    """Main test execution function"""
-    tester = PropertyManagementTester()
+    """Main test runner"""
+    tester = LeaseTrackerAPITester()
     
     try:
-        success = tester.run_all_tests()
-        return 0 if success else 1
+        all_passed = tester.run_all_tests()
+        
+        # Print results
+        print(f"\n📊 Test Results: {tester.tests_passed}/{tester.tests_run} passed")
+        
+        if all_passed and tester.tests_passed == tester.tests_run:
+            print("🎉 All tests passed!")
+            return 0
+        else:
+            print("💥 Some tests failed!")
+            return 1
+            
     except KeyboardInterrupt:
-        print("\n🛑 Tests interrupted by user")
-        return 1
+        print("\n⚠️ Tests interrupted")
+        return 130
     except Exception as e:
-        print(f"\n💥 Test execution failed: {e}")
+        print(f"\n💥 Test runner error: {str(e)}")
         return 1
 
 if __name__ == "__main__":

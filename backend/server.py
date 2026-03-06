@@ -82,6 +82,7 @@ class PropertyCreate(BaseModel):
     pet_notes: Optional[str] = ""
     building_amenities: List[str] = []
     additional_notes: Optional[str] = ""
+    building_id: Optional[int] = None
 
 class UnitCreate(BaseModel):
     property_id: str
@@ -116,6 +117,10 @@ class TenantCreate(BaseModel):
     rent_due_date: Optional[str] = ""        # Long-term: day rent is due (e.g. "1st", "15th")
     moveout_confirmed: bool = False
     moveout_confirmed_date: Optional[str] = None
+    # Deposit return fields (for past tenants)
+    deposit_return_date: Optional[str] = None
+    deposit_return_amount: Optional[float] = None
+    deposit_return_method: Optional[str] = ""
 
 class LeadCreate(BaseModel):
     name: str
@@ -159,7 +164,14 @@ class NoteCreate(BaseModel):
 # ============================================================
 @api_router.get("/properties")
 async def list_properties():
-    docs = await db.properties.find().sort("created_at", -1).to_list(1000)
+    docs = await db.properties.find().to_list(1000)
+    # Sort by building_id ascending (None/missing last), then by name
+    def sort_key(d):
+        bid = d.get('building_id')
+        if bid is None:
+            return (1, 0, d.get('name', ''))
+        return (0, bid, d.get('name', ''))
+    docs.sort(key=sort_key)
     return [serialize_doc(d) for d in docs]
 
 @api_router.get("/properties/{property_id}")
@@ -1002,17 +1014,28 @@ async def get_calendar_timeline(
                 'leads': leads_segments
             })
         
-        # Sort units by unit number
-        units_data.sort(key=lambda u: u['unit_number'])
+        # Sort units by unit number numerically
+        def numeric_unit_sort(u):
+            try:
+                return int(u['unit_number'])
+            except (ValueError, TypeError):
+                return float('inf')
+        units_data.sort(key=numeric_unit_sort)
         
         properties_data.append({
             'property_id': pid,
             'property_name': prop.get('name', ''),
+            'building_id': prop.get('building_id'),
             'units': units_data
         })
     
-    # Sort properties by name
-    properties_data.sort(key=lambda p: p['property_name'])
+    # Sort properties by building_id ascending (None last)
+    def prop_sort_key(p):
+        bid = p.get('building_id')
+        if bid is None:
+            return (1, 0, p.get('property_name', ''))
+        return (0, bid, p.get('property_name', ''))
+    properties_data.sort(key=prop_sort_key)
     
     return {
         'range_start': range_start.isoformat(),

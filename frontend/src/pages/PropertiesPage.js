@@ -19,7 +19,7 @@ const UNIT_SIZES = ['0/1', '1/1', '2/1', '2/2', '3/1', '3/2', '3/3', 'other'];
 const emptyPropertyForm = {
   name: '', address: '', owner_manager_name: '', owner_manager_phone: '',
   owner_manager_email: '', available_parking: '', pets_permitted: false,
-  pet_notes: '', building_amenities: [], additional_notes: ''
+  pet_notes: '', building_amenities: [], additional_notes: '', building_id: ''
 };
 
 const emptyUnitForm = {
@@ -90,7 +90,8 @@ export default function PropertiesPage() {
       pets_permitted: prop.pets_permitted || false,
       pet_notes: prop.pet_notes || '',
       building_amenities: prop.building_amenities || [],
-      additional_notes: prop.additional_notes || ''
+      additional_notes: prop.additional_notes || '',
+      building_id: prop.building_id != null ? prop.building_id : ''
     });
     setAmenityInput('');
     setPropDialogOpen(true);
@@ -102,12 +103,16 @@ export default function PropertiesPage() {
       return;
     }
     setSavingProp(true);
+    const payload = {
+      ...propForm,
+      building_id: propForm.building_id !== '' ? parseInt(propForm.building_id, 10) : null
+    };
     try {
       if (editingProp) {
-        await updateProperty(editingProp.id, propForm);
+        await updateProperty(editingProp.id, payload);
         toast.success('Property updated');
       } else {
-        await createProperty(propForm);
+        await createProperty(payload);
         toast.success('Property created');
       }
       setPropDialogOpen(false);
@@ -255,6 +260,11 @@ export default function PropertiesPage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-3 mb-1">
                         <h2 className="font-heading text-lg font-semibold tracking-tight truncate">{prop.name}</h2>
+                        {prop.building_id != null && (
+                          <Badge variant="outline" className="text-xs flex-shrink-0 tabular-nums">
+                            Bldg #{prop.building_id}
+                          </Badge>
+                        )}
                         <Badge variant="secondary" className="text-xs flex-shrink-0 tabular-nums">
                           {units.length} {units.length === 1 ? 'Unit' : 'Units'}
                         </Badge>
@@ -463,7 +473,7 @@ export default function PropertiesPage() {
             <DialogTitle className="font-heading">{editingProp ? 'Edit Property' : 'Add Property'}</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label>Property Name *</Label>
                 <Input value={propForm.name} onChange={e => setPropForm({...propForm, name: e.target.value})} data-testid="property-name-input" />
@@ -471,6 +481,10 @@ export default function PropertiesPage() {
               <div className="space-y-2">
                 <Label>Address *</Label>
                 <Input value={propForm.address} onChange={e => setPropForm({...propForm, address: e.target.value})} data-testid="property-address-input" />
+              </div>
+              <div className="space-y-2">
+                <Label>Building ID</Label>
+                <Input type="number" value={propForm.building_id} onChange={e => setPropForm({...propForm, building_id: e.target.value})} placeholder="e.g. 1, 2, 3" data-testid="property-building-id-input" />
               </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

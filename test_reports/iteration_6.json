@@ -1,0 +1,46 @@
+{
+  "summary": "Comprehensive testing of lease tracker app restructure with tabbed spreadsheet layout, building ID sorting, and deposit return fields - all major features working correctly",
+  "backend_issues": {
+    "critical_bugs": [],
+    "flaky_endpoints": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "flow": "Dialog accessibility warnings",
+        "issue": "Missing Description or aria-describedby for DialogContent components",
+        "affected_selectors": ["[role='dialog']"],
+        "fix_priority": "LOW"
+      }
+    ]
+  },
+  "passed_tests": [
+    "Backend API endpoints (dashboard, notifications, leads) working correctly",
+    "Properties creation and sorting by building_id ascending (None values last)",
+    "Tenant creation with deposit return fields (deposit_return_date, deposit_return_amount, deposit_return_method)",
+    "Tenant update with deposit return fields working correctly",
+    "Calendar timeline sorting by building_id and units numerically",
+    "TenantsPage loads with two tabs: Current & Future Tenants and Past Tenants",
+    "Properties collapsed by default showing Address + Occupancy count",
+    "Spreadsheet-style tenant rows with correct column order",
+    "Future tenants toggle with ↳ prefix and light blue background",
+    "Airbnb/VRBO tags displayed correctly next to tenant names",
+    "Past Tenants tab sort toggle (By Unit vs By Move-Out Date)",
+    "By Move-Out Date view with quarterly sections (e.g. Jan–Mar)",
+    "Tenant detail dialog opens when clicking rows",
+    "Add Tenant dialog with deposit return fields working",
+    "Building ID field present in property create/edit dialog",
+    "CalendarPage timeline still working correctly with proper sorting"
+  ],
+  "test_report_links": ["/app/backend_test.py"],
+  "action_item_for_main_agent": "",
+  "updated_files": ["/app/backend_test.py"],
+  "success_percentage": {
+    "backend": "100% (18/18 tests passed)",
+    "frontend": "100% (all UI features working correctly)"
+  },
+  "should_call_test_agent_after_fix": "false",
+  "should_main_agent_test_itself": "false"
+}

@@ -1,7 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { getTenants, createTenant, updateTenant, deleteTenant, confirmMoveout, getPendingMoveouts, getProperties, getUnits, createNotification } from '@/lib/api';
 import { useNotifications } from '@/App';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -10,12 +9,41 @@ import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
-import { Users, Plus, Pencil, Trash2, ChevronDown, ChevronRight, Building2, Home, CalendarDays, AlertTriangle, CheckCircle2, Eye } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
+import { Users, Plus, Pencil, Trash2, ChevronDown, ChevronRight, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 
+// ============================================================
+// SORT HELPERS (global, reusable)
+// ============================================================
+export const sortPropertiesByBuildingId = (properties) => {
+  return [...properties].sort((a, b) => {
+    const aId = a.building_id;
+    const bId = b.building_id;
+    if (aId == null && bId == null) return (a.name || '').localeCompare(b.name || '');
+    if (aId == null) return 1;
+    if (bId == null) return -1;
+    if (aId !== bId) return aId - bId;
+    return (a.name || '').localeCompare(b.name || '');
+  });
+};
+
+export const sortUnitsNumerically = (units) => {
+  return [...units].sort((a, b) => {
+    const aNum = parseInt(a.unit_number, 10);
+    const bNum = parseInt(b.unit_number, 10);
+    if (isNaN(aNum) && isNaN(bNum)) return (a.unit_number || '').localeCompare(b.unit_number || '');
+    if (isNaN(aNum)) return 1;
+    if (isNaN(bNum)) return -1;
+    return aNum - bNum;
+  });
+};
+
+// ============================================================
+// EMPTY FORM
+// ============================================================
 const emptyForm = {
   property_id: '', unit_id: '', name: '', phone: '', email: '',
   move_in_date: '', move_out_date: '', is_airbnb_vrbo: false,
@@ -23,9 +51,55 @@ const emptyForm = {
   partial_first_month: '', partial_last_month: '',
   pets: '', parking: '', notes: '', total_rent: '',
   payment_method: '', rent_due_date: '',
-  moveout_confirmed: false, moveout_confirmed_date: null
+  moveout_confirmed: false, moveout_confirmed_date: null,
+  deposit_return_date: '', deposit_return_amount: '', deposit_return_method: ''
 };
 
+// ============================================================
+// FORMATTING HELPERS
+// ============================================================
+const fmt = (v) => v || '';
+const fmtMoney = (v) => {
+  if (v == null || v === '' || v === 0) return '';
+  return `$${parseFloat(v).toLocaleString()}`;
+};
+const fmtDate = (v) => {
+  if (!v) return '';
+  // Show as MM/DD/YY for compact display
+  try {
+    const d = new Date(v + 'T00:00:00');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    const yy = String(d.getFullYear()).slice(-2);
+    return `${mm}/${dd}/${yy}`;
+  } catch {
+    return v;
+  }
+};
+
+// ============================================================
+// QUARTER HELPERS
+// ============================================================
+const getQuarterLabel = (dateStr) => {
+  if (!dateStr) return 'Unknown';
+  const d = new Date(dateStr + 'T00:00:00');
+  const m = d.getMonth(); // 0-11
+  const y = String(d.getFullYear()).slice(-2);
+  const quarters = ['Jan\u2013Mar', 'Apr\u2013Jun', 'Jul\u2013Sep', 'Oct\u2013Dec'];
+  return `${quarters[Math.floor(m / 3)]} '${y}`;
+};
+
+const getQuarterSortKey = (dateStr) => {
+  if (!dateStr) return '0000-0';
+  const d = new Date(dateStr + 'T00:00:00');
+  const y = d.getFullYear();
+  const q = Math.floor(d.getMonth() / 3);
+  return `${y}-${q}`;
+};
+
+// ============================================================
+// MAIN COMPONENT
+// ============================================================
 export default function TenantsPage() {
   const [tenants, setTenants] = useState([]);
   const [properties, setProperties] = useState([]);
@@ -45,10 +119,22 @@ export default function TenantsPage() {
   // Moveout confirmation dialog
   const [moveoutDialog, setMoveoutDialog] = useState(null);
 
-  // Expanded states
+  // Active tab
+  const [activeTab, setActiveTab] = useState('current-future');
+
+  // Expanded states for property rows (collapsed by default)
+  const [expandedProps, setExpandedProps] = useState({});
+  // Expanded states for future tenants per unit
   const [expandedFuture, setExpandedFuture] = useState({});
-  const [expandedPast, setExpandedPast] = useState({});
-  const [showPastSection, setShowPastSection] = useState(false);
+  // Expanded states for past units
+  const [expandedPastUnits, setExpandedPastUnits] = useState({});
+  // Expanded states for past properties
+  const [expandedPastProps, setExpandedPastProps] = useState({});
+  // Expanded states for quarter sections
+  const [expandedQuarters, setExpandedQuarters] = useState({});
+
+  // Past sort mode
+  const [pastSortMode, setPastSortMode] = useState('by-unit');
 
   const { refreshNotifications } = useNotifications();
 
@@ -78,34 +164,58 @@ export default function TenantsPage() {
   }, [pendingMoveouts, moveoutDialog]);
 
   // Maps
-  const propMap = {};
-  properties.forEach(p => { propMap[p.id] = p; });
-  const unitMap = {};
-  allUnits.forEach(u => { unitMap[u.id] = u; });
+  const propMap = useMemo(() => {
+    const m = {};
+    properties.forEach(p => { m[p.id] = p; });
+    return m;
+  }, [properties]);
+
+  const unitMap = useMemo(() => {
+    const m = {};
+    allUnits.forEach(u => { m[u.id] = u; });
+    return m;
+  }, [allUnits]);
+
+  // Sorted properties by building_id
+  const sortedProperties = useMemo(() => sortPropertiesByBuildingId(properties), [properties]);
+
+  // Sorted units by property
+  const unitsByProperty = useMemo(() => {
+    const grouped = {};
+    allUnits.forEach(u => {
+      if (!grouped[u.property_id]) grouped[u.property_id] = [];
+      grouped[u.property_id].push(u);
+    });
+    // Sort each group numerically
+    Object.keys(grouped).forEach(pid => {
+      grouped[pid] = sortUnitsNumerically(grouped[pid]);
+    });
+    return grouped;
+  }, [allUnits]);
 
   const filteredUnits = allUnits.filter(u => u.property_id === form.property_id);
 
   // Categorize tenants
   const today = new Date().toISOString().split('T')[0];
 
-  const currentTenants = tenants.filter(t =>
+  const currentTenants = useMemo(() => tenants.filter(t =>
     t.move_in_date <= today && t.move_out_date > today
-  );
+  ), [tenants, today]);
 
-  const pendingMoveoutTenants = tenants.filter(t =>
+  const pendingMoveoutTenants = useMemo(() => tenants.filter(t =>
     t.move_out_date <= today && !t.moveout_confirmed
-  );
+  ), [tenants, today]);
 
-  const futureTenants = tenants.filter(t =>
+  const futureTenants = useMemo(() => tenants.filter(t =>
     t.move_in_date > today
-  );
+  ), [tenants, today]);
 
-  const pastTenants = tenants.filter(t =>
+  const pastTenants = useMemo(() => tenants.filter(t =>
     t.move_out_date <= today && t.moveout_confirmed
-  );
+  ), [tenants, today]);
 
-  // Group by property
-  const groupByProperty = (list) => {
+  // Group tenants by property_id -> unit_id
+  const groupByPropUnit = (list) => {
     const grouped = {};
     list.forEach(t => {
       const pid = t.property_id;
@@ -117,11 +227,25 @@ export default function TenantsPage() {
     return grouped;
   };
 
-  const currentGrouped = groupByProperty([...currentTenants, ...pendingMoveoutTenants]);
-  const futureGrouped = groupByProperty(futureTenants);
-  const pastGrouped = groupByProperty(pastTenants);
+  const currentGrouped = useMemo(() => groupByPropUnit([...currentTenants, ...pendingMoveoutTenants]), [currentTenants, pendingMoveoutTenants]);
+  const futureGrouped = useMemo(() => groupByPropUnit(futureTenants), [futureTenants]);
+  const pastGrouped = useMemo(() => groupByPropUnit(pastTenants), [pastTenants]);
 
+  // Occupancy per property
+  const getOccupancy = (propId) => {
+    const units = unitsByProperty[propId] || [];
+    const total = units.length;
+    let occupied = 0;
+    const currentAndPending = [...currentTenants, ...pendingMoveoutTenants];
+    units.forEach(u => {
+      if (currentAndPending.some(t => t.unit_id === u.id)) occupied++;
+    });
+    return { occupied, total };
+  };
+
+  // ============================================================
   // CRUD
+  // ============================================================
   const openCreate = (prefill = {}) => {
     setEditing(null);
     setForm({ ...emptyForm, ...prefill });
@@ -151,7 +275,10 @@ export default function TenantsPage() {
       payment_method: tenant.payment_method || '',
       rent_due_date: tenant.rent_due_date || '',
       moveout_confirmed: tenant.moveout_confirmed || false,
-      moveout_confirmed_date: tenant.moveout_confirmed_date || null
+      moveout_confirmed_date: tenant.moveout_confirmed_date || null,
+      deposit_return_date: tenant.deposit_return_date || '',
+      deposit_return_amount: tenant.deposit_return_amount || '',
+      deposit_return_method: tenant.deposit_return_method || ''
     });
     setDialogOpen(true);
   };
@@ -178,7 +305,10 @@ export default function TenantsPage() {
       partial_last_month: form.partial_last_month ? parseFloat(form.partial_last_month) : null,
       total_rent: form.total_rent ? parseFloat(form.total_rent) : null,
       deposit_date: form.deposit_date || null,
-      moveout_confirmed_date: form.moveout_confirmed_date || null
+      moveout_confirmed_date: form.moveout_confirmed_date || null,
+      deposit_return_date: form.deposit_return_date || null,
+      deposit_return_amount: form.deposit_return_amount ? parseFloat(form.deposit_return_amount) : null,
+      deposit_return_method: form.deposit_return_method || ''
     };
     try {
       if (editing) {
@@ -197,14 +327,15 @@ export default function TenantsPage() {
     }
   };
 
-  const handleDelete = async (id) => {
+  const handleDelete = async (id, e) => {
+    if (e) e.stopPropagation();
     if (!window.confirm('Delete this tenant?')) return;
     try {
       await deleteTenant(id);
       toast.success('Tenant deleted');
       fetchData();
-    } catch (e) {
-      toast.error(e.response?.data?.detail || 'Failed to delete tenant');
+    } catch (e2) {
+      toast.error(e2.response?.data?.detail || 'Failed to delete tenant');
     }
   };
 
@@ -242,65 +373,438 @@ export default function TenantsPage() {
   const nights = calcNights();
   const perNight = form.total_rent && nights > 0 ? (parseFloat(form.total_rent) / nights).toFixed(2) : 0;
 
-  // Render tenant row
-  const TenantRow = ({ tenant, showActions = true, isPending = false }) => {
+  // ============================================================
+  // SPREADSHEET STYLES
+  // ============================================================
+  const thClass = "px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground whitespace-nowrap border-b border-border/60";
+  const tdClass = "px-3 py-2 text-[12px] whitespace-nowrap border-b border-border/40";
+  const rowBaseClass = "transition-colors cursor-pointer hover:bg-muted/30";
+
+  // ============================================================
+  // CURRENT/FUTURE TAB COLUMNS
+  // ============================================================
+  const currentColumns = [
+    { key: 'unit', label: 'Unit', w: '70px' },
+    { key: 'name', label: 'Tenant Name', w: '160px' },
+    { key: 'phone', label: 'Phone', w: '110px' },
+    { key: 'email', label: 'Email', w: '160px' },
+    { key: 'move_in', label: 'Move In', w: '80px' },
+    { key: 'move_out', label: 'Move Out', w: '80px' },
+    { key: 'rent_due', label: 'Rent Due Day', w: '90px' },
+    { key: 'rent', label: 'Monthly Rent', w: '100px' },
+    { key: 'payment', label: 'Payment Method', w: '120px' },
+    { key: 'deposit_amt', label: 'Deposit Amt', w: '95px' },
+    { key: 'deposit_date', label: 'Deposit Date', w: '90px' },
+    { key: 'parking', label: 'Parking', w: '80px' },
+    { key: 'notes', label: 'Notes', w: '120px' },
+    { key: 'actions', label: 'Actions', w: '80px' },
+  ];
+
+  // PAST TAB COLUMNS
+  const pastColumns = [
+    { key: 'unit', label: 'Unit', w: '70px' },
+    { key: 'name', label: 'Tenant Name', w: '160px' },
+    { key: 'phone', label: 'Phone', w: '110px' },
+    { key: 'email', label: 'Email', w: '160px' },
+    { key: 'move_in', label: 'Move In', w: '80px' },
+    { key: 'move_out', label: 'Move Out', w: '80px' },
+    { key: 'rent_due', label: 'Rent Due Day', w: '90px' },
+    { key: 'rent', label: 'Rent', w: '90px' },
+    { key: 'payment', label: 'Payment Method', w: '120px' },
+    { key: 'deposit_amt', label: 'Deposit Amt', w: '95px' },
+    { key: 'deposit_date', label: 'Deposit Date', w: '90px' },
+    { key: 'dep_return_date', label: 'Dep Return Date', w: '110px' },
+    { key: 'dep_return_amt', label: 'Dep Return Amt', w: '110px' },
+    { key: 'dep_return_method', label: 'Dep Return Method', w: '120px' },
+    { key: 'notes', label: 'Notes', w: '120px' },
+    { key: 'actions', label: 'Actions', w: '80px' },
+  ];
+
+  // ============================================================
+  // ROW RENDER - CURRENT/FUTURE
+  // ============================================================
+  const renderCurrentRow = (tenant, idx, isFuture = false, isPending = false) => {
     const unit = unitMap[tenant.unit_id];
+    const unitNum = unit?.unit_number || '?';
+    const isAirbnb = tenant.is_airbnb_vrbo;
+    const rentDisplay = isAirbnb ? fmtMoney(tenant.total_rent) : fmtMoney(tenant.monthly_rent);
+
+    const bgClass = isFuture
+      ? 'bg-sky-50/70'
+      : isPending
+        ? 'bg-amber-50/60'
+        : idx % 2 === 0
+          ? 'bg-transparent'
+          : 'bg-muted/20';
+
     return (
-      <div
-        className={`flex items-center justify-between p-3 rounded-lg border transition-colors cursor-pointer hover:bg-muted/40 ${isPending ? 'border-amber-200 bg-amber-50/50' : 'bg-card'}`}
+      <tr
+        key={tenant.id}
+        className={`${rowBaseClass} ${bgClass}`}
         onClick={() => setDetailTenant(tenant)}
         data-testid="tenants-table-row"
       >
-        <div className="flex items-center gap-3 min-w-0 flex-1">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="font-medium text-sm truncate">{tenant.name}</span>
-              <Badge variant={tenant.is_airbnb_vrbo ? 'default' : 'secondary'}
-                className={`text-[10px] flex-shrink-0 ${tenant.is_airbnb_vrbo ? 'bg-sky-100 text-sky-900 border-sky-200' : ''}`}>
-                {tenant.is_airbnb_vrbo ? 'Airbnb/VRBO' : 'Long-term'}
-              </Badge>
-              {isPending && (
-                <Badge className="text-[10px] bg-amber-100 text-amber-900 border-amber-200 flex-shrink-0">
-                  <AlertTriangle className="h-3 w-3 mr-0.5" /> Pending Move-out
-                </Badge>
-              )}
-            </div>
-            <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5">
-              <span>{tenant.move_in_date} — {tenant.move_out_date}</span>
-              <span className="tabular-nums">
-                {tenant.is_airbnb_vrbo
-                  ? `$${parseFloat(tenant.total_rent || 0).toLocaleString()} total`
-                  : `$${parseFloat(tenant.monthly_rent || 0).toLocaleString()}/mo`
-                }
-              </span>
-            </div>
-          </div>
-        </div>
-        {showActions && (
-          <div className="flex items-center gap-1 flex-shrink-0 ml-2" onClick={e => e.stopPropagation()}>
+        <td className={tdClass}>
+          {isFuture && <span className="text-muted-foreground mr-1">{'\u21B3'}</span>}
+          {unitNum}
+        </td>
+        <td className={tdClass}>
+          <span className="font-medium">{tenant.name}</span>
+          {isAirbnb && (
+            <span className="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-sky-100 text-sky-800 border border-sky-200">
+              Airbnb/VRBO
+            </span>
+          )}
+          {isPending && (
+            <span className="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-800 border border-amber-200">
+              Pending
+            </span>
+          )}
+        </td>
+        <td className={tdClass}>{fmt(tenant.phone)}</td>
+        <td className={tdClass}>{fmt(tenant.email)}</td>
+        <td className={`${tdClass} tabular-nums`}>{fmtDate(tenant.move_in_date)}</td>
+        <td className={`${tdClass} tabular-nums`}>{fmtDate(tenant.move_out_date)}</td>
+        <td className={tdClass}>{isAirbnb ? '' : fmt(tenant.rent_due_date)}</td>
+        <td className={`${tdClass} tabular-nums`}>{rentDisplay}</td>
+        <td className={tdClass}>{isAirbnb ? '' : fmt(tenant.payment_method)}</td>
+        <td className={`${tdClass} tabular-nums`}>{fmtMoney(tenant.deposit_amount)}</td>
+        <td className={`${tdClass} tabular-nums`}>{fmtDate(tenant.deposit_date)}</td>
+        <td className={tdClass}>{fmt(tenant.parking)}</td>
+        <td className={`${tdClass} max-w-[120px] truncate`} title={tenant.notes || ''}>{fmt(tenant.notes)}</td>
+        <td className={tdClass}>
+          <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
             {isPending && (
-              <Button size="sm" className="h-7 text-xs gap-1" onClick={() => handleConfirmMoveout(tenant)} data-testid="confirm-moveout-button">
-                <CheckCircle2 className="h-3 w-3" /> Confirm
+              <Button size="sm" className="h-6 text-[10px] px-2 gap-0.5" onClick={() => handleConfirmMoveout(tenant)} data-testid="confirm-moveout-button">
+                <CheckCircle2 className="h-3 w-3" /> OK
               </Button>
             )}
-            <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => openEdit(tenant)}>
-              <Pencil className="h-3.5 w-3.5" />
+            <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => openEdit(tenant)} data-testid="tenant-edit-button">
+              <Pencil className="h-3 w-3" />
             </Button>
-            <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive" onClick={() => handleDelete(tenant.id)}>
-              <Trash2 className="h-3.5 w-3.5" />
+            <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-destructive" onClick={(e) => handleDelete(tenant.id, e)} data-testid="tenant-delete-button">
+              <Trash2 className="h-3 w-3" />
             </Button>
           </div>
-        )}
-      </div>
+        </td>
+      </tr>
     );
   };
 
+  // ============================================================
+  // ROW RENDER - PAST
+  // ============================================================
+  const renderPastRow = (tenant, idx) => {
+    const unit = unitMap[tenant.unit_id];
+    const unitNum = unit?.unit_number || '?';
+    const isAirbnb = tenant.is_airbnb_vrbo;
+    const rentDisplay = isAirbnb ? fmtMoney(tenant.total_rent) : fmtMoney(tenant.monthly_rent);
+
+    const bgClass = isAirbnb
+      ? 'bg-emerald-50/60'
+      : idx % 2 === 0
+        ? 'bg-transparent'
+        : 'bg-muted/20';
+
+    return (
+      <tr
+        key={tenant.id}
+        className={`${rowBaseClass} ${bgClass}`}
+        onClick={() => setDetailTenant(tenant)}
+        data-testid="tenants-table-row"
+      >
+        <td className={tdClass}>{unitNum}</td>
+        <td className={tdClass}>
+          <span className="font-medium">{tenant.name}</span>
+          {isAirbnb && (
+            <span className="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-sky-100 text-sky-800 border border-sky-200">
+              Airbnb/VRBO
+            </span>
+          )}
+        </td>
+        <td className={tdClass}>{fmt(tenant.phone)}</td>
+        <td className={tdClass}>{fmt(tenant.email)}</td>
+        <td className={`${tdClass} tabular-nums`}>{fmtDate(tenant.move_in_date)}</td>
+        <td className={`${tdClass} tabular-nums`}>{fmtDate(tenant.move_out_date)}</td>
+        <td className={tdClass}>{isAirbnb ? '' : fmt(tenant.rent_due_date)}</td>
+        <td className={`${tdClass} tabular-nums`}>{rentDisplay}</td>
+        <td className={tdClass}>{isAirbnb ? '' : fmt(tenant.payment_method)}</td>
+        <td className={`${tdClass} tabular-nums`}>{fmtMoney(tenant.deposit_amount)}</td>
+        <td className={`${tdClass} tabular-nums`}>{fmtDate(tenant.deposit_date)}</td>
+        <td className={`${tdClass} tabular-nums`}>{fmtDate(tenant.deposit_return_date)}</td>
+        <td className={`${tdClass} tabular-nums`}>{fmtMoney(tenant.deposit_return_amount)}</td>
+        <td className={tdClass}>{fmt(tenant.deposit_return_method)}</td>
+        <td className={`${tdClass} max-w-[120px] truncate`} title={tenant.notes || ''}>{fmt(tenant.notes)}</td>
+        <td className={tdClass}>
+          <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+            <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => openEdit(tenant)} data-testid="tenant-edit-button">
+              <Pencil className="h-3 w-3" />
+            </Button>
+            <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-destructive" onClick={(e) => handleDelete(tenant.id, e)} data-testid="tenant-delete-button">
+              <Trash2 className="h-3 w-3" />
+            </Button>
+          </div>
+        </td>
+      </tr>
+    );
+  };
+
+  // ============================================================
+  // TABLE HEADER RENDER
+  // ============================================================
+  const renderTableHeader = (columns) => (
+    <thead className="sticky top-0 z-10 bg-[hsl(36,18%,94%)]">
+      <tr>
+        {columns.map(col => (
+          <th key={col.key} className={thClass} style={{ minWidth: col.w }}>
+            {col.label}
+          </th>
+        ))}
+      </tr>
+    </thead>
+  );
+
+  // ============================================================
+  // TAB 1: CURRENT & FUTURE TENANTS
+  // ============================================================
+  const renderCurrentFutureTab = () => {
+    const allCurrentFuture = [...currentTenants, ...pendingMoveoutTenants, ...futureTenants];
+    if (allCurrentFuture.length === 0) {
+      return (
+        <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+          <Users className="h-10 w-10 mb-3 opacity-40" />
+          <p className="text-sm font-medium">No current or future tenants</p>
+          <Button className="mt-4" size="sm" onClick={() => openCreate()}>Add Tenant</Button>
+        </div>
+      );
+    }
+
+    return sortedProperties.map(prop => {
+      const propId = prop.id;
+      const propUnits = unitsByProperty[propId] || [];
+      const currentInProp = currentGrouped[propId] || {};
+      const futureInProp = futureGrouped[propId] || {};
+
+      // Check if this property has any current/future tenants
+      const hasAnyTenants = Object.keys(currentInProp).length > 0 || Object.keys(futureInProp).length > 0;
+      if (!hasAnyTenants) return null;
+
+      const { occupied, total } = getOccupancy(propId);
+      const isExpanded = expandedProps[`cf-${propId}`];
+
+      return (
+        <div key={propId} className="border-b border-border/60" data-testid={`property-group-${propId}`}>
+          {/* Property Header Row */}
+          <button
+            className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-muted/30 transition-colors"
+            onClick={() => setExpandedProps(prev => ({ ...prev, [`cf-${propId}`]: !prev[`cf-${propId}`] }))}
+            data-testid={`property-toggle-${propId}`}
+          >
+            {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" /> : <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />}
+            <span className="text-[13px] font-semibold">{prop.address || prop.name}</span>
+            <span className="text-[11px] text-muted-foreground tabular-nums">{occupied} / {total} occupied</span>
+          </button>
+
+          {/* Expanded Content */}
+          {isExpanded && (
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse">
+                {renderTableHeader(currentColumns)}
+                <tbody>
+                  {propUnits.map(unit => {
+                    const unitId = unit.id;
+                    const unitCurrentTenants = (currentInProp[unitId] || []).sort(
+                      (a, b) => a.move_in_date.localeCompare(b.move_in_date)
+                    );
+                    const unitFutureTenants = (futureInProp[unitId] || []).sort(
+                      (a, b) => a.move_in_date.localeCompare(b.move_in_date)
+                    );
+
+                    if (unitCurrentTenants.length === 0 && unitFutureTenants.length === 0) return null;
+
+                    const futureKey = `future-${unitId}`;
+                    const isFutureExpanded = expandedFuture[futureKey];
+                    let rowIdx = 0;
+
+                    return [
+                      // Current tenant rows
+                      ...unitCurrentTenants.map(t => {
+                        const isPending = t.move_out_date <= today && !t.moveout_confirmed;
+                        return renderCurrentRow(t, rowIdx++, false, isPending);
+                      }),
+                      // Future toggle row (if future tenants exist)
+                      unitFutureTenants.length > 0 && (
+                        <tr key={`future-toggle-${unitId}`} className="bg-transparent">
+                          <td colSpan={currentColumns.length} className="px-3 py-1 border-b border-border/40">
+                            <button
+                              className="flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+                              onClick={(e) => { e.stopPropagation(); setExpandedFuture(prev => ({ ...prev, [futureKey]: !prev[futureKey] })); }}
+                              data-testid={`future-toggle-${unitId}`}
+                            >
+                              {isFutureExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                              Future Tenants ({unitFutureTenants.length})
+                            </button>
+                          </td>
+                        </tr>
+                      ),
+                      // Future tenant rows (if expanded)
+                      ...(isFutureExpanded ? unitFutureTenants.map((t, fi) => renderCurrentRow(t, fi, true, false)) : [])
+                    ];
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      );
+    });
+  };
+
+  // ============================================================
+  // TAB 2: PAST TENANTS - BY UNIT
+  // ============================================================
+  const renderPastByUnit = () => {
+    if (pastTenants.length === 0) {
+      return (
+        <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+          <Users className="h-10 w-10 mb-3 opacity-40" />
+          <p className="text-sm font-medium">No past tenants</p>
+        </div>
+      );
+    }
+
+    return sortedProperties.map(prop => {
+      const propId = prop.id;
+      const pastInProp = pastGrouped[propId];
+      if (!pastInProp) return null;
+
+      const propUnits = unitsByProperty[propId] || [];
+      const totalPastInProp = Object.values(pastInProp).flat().length;
+      const isExpanded = expandedPastProps[`past-${propId}`];
+
+      return (
+        <div key={propId} className="border-b border-border/60" data-testid={`past-property-group-${propId}`}>
+          <button
+            className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-muted/30 transition-colors"
+            onClick={() => setExpandedPastProps(prev => ({ ...prev, [`past-${propId}`]: !prev[`past-${propId}`] }))}
+            data-testid={`past-property-toggle-${propId}`}
+          >
+            {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" /> : <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />}
+            <span className="text-[13px] font-semibold">{prop.address || prop.name}</span>
+            <span className="text-[11px] text-muted-foreground">{totalPastInProp} past tenants</span>
+          </button>
+
+          {isExpanded && (
+            <div>
+              {/* Sub-group by unit */}
+              {sortUnitsNumerically(propUnits.filter(u => pastInProp[u.id])).map(unit => {
+                const unitId = unit.id;
+                const unitPast = (pastInProp[unitId] || []).sort(
+                  (a, b) => b.move_out_date.localeCompare(a.move_out_date)
+                );
+                if (unitPast.length === 0) return null;
+
+                const unitKey = `past-unit-${unitId}`;
+                const isUnitExpanded = expandedPastUnits[unitKey];
+
+                return (
+                  <div key={unitId} className="border-t border-border/30">
+                    <button
+                      className="w-full flex items-center gap-2 px-6 py-2 text-left hover:bg-muted/20 transition-colors"
+                      onClick={() => setExpandedPastUnits(prev => ({ ...prev, [unitKey]: !prev[unitKey] }))}
+                      data-testid={`past-unit-toggle-${unitId}`}
+                    >
+                      {isUnitExpanded ? <ChevronDown className="h-3 w-3 text-muted-foreground" /> : <ChevronRight className="h-3 w-3 text-muted-foreground" />}
+                      <span className="text-[12px] font-medium">Unit {unit.unit_number}</span>
+                      <span className="text-[11px] text-muted-foreground">{unitPast.length} tenants</span>
+                    </button>
+
+                    {isUnitExpanded && (
+                      <div className="overflow-x-auto">
+                        <table className="w-full border-collapse">
+                          {renderTableHeader(pastColumns)}
+                          <tbody>
+                            {unitPast.map((t, idx) => renderPastRow(t, idx))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      );
+    });
+  };
+
+  // ============================================================
+  // TAB 2: PAST TENANTS - BY MOVE-OUT DATE (QUARTERLY)
+  // ============================================================
+  const renderPastByMoveOut = () => {
+    if (pastTenants.length === 0) {
+      return (
+        <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+          <Users className="h-10 w-10 mb-3 opacity-40" />
+          <p className="text-sm font-medium">No past tenants</p>
+        </div>
+      );
+    }
+
+    // Group past tenants by quarter of move_out_date
+    const quarterGroups = {};
+    pastTenants.forEach(t => {
+      const qLabel = getQuarterLabel(t.move_out_date);
+      const qKey = getQuarterSortKey(t.move_out_date);
+      if (!quarterGroups[qKey]) quarterGroups[qKey] = { label: qLabel, tenants: [] };
+      quarterGroups[qKey].tenants.push(t);
+    });
+
+    // Sort quarters descending (most recent first)
+    const sortedQuarters = Object.entries(quarterGroups).sort((a, b) => b[0].localeCompare(a[0]));
+
+    return sortedQuarters.map(([qKey, { label, tenants: qTenants }]) => {
+      const sorted = [...qTenants].sort((a, b) => b.move_out_date.localeCompare(a.move_out_date));
+      const isExpanded = expandedQuarters[qKey];
+
+      return (
+        <div key={qKey} className="border-b border-border/60" data-testid={`quarter-group-${qKey}`}>
+          <button
+            className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-muted/30 transition-colors"
+            onClick={() => setExpandedQuarters(prev => ({ ...prev, [qKey]: !prev[qKey] }))}
+            data-testid={`quarter-toggle-${qKey}`}
+          >
+            {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" /> : <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />}
+            <span className="text-[13px] font-semibold">{label}</span>
+            <span className="text-[11px] text-muted-foreground">{sorted.length} tenants</span>
+          </button>
+
+          {isExpanded && (
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse">
+                {renderTableHeader(pastColumns)}
+                <tbody>
+                  {sorted.map((t, idx) => renderPastRow(t, idx))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      );
+    });
+  };
+
+  // ============================================================
+  // MAIN RENDER
+  // ============================================================
   return (
-    <div className="space-y-6">
+    <div className="space-y-4" data-testid="tenants-page">
+      {/* Page Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="font-heading text-2xl font-semibold tracking-tight">Tenants</h1>
-          <p className="text-sm text-muted-foreground mt-1">Manage current, future, and past tenants</p>
+          <p className="text-sm text-muted-foreground mt-0.5">Manage current, future, and past tenants</p>
         </div>
         <Button onClick={() => openCreate()} data-testid="tenants-create-button">
           <Plus className="h-4 w-4 mr-2" /> Add Tenant
@@ -310,211 +814,64 @@ export default function TenantsPage() {
       {loading ? (
         <div className="flex items-center justify-center h-40 text-muted-foreground">Loading...</div>
       ) : tenants.length === 0 ? (
-        <Card className="border-dashed">
-          <CardContent className="flex flex-col items-center justify-center py-16">
-            <Users className="h-12 w-12 text-muted-foreground/50 mb-4" />
-            <h3 className="font-heading text-lg font-semibold">No tenants yet</h3>
-            <p className="text-sm text-muted-foreground mt-1">Add tenants to your units</p>
-            <Button className="mt-4" onClick={() => openCreate()}>Add Tenant</Button>
-          </CardContent>
-        </Card>
+        <div className="flex flex-col items-center justify-center py-16 border border-dashed rounded-lg">
+          <Users className="h-12 w-12 text-muted-foreground/50 mb-4" />
+          <h3 className="font-heading text-lg font-semibold">No tenants yet</h3>
+          <p className="text-sm text-muted-foreground mt-1">Add tenants to your units</p>
+          <Button className="mt-4" onClick={() => openCreate()}>Add Tenant</Button>
+        </div>
       ) : (
-        <>
-          {/* ===== SECTION 1: CURRENT TENANTS ===== */}
-          <div className="space-y-4">
-            <h2 className="font-heading text-lg font-semibold tracking-tight flex items-center gap-2">
-              <Users className="h-5 w-5 text-primary" />
-              Current Tenants
-              <Badge variant="secondary" className="text-xs tabular-nums">
-                {currentTenants.length + pendingMoveoutTenants.length}
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="mb-3" data-testid="tenants-tabs">
+            <TabsTrigger value="current-future" data-testid="tab-current-future">
+              Current & Future Tenants
+              <Badge variant="secondary" className="ml-2 text-[10px] tabular-nums">
+                {currentTenants.length + pendingMoveoutTenants.length + futureTenants.length}
               </Badge>
-            </h2>
+            </TabsTrigger>
+            <TabsTrigger value="past" data-testid="tab-past">
+              Past Tenants
+              <Badge variant="secondary" className="ml-2 text-[10px] tabular-nums">
+                {pastTenants.length}
+              </Badge>
+            </TabsTrigger>
+          </TabsList>
 
-            {Object.keys(currentGrouped).length === 0 ? (
-              <Card className="border-dashed">
-                <CardContent className="py-8 text-center text-sm text-muted-foreground">
-                  No current tenants
-                </CardContent>
-              </Card>
-            ) : (
-              Object.entries(currentGrouped).map(([propId, units]) => {
-                const prop = propMap[propId];
-                return (
-                  <Card key={propId} className="overflow-hidden">
-                    <div className="px-4 py-3 bg-muted/30 border-b flex items-center gap-2">
-                      <Building2 className="h-4 w-4 text-muted-foreground" />
-                      <span className="font-semibold text-sm">{prop?.name || 'Unknown Property'}</span>
-                    </div>
-                    <div className="divide-y">
-                      {Object.entries(units).map(([unitId, unitTenants]) => {
-                        const unit = unitMap[unitId];
-                        const unitFuture = (futureGrouped[propId]?.[unitId] || []).sort(
-                          (a, b) => a.move_in_date.localeCompare(b.move_in_date)
-                        );
-                        const futureKey = `future-${unitId}`;
+          {/* TAB 1: CURRENT & FUTURE */}
+          <TabsContent value="current-future" className="mt-0">
+            <div className="rounded-lg border border-border/70 bg-[hsl(36,33%,97%)] overflow-hidden" data-testid="current-future-table">
+              {renderCurrentFutureTab()}
+            </div>
+          </TabsContent>
 
-                        return (
-                          <div key={unitId} className="p-4">
-                            <div className="flex items-center gap-2 mb-3">
-                              <Badge variant="outline" className="text-xs gap-1">
-                                <Home className="h-3 w-3" />
-                                Unit {unit?.unit_number || '?'}
-                              </Badge>
-                              <span className="text-xs text-muted-foreground">
-                                {unit?.unit_size === 'other' ? unit?.unit_size_custom : unit?.unit_size}
-                              </span>
-                            </div>
+          {/* TAB 2: PAST */}
+          <TabsContent value="past" className="mt-0">
+            {/* Sort toggle */}
+            <div className="flex items-center gap-3 mb-3">
+              <span className="text-[12px] font-medium text-muted-foreground">Sort By:</span>
+              <div className="flex rounded-md border border-border/70 overflow-hidden">
+                <button
+                  className={`px-3 py-1.5 text-[12px] font-medium transition-colors ${pastSortMode === 'by-unit' ? 'bg-primary text-primary-foreground' : 'bg-card hover:bg-muted/40'}`}
+                  onClick={() => setPastSortMode('by-unit')}
+                  data-testid="past-sort-by-unit"
+                >
+                  By Unit
+                </button>
+                <button
+                  className={`px-3 py-1.5 text-[12px] font-medium transition-colors border-l border-border/70 ${pastSortMode === 'by-moveout' ? 'bg-primary text-primary-foreground' : 'bg-card hover:bg-muted/40'}`}
+                  onClick={() => setPastSortMode('by-moveout')}
+                  data-testid="past-sort-by-moveout"
+                >
+                  By Move-Out Date
+                </button>
+              </div>
+            </div>
 
-                            <div className="space-y-2">
-                              {unitTenants.map(t => (
-                                <TenantRow
-                                  key={t.id}
-                                  tenant={t}
-                                  isPending={t.move_out_date <= today && !t.moveout_confirmed}
-                                />
-                              ))}
-                            </div>
-
-                            {/* Future tenants dropdown */}
-                            {unitFuture.length > 0 && (
-                              <Collapsible open={expandedFuture[futureKey]} onOpenChange={() => setExpandedFuture(prev => ({ ...prev, [futureKey]: !prev[futureKey] }))}>
-                                <CollapsibleTrigger asChild>
-                                  <Button variant="ghost" size="sm" className="mt-2 h-7 text-xs gap-1 text-muted-foreground">
-                                    {expandedFuture[futureKey] ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-                                    <CalendarDays className="h-3 w-3" />
-                                    Future Tenants ({unitFuture.length})
-                                  </Button>
-                                </CollapsibleTrigger>
-                                <CollapsibleContent>
-                                  <div className="mt-2 space-y-2 pl-4 border-l-2 border-primary/20">
-                                    {unitFuture.map(t => (
-                                      <TenantRow key={t.id} tenant={t} />
-                                    ))}
-                                  </div>
-                                </CollapsibleContent>
-                              </Collapsible>
-                            )}
-                          </div>
-                        );
-                      })}
-
-                      {/* Show future tenants for units that have no current tenants */}
-                      {Object.entries(futureGrouped[propId] || {})
-                        .filter(([uid]) => !units[uid])
-                        .map(([unitId, unitFuture]) => {
-                          const unit = unitMap[unitId];
-                          const sorted = [...unitFuture].sort((a, b) => a.move_in_date.localeCompare(b.move_in_date));
-                          const futureKey = `future-empty-${unitId}`;
-                          return (
-                            <div key={unitId} className="p-4">
-                              <div className="flex items-center gap-2 mb-2">
-                                <Badge variant="outline" className="text-xs gap-1">
-                                  <Home className="h-3 w-3" />
-                                  Unit {unit?.unit_number || '?'}
-                                </Badge>
-                                <span className="text-xs text-muted-foreground">Currently vacant</span>
-                              </div>
-                              <Collapsible open={expandedFuture[futureKey]} onOpenChange={() => setExpandedFuture(prev => ({ ...prev, [futureKey]: !prev[futureKey] }))}>
-                                <CollapsibleTrigger asChild>
-                                  <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 text-muted-foreground">
-                                    {expandedFuture[futureKey] ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-                                    <CalendarDays className="h-3 w-3" />
-                                    Future Tenants ({sorted.length})
-                                  </Button>
-                                </CollapsibleTrigger>
-                                <CollapsibleContent>
-                                  <div className="mt-2 space-y-2 pl-4 border-l-2 border-primary/20">
-                                    {sorted.map(t => (<TenantRow key={t.id} tenant={t} />))}
-                                  </div>
-                                </CollapsibleContent>
-                              </Collapsible>
-                            </div>
-                          );
-                        })
-                      }
-                    </div>
-                  </Card>
-                );
-              })
-            )}
-          </div>
-
-          {/* ===== SECTION 2: PAST TENANTS ===== */}
-          <div className="space-y-4">
-            <Collapsible open={showPastSection} onOpenChange={setShowPastSection}>
-              <CollapsibleTrigger asChild>
-                <Button variant="outline" className="gap-2" data-testid="past-tenants-toggle">
-                  {showPastSection ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                  Past Tenants
-                  <Badge variant="secondary" className="text-xs tabular-nums">{pastTenants.length}</Badge>
-                </Button>
-              </CollapsibleTrigger>
-              <CollapsibleContent>
-                <div className="mt-4 space-y-4">
-                  {pastTenants.length === 0 ? (
-                    <Card className="border-dashed">
-                      <CardContent className="py-8 text-center text-sm text-muted-foreground">
-                        No past tenants
-                      </CardContent>
-                    </Card>
-                  ) : (
-                    Object.entries(pastGrouped).map(([propId, units]) => {
-                      const prop = propMap[propId];
-                      const pastPropKey = `past-${propId}`;
-                      return (
-                        <Collapsible key={propId} open={expandedPast[pastPropKey]} onOpenChange={() => setExpandedPast(prev => ({ ...prev, [pastPropKey]: !prev[pastPropKey] }))}>
-                          <CollapsibleTrigger asChild>
-                            <Card className="overflow-hidden cursor-pointer hover:bg-muted/20 transition-colors">
-                              <div className="px-4 py-3 flex items-center gap-2">
-                                {expandedPast[pastPropKey] ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                                <Building2 className="h-4 w-4 text-muted-foreground" />
-                                <span className="font-semibold text-sm">{prop?.name || 'Unknown'}</span>
-                                <Badge variant="secondary" className="text-xs">
-                                  {Object.values(units).flat().length} tenants
-                                </Badge>
-                              </div>
-                            </Card>
-                          </CollapsibleTrigger>
-                          <CollapsibleContent>
-                            <Card className="mt-1 overflow-hidden border-t-0 rounded-t-none">
-                              <div className="divide-y">
-                                {Object.entries(units).map(([unitId, unitTenants]) => {
-                                  const unit = unitMap[unitId];
-                                  const pastUnitKey = `past-${propId}-${unitId}`;
-                                  return (
-                                    <Collapsible key={unitId} open={expandedPast[pastUnitKey]} onOpenChange={() => setExpandedPast(prev => ({ ...prev, [pastUnitKey]: !prev[pastUnitKey] }))}>
-                                      <CollapsibleTrigger className="w-full">
-                                        <div className="px-4 py-2.5 flex items-center gap-2 hover:bg-muted/30 transition-colors">
-                                          {expandedPast[pastUnitKey] ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-                                          <Badge variant="outline" className="text-xs gap-1">
-                                            <Home className="h-3 w-3" />
-                                            Unit {unit?.unit_number || '?'}
-                                          </Badge>
-                                          <span className="text-xs text-muted-foreground">{unitTenants.length} past tenants</span>
-                                        </div>
-                                      </CollapsibleTrigger>
-                                      <CollapsibleContent>
-                                        <div className="px-4 pb-3 space-y-2">
-                                          {unitTenants.sort((a, b) => b.move_out_date.localeCompare(a.move_out_date)).map(t => (
-                                            <TenantRow key={t.id} tenant={t} showActions={true} />
-                                          ))}
-                                        </div>
-                                      </CollapsibleContent>
-                                    </Collapsible>
-                                  );
-                                })}
-                              </div>
-                            </Card>
-                          </CollapsibleContent>
-                        </Collapsible>
-                      );
-                    })
-                  )}
-                </div>
-              </CollapsibleContent>
-            </Collapsible>
-          </div>
-        </>
+            <div className="rounded-lg border border-border/70 bg-[hsl(36,33%,97%)] overflow-hidden" data-testid="past-tenants-table">
+              {pastSortMode === 'by-unit' ? renderPastByUnit() : renderPastByMoveOut()}
+            </div>
+          </TabsContent>
+        </Tabs>
       )}
 
       {/* ===== TENANT DETAIL DIALOG ===== */}
@@ -589,15 +946,19 @@ export default function TenantsPage() {
                       </p>
                     </div>
                   </div>
-                  {(detailTenant.partial_first_month || detailTenant.partial_last_month) && (
-                    <div className="grid grid-cols-2 gap-3">
+                  {(detailTenant.deposit_return_date || detailTenant.deposit_return_amount) && (
+                    <div className="grid grid-cols-3 gap-3">
                       <div>
-                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Partial First Month</p>
-                        <p className="text-sm tabular-nums">{detailTenant.partial_first_month ? `$${parseFloat(detailTenant.partial_first_month).toLocaleString()}` : '-'}</p>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Deposit Return Date</p>
+                        <p className="text-sm">{detailTenant.deposit_return_date || '-'}</p>
                       </div>
                       <div>
-                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Partial Last Month</p>
-                        <p className="text-sm tabular-nums">{detailTenant.partial_last_month ? `$${parseFloat(detailTenant.partial_last_month).toLocaleString()}` : '-'}</p>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Deposit Return Amt</p>
+                        <p className="text-sm tabular-nums">{detailTenant.deposit_return_amount ? `$${parseFloat(detailTenant.deposit_return_amount).toLocaleString()}` : '-'}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Deposit Return Method</p>
+                        <p className="text-sm">{detailTenant.deposit_return_method || '-'}</p>
                       </div>
                     </div>
                   )}
@@ -728,7 +1089,7 @@ export default function TenantsPage() {
                 <Select value={form.property_id} onValueChange={v => setForm({...form, property_id: v, unit_id: ''})}>
                   <SelectTrigger><SelectValue placeholder="Select property" /></SelectTrigger>
                   <SelectContent>
-                    {properties.map(p => (<SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>))}
+                    {sortedProperties.map(p => (<SelectItem key={p.id} value={p.id}>{p.name}{p.building_id != null ? ` (#${p.building_id})` : ''}</SelectItem>))}
                   </SelectContent>
                 </Select>
               </div>
@@ -737,7 +1098,7 @@ export default function TenantsPage() {
                 <Select value={form.unit_id} onValueChange={v => setForm({...form, unit_id: v})} disabled={!form.property_id}>
                   <SelectTrigger><SelectValue placeholder="Select unit" /></SelectTrigger>
                   <SelectContent>
-                    {filteredUnits.map(u => (<SelectItem key={u.id} value={u.id}>{u.unit_number} ({u.unit_size})</SelectItem>))}
+                    {sortUnitsNumerically(filteredUnits).map(u => (<SelectItem key={u.id} value={u.id}>{u.unit_number} ({u.unit_size})</SelectItem>))}
                   </SelectContent>
                 </Select>
               </div>
@@ -787,7 +1148,7 @@ export default function TenantsPage() {
                     <Input value={form.rent_due_date} onChange={e => setForm({...form, rent_due_date: e.target.value})} placeholder="e.g. 1st, 15th" data-testid="tenant-rent-due-date" />
                   </div>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Deposit Amount</Label>
                     <Input type="number" value={form.deposit_amount} onChange={e => setForm({...form, deposit_amount: e.target.value})} />
@@ -815,6 +1176,23 @@ export default function TenantsPage() {
                   <div className="space-y-2">
                     <Label>Parking</Label>
                     <Input value={form.parking} onChange={e => setForm({...form, parking: e.target.value})} />
+                  </div>
+                </div>
+                {/* Deposit Return Fields */}
+                <Separator />
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Deposit Return (fill after move-out)</p>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label>Deposit Return Date</Label>
+                    <Input type="date" value={form.deposit_return_date} onChange={e => setForm({...form, deposit_return_date: e.target.value})} data-testid="tenant-deposit-return-date" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Deposit Return Amount</Label>
+                    <Input type="number" value={form.deposit_return_amount} onChange={e => setForm({...form, deposit_return_amount: e.target.value})} data-testid="tenant-deposit-return-amount" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Deposit Return Method</Label>
+                    <Input value={form.deposit_return_method} onChange={e => setForm({...form, deposit_return_method: e.target.value})} placeholder="e.g. Check, Zelle" data-testid="tenant-deposit-return-method" />
                   </div>
                 </div>
                 <div className="space-y-2">
