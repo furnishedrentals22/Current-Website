@@ -145,19 +145,106 @@ class LeadCreate(BaseModel):
     unassigned_note: Optional[str] = ""
 
 class NotificationCreate(BaseModel):
+    name: Optional[str] = ""
+    property_id: Optional[str] = None
+    unit_id: Optional[str] = None
+    assigned_person: Optional[str] = None
+    reminder_date: Optional[str] = None
+    reminder_time: Optional[str] = ""
+    status: str = "upcoming"
+    is_recurring: bool = False
+    recurrence_pattern: Optional[str] = None
+    reminder_times: List[str] = []
+    notes: Optional[str] = ""
+    notification_type: Optional[str] = "manual"
+    related_entity_id: Optional[str] = None
+    related_entity_type: Optional[str] = None
     lead_id: Optional[str] = None
     lead_name: Optional[str] = ""
     tenant_id: Optional[str] = None
     tenant_name: Optional[str] = ""
     stage_name: Optional[str] = ""
-    notification_type: Optional[str] = "lead"  # "lead", "moveout", "deposit_return"
-    notification_date: str
+    notification_date: Optional[str] = None
     message: Optional[str] = ""
 
 class NoteCreate(BaseModel):
     title: str
     content: Optional[str] = ""
-    color: Optional[str] = "default"  # default, yellow, green, blue, pink
+    color: Optional[str] = "default"
+
+class TeamMemberCreate(BaseModel):
+    name: str
+    role: Optional[str] = ""
+    phone: Optional[str] = ""
+    email: Optional[str] = ""
+
+class ParkingSpotCreate(BaseModel):
+    spot_type: str
+    location: Optional[str] = ""
+    property_ids: List[str] = []
+    spot_number: Optional[str] = ""
+    parking_pass_number: Optional[str] = ""
+    cost: Optional[float] = None
+    notes: Optional[str] = ""
+    decal_number: Optional[str] = ""
+    decal_year: Optional[str] = ""
+
+class ParkingAssignmentCreate(BaseModel):
+    parking_spot_id: str
+    tenant_id: str
+    tenant_name: Optional[str] = ""
+    property_id: Optional[str] = None
+    unit_id: Optional[str] = None
+    start_date: str
+    end_date: str
+    notes: Optional[str] = ""
+    is_active: bool = True
+
+class DoorCodeCreate(BaseModel):
+    unit_id: str
+    property_id: str
+    admin_code: Optional[str] = ""
+    admin_code_note: Optional[str] = ""
+    housekeeping_code: Optional[str] = ""
+    housekeeping_code_note: Optional[str] = ""
+    guest_code: Optional[str] = ""
+    guest_code_note: Optional[str] = ""
+    backup_code_1: Optional[str] = ""
+    backup_code_1_note: Optional[str] = ""
+    backup_code_2: Optional[str] = ""
+    backup_code_2_note: Optional[str] = ""
+
+class LoginAccountCreate(BaseModel):
+    account_name: str
+    sensitivity_level: int = 1
+    username: Optional[str] = ""
+    password: Optional[str] = ""
+    email: Optional[str] = ""
+    url: Optional[str] = ""
+    security_question_1: Optional[str] = ""
+    security_answer_1: Optional[str] = ""
+    security_question_2: Optional[str] = ""
+    security_answer_2: Optional[str] = ""
+    phone: Optional[str] = ""
+    account_pin: Optional[str] = ""
+    account_type: Optional[str] = ""
+    notes: Optional[str] = ""
+
+class MarketingLinkCreate(BaseModel):
+    unit_id: str
+    property_id: str
+    airbnb_link: Optional[str] = ""
+    furnished_finder_link: Optional[str] = ""
+    photos_link: Optional[str] = ""
+    additional_links: List[Dict[str, str]] = []
+
+class PinVerify(BaseModel):
+    pin: str
+    pin_type: str = "shared"
+
+class PinSet(BaseModel):
+    pin: str
+    pin_type: str = "shared"
 
 # ============================================================
 # PROPERTIES ENDPOINTS
@@ -342,6 +429,35 @@ async def create_tenant(data: TenantCreate):
     doc["updated_at"] = datetime.now(timezone.utc).isoformat()
     result = await db.tenants.insert_one(doc)
     doc["_id"] = result.inserted_id
+    
+    # Auto-create door code update reminder on move-in day
+    door_code = await db.door_codes.find_one({"unit_id": data.unit_id})
+    if door_code:
+        unit_doc = await db.units.find_one({"_id": ObjectId(data.unit_id)})
+        unit_num = unit_doc.get("unit_number", "") if unit_doc else ""
+        prop_doc = await db.properties.find_one({"_id": ObjectId(data.property_id)})
+        prop_name = prop_doc.get("name", "") if prop_doc else ""
+        now_str = datetime.now(timezone.utc).isoformat()
+        code_notif = {
+            "name": f"Update Door Code - Unit {unit_num} ({prop_name})",
+            "property_id": data.property_id,
+            "unit_id": data.unit_id,
+            "reminder_date": data.move_in_date,
+            "reminder_time": "09:00",
+            "status": "upcoming",
+            "notification_type": "door_code",
+            "related_entity_type": "door_code",
+            "related_entity_id": str(door_code["_id"]),
+            "tenant_id": str(result.inserted_id),
+            "tenant_name": data.name,
+            "message": f"Update door codes for {data.name} moving into Unit {unit_num}",
+            "notification_date": data.move_in_date,
+            "is_read": False,
+            "created_at": now_str,
+            "updated_at": now_str
+        }
+        await db.notifications.insert_one(code_notif)
+    
     return serialize_doc(doc)
 
 @api_router.put("/tenants/{tenant_id}")
@@ -416,16 +532,22 @@ async def confirm_moveout(tenant_id: str):
     if not tenant.get("is_airbnb_vrbo") and tenant.get("deposit_amount"):
         deposit_return_date = (date.today() + timedelta(days=3)).isoformat()
         notif_doc = {
+            "name": f"Deposit Return - {tenant.get('name', '')}",
+            "property_id": tenant.get("property_id"),
+            "unit_id": tenant.get("unit_id"),
+            "reminder_date": deposit_return_date,
+            "status": "upcoming",
+            "notification_type": "deposit_return",
             "lead_id": None,
             "lead_name": "",
             "tenant_id": tenant_id,
             "tenant_name": tenant.get("name", ""),
             "stage_name": "Deposit Return",
-            "notification_type": "deposit_return",
             "notification_date": deposit_return_date,
             "message": f"Return deposit of ${tenant.get('deposit_amount', 0):,.2f} to {tenant.get('name', '')}",
             "is_read": False,
-            "created_at": now
+            "created_at": now,
+            "updated_at": now
         }
         await db.notifications.insert_one(notif_doc)
     
@@ -496,27 +618,80 @@ async def get_lead_stages():
     return STAGE_NAMES
 
 # ============================================================
-# NOTIFICATIONS ENDPOINTS
+# NOTIFICATIONS ENDPOINTS (Overhauled)
 # ============================================================
 @api_router.get("/notifications")
-async def list_notifications():
-    docs = await db.notifications.find().sort("created_at", -1).to_list(1000)
-    return [serialize_doc(d) for d in docs]
+async def list_notifications(status: Optional[str] = None):
+    query = {}
+    if status:
+        query["status"] = status
+    docs = await db.notifications.find(query).sort("created_at", -1).to_list(1000)
+    results = []
+    for d in docs:
+        s = serialize_doc(d)
+        if "status" not in s:
+            s["status"] = "done" if s.get("is_read") else "upcoming"
+        if not s.get("name"):
+            if s.get("message"):
+                s["name"] = s["message"][:80]
+            elif s.get("lead_name") and s.get("stage_name"):
+                s["name"] = f"{s['lead_name']} - {s['stage_name']}"
+        if not s.get("reminder_date") and s.get("notification_date"):
+            s["reminder_date"] = s["notification_date"]
+        results.append(s)
+    return results
 
 @api_router.post("/notifications")
 async def create_notification(data: NotificationCreate):
     doc = data.model_dump()
-    doc["is_read"] = False
+    doc["is_read"] = doc["status"] not in ["upcoming", "in_progress"]
+    if not doc.get("reminder_date") and doc.get("notification_date"):
+        doc["reminder_date"] = doc["notification_date"]
+    if not doc.get("notification_date") and doc.get("reminder_date"):
+        doc["notification_date"] = doc["reminder_date"]
     doc["created_at"] = datetime.now(timezone.utc).isoformat()
+    doc["updated_at"] = datetime.now(timezone.utc).isoformat()
     result = await db.notifications.insert_one(doc)
     doc["_id"] = result.inserted_id
     return serialize_doc(doc)
+
+@api_router.put("/notifications/{notification_id}")
+async def update_notification(notification_id: str, data: NotificationCreate):
+    update_doc = data.model_dump()
+    update_doc["is_read"] = update_doc["status"] not in ["upcoming", "in_progress"]
+    if not update_doc.get("reminder_date") and update_doc.get("notification_date"):
+        update_doc["reminder_date"] = update_doc["notification_date"]
+    if not update_doc.get("notification_date") and update_doc.get("reminder_date"):
+        update_doc["notification_date"] = update_doc["reminder_date"]
+    update_doc["updated_at"] = datetime.now(timezone.utc).isoformat()
+    result = await db.notifications.update_one(
+        {"_id": ObjectId(notification_id)},
+        {"$set": update_doc}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Notification not found")
+    doc = await db.notifications.find_one({"_id": ObjectId(notification_id)})
+    return serialize_doc(doc)
+
+@api_router.put("/notifications/{notification_id}/status")
+async def update_notification_status(notification_id: str, status: str = Query(...)):
+    valid = ["upcoming", "in_progress", "done", "reassigned", "archived"]
+    if status not in valid:
+        raise HTTPException(status_code=400, detail=f"Invalid status. Must be one of: {valid}")
+    is_read = status not in ["upcoming", "in_progress"]
+    result = await db.notifications.update_one(
+        {"_id": ObjectId(notification_id)},
+        {"$set": {"status": status, "is_read": is_read, "updated_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Notification not found")
+    return {"message": f"Status updated to {status}"}
 
 @api_router.put("/notifications/{notification_id}/read")
 async def mark_notification_read(notification_id: str):
     result = await db.notifications.update_one(
         {"_id": ObjectId(notification_id)},
-        {"$set": {"is_read": True}}
+        {"$set": {"is_read": True, "status": "done", "updated_at": datetime.now(timezone.utc).isoformat()}}
     )
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Notification not found")
@@ -526,7 +701,7 @@ async def mark_notification_read(notification_id: str):
 async def mark_notification_unread(notification_id: str):
     result = await db.notifications.update_one(
         {"_id": ObjectId(notification_id)},
-        {"$set": {"is_read": False}}
+        {"$set": {"is_read": False, "status": "upcoming", "updated_at": datetime.now(timezone.utc).isoformat()}}
     )
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Notification not found")
@@ -1137,6 +1312,291 @@ async def get_dashboard():
         'leads_count': lead_count,
         'unread_notifications': unread_notif
     }
+
+# ============================================================
+# TEAM MEMBERS ENDPOINTS
+# ============================================================
+@api_router.get("/team-members")
+async def list_team_members():
+    docs = await db.team_members.find().sort("name", 1).to_list(1000)
+    return [serialize_doc(d) for d in docs]
+
+@api_router.post("/team-members")
+async def create_team_member(data: TeamMemberCreate):
+    doc = data.model_dump()
+    doc["created_at"] = datetime.now(timezone.utc).isoformat()
+    result = await db.team_members.insert_one(doc)
+    doc["_id"] = result.inserted_id
+    return serialize_doc(doc)
+
+@api_router.put("/team-members/{member_id}")
+async def update_team_member(member_id: str, data: TeamMemberCreate):
+    update_doc = data.model_dump()
+    update_doc["updated_at"] = datetime.now(timezone.utc).isoformat()
+    result = await db.team_members.update_one({"_id": ObjectId(member_id)}, {"$set": update_doc})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Team member not found")
+    doc = await db.team_members.find_one({"_id": ObjectId(member_id)})
+    return serialize_doc(doc)
+
+@api_router.delete("/team-members/{member_id}")
+async def delete_team_member(member_id: str):
+    result = await db.team_members.delete_one({"_id": ObjectId(member_id)})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Team member not found")
+    return {"message": "Team member deleted"}
+
+# ============================================================
+# PIN MANAGEMENT ENDPOINTS
+# ============================================================
+@api_router.get("/pins/status")
+async def get_pin_status():
+    config = await db.settings.find_one({"type": "pin_config"})
+    if not config:
+        return {"shared_pin_set": False, "level_2_pin_set": False, "level_3_pin_set": False}
+    return {
+        "shared_pin_set": bool(config.get("shared_pin")),
+        "level_2_pin_set": bool(config.get("level_2_pin")),
+        "level_3_pin_set": bool(config.get("level_3_pin"))
+    }
+
+@api_router.post("/pins/set")
+async def set_pin(data: PinSet):
+    config = await db.settings.find_one({"type": "pin_config"})
+    if not config:
+        config = {"type": "pin_config"}
+        await db.settings.insert_one(config)
+    field_map = {"shared": "shared_pin", "level_2": "level_2_pin", "level_3": "level_3_pin"}
+    field = field_map.get(data.pin_type)
+    if not field:
+        raise HTTPException(status_code=400, detail="Invalid pin type")
+    await db.settings.update_one({"type": "pin_config"}, {"$set": {field: data.pin}})
+    return {"message": f"PIN set for {data.pin_type}"}
+
+@api_router.post("/pins/verify")
+async def verify_pin(data: PinVerify):
+    config = await db.settings.find_one({"type": "pin_config"})
+    if not config:
+        return {"valid": False, "message": "No PIN configured. Please set a PIN first."}
+    field_map = {"shared": "shared_pin", "level_2": "level_2_pin", "level_3": "level_3_pin"}
+    field = field_map.get(data.pin_type)
+    if not field:
+        raise HTTPException(status_code=400, detail="Invalid pin type")
+    stored_pin = config.get(field, "")
+    if not stored_pin:
+        return {"valid": False, "message": f"No PIN set for {data.pin_type}. Please set one in settings."}
+    return {"valid": data.pin == stored_pin}
+
+# ============================================================
+# PARKING SPOTS ENDPOINTS
+# ============================================================
+@api_router.get("/parking-spots")
+async def list_parking_spots():
+    docs = await db.parking_spots.find().sort("created_at", -1).to_list(1000)
+    return [serialize_doc(d) for d in docs]
+
+@api_router.get("/parking-spots/{spot_id}")
+async def get_parking_spot(spot_id: str):
+    doc = await db.parking_spots.find_one({"_id": ObjectId(spot_id)})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Parking spot not found")
+    return serialize_doc(doc)
+
+@api_router.post("/parking-spots")
+async def create_parking_spot(data: ParkingSpotCreate):
+    doc = data.model_dump()
+    doc["created_at"] = datetime.now(timezone.utc).isoformat()
+    doc["updated_at"] = datetime.now(timezone.utc).isoformat()
+    result = await db.parking_spots.insert_one(doc)
+    doc["_id"] = result.inserted_id
+    return serialize_doc(doc)
+
+@api_router.put("/parking-spots/{spot_id}")
+async def update_parking_spot(spot_id: str, data: ParkingSpotCreate):
+    update_doc = data.model_dump()
+    update_doc["updated_at"] = datetime.now(timezone.utc).isoformat()
+    result = await db.parking_spots.update_one({"_id": ObjectId(spot_id)}, {"$set": update_doc})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Parking spot not found")
+    doc = await db.parking_spots.find_one({"_id": ObjectId(spot_id)})
+    return serialize_doc(doc)
+
+@api_router.delete("/parking-spots/{spot_id}")
+async def delete_parking_spot(spot_id: str):
+    await db.parking_assignments.delete_many({"parking_spot_id": spot_id})
+    result = await db.parking_spots.delete_one({"_id": ObjectId(spot_id)})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Parking spot not found")
+    return {"message": "Parking spot deleted"}
+
+# ============================================================
+# PARKING ASSIGNMENTS ENDPOINTS
+# ============================================================
+@api_router.get("/parking-assignments")
+async def list_parking_assignments(parking_spot_id: Optional[str] = None, active_only: Optional[bool] = None):
+    query = {}
+    if parking_spot_id:
+        query["parking_spot_id"] = parking_spot_id
+    if active_only is not None:
+        query["is_active"] = active_only
+    docs = await db.parking_assignments.find(query).sort("start_date", -1).to_list(1000)
+    return [serialize_doc(d) for d in docs]
+
+@api_router.post("/parking-assignments")
+async def create_parking_assignment(data: ParkingAssignmentCreate):
+    spot = await db.parking_spots.find_one({"_id": ObjectId(data.parking_spot_id)})
+    if not spot:
+        raise HTTPException(status_code=404, detail="Parking spot not found")
+    
+    doc = data.model_dump()
+    doc["created_at"] = datetime.now(timezone.utc).isoformat()
+    doc["updated_at"] = datetime.now(timezone.utc).isoformat()
+    result = await db.parking_assignments.insert_one(doc)
+    doc["_id"] = result.inserted_id
+    
+    # Auto-create reminder for Marlins Decal checkout
+    if spot.get("spot_type") == "marlins_decal":
+        now_str = datetime.now(timezone.utc).isoformat()
+        notif_doc = {
+            "name": f"Collect Marlins Decal #{spot.get('decal_number', '')} from {data.tenant_name}",
+            "property_id": data.property_id,
+            "unit_id": data.unit_id,
+            "reminder_date": data.end_date,
+            "reminder_time": "10:00",
+            "status": "upcoming",
+            "notification_type": "parking",
+            "related_entity_type": "parking_assignment",
+            "related_entity_id": str(result.inserted_id),
+            "tenant_id": data.tenant_id,
+            "tenant_name": data.tenant_name,
+            "message": f"Collect Marlins Decal #{spot.get('decal_number', '')} (Year: {spot.get('decal_year', '')}) from {data.tenant_name}",
+            "notification_date": data.end_date,
+            "is_read": False,
+            "created_at": now_str,
+            "updated_at": now_str
+        }
+        await db.notifications.insert_one(notif_doc)
+    
+    return serialize_doc(doc)
+
+@api_router.put("/parking-assignments/{assignment_id}")
+async def update_parking_assignment(assignment_id: str, data: ParkingAssignmentCreate):
+    update_doc = data.model_dump()
+    update_doc["updated_at"] = datetime.now(timezone.utc).isoformat()
+    result = await db.parking_assignments.update_one({"_id": ObjectId(assignment_id)}, {"$set": update_doc})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Parking assignment not found")
+    doc = await db.parking_assignments.find_one({"_id": ObjectId(assignment_id)})
+    return serialize_doc(doc)
+
+@api_router.delete("/parking-assignments/{assignment_id}")
+async def delete_parking_assignment(assignment_id: str):
+    result = await db.parking_assignments.delete_one({"_id": ObjectId(assignment_id)})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Parking assignment not found")
+    return {"message": "Parking assignment deleted"}
+
+# ============================================================
+# DOOR CODES ENDPOINTS
+# ============================================================
+@api_router.get("/door-codes")
+async def list_door_codes(unit_id: Optional[str] = None, property_id: Optional[str] = None):
+    query = {}
+    if unit_id:
+        query["unit_id"] = unit_id
+    if property_id:
+        query["property_id"] = property_id
+    docs = await db.door_codes.find(query).to_list(1000)
+    return [serialize_doc(d) for d in docs]
+
+@api_router.post("/door-codes")
+async def create_or_update_door_code(data: DoorCodeCreate):
+    existing = await db.door_codes.find_one({"unit_id": data.unit_id})
+    doc = data.model_dump()
+    doc["updated_at"] = datetime.now(timezone.utc).isoformat()
+    if existing:
+        await db.door_codes.update_one({"_id": existing["_id"]}, {"$set": doc})
+        updated = await db.door_codes.find_one({"_id": existing["_id"]})
+        return serialize_doc(updated)
+    else:
+        doc["created_at"] = datetime.now(timezone.utc).isoformat()
+        result = await db.door_codes.insert_one(doc)
+        doc["_id"] = result.inserted_id
+        return serialize_doc(doc)
+
+@api_router.delete("/door-codes/{code_id}")
+async def delete_door_code(code_id: str):
+    result = await db.door_codes.delete_one({"_id": ObjectId(code_id)})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Door code not found")
+    return {"message": "Door code deleted"}
+
+# ============================================================
+# LOGIN ACCOUNTS ENDPOINTS
+# ============================================================
+@api_router.get("/login-accounts")
+async def list_login_accounts():
+    docs = await db.login_accounts.find().sort("account_name", 1).to_list(1000)
+    return [serialize_doc(d) for d in docs]
+
+@api_router.post("/login-accounts")
+async def create_login_account(data: LoginAccountCreate):
+    doc = data.model_dump()
+    doc["created_at"] = datetime.now(timezone.utc).isoformat()
+    doc["updated_at"] = datetime.now(timezone.utc).isoformat()
+    result = await db.login_accounts.insert_one(doc)
+    doc["_id"] = result.inserted_id
+    return serialize_doc(doc)
+
+@api_router.put("/login-accounts/{account_id}")
+async def update_login_account(account_id: str, data: LoginAccountCreate):
+    update_doc = data.model_dump()
+    update_doc["updated_at"] = datetime.now(timezone.utc).isoformat()
+    result = await db.login_accounts.update_one({"_id": ObjectId(account_id)}, {"$set": update_doc})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Login account not found")
+    doc = await db.login_accounts.find_one({"_id": ObjectId(account_id)})
+    return serialize_doc(doc)
+
+@api_router.delete("/login-accounts/{account_id}")
+async def delete_login_account(account_id: str):
+    result = await db.login_accounts.delete_one({"_id": ObjectId(account_id)})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Login account not found")
+    return {"message": "Login account deleted"}
+
+# ============================================================
+# MARKETING LINKS ENDPOINTS
+# ============================================================
+@api_router.get("/marketing-links")
+async def list_marketing_links(unit_id: Optional[str] = None):
+    query = {}
+    if unit_id:
+        query["unit_id"] = unit_id
+    docs = await db.marketing_links.find(query).to_list(1000)
+    return [serialize_doc(d) for d in docs]
+
+@api_router.post("/marketing-links")
+async def create_or_update_marketing_link(data: MarketingLinkCreate):
+    existing = await db.marketing_links.find_one({"unit_id": data.unit_id})
+    doc = data.model_dump()
+    doc["updated_at"] = datetime.now(timezone.utc).isoformat()
+    if existing:
+        await db.marketing_links.update_one({"_id": existing["_id"]}, {"$set": doc})
+        updated = await db.marketing_links.find_one({"_id": existing["_id"]})
+        return serialize_doc(updated)
+    else:
+        doc["created_at"] = datetime.now(timezone.utc).isoformat()
+        result = await db.marketing_links.insert_one(doc)
+        doc["_id"] = result.inserted_id
+        return serialize_doc(doc)
+
+@api_router.delete("/marketing-links/{link_id}")
+async def delete_marketing_link(link_id: str):
+    result = await db.marketing_links.delete_one({"_id": ObjectId(link_id)})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Marketing link not found")
+    return {"message": "Marketing link deleted"}
 
 # ============================================================
 # NOTES ENDPOINTS

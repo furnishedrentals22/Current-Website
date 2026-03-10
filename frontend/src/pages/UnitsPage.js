@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getUnits, createUnit, updateUnit, deleteUnit, getProperties } from '@/lib/api';
+import { getUnits, createUnit, updateUnit, deleteUnit, getProperties, getDoorCodes, getMarketingLinks } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Home, Plus, Pencil, Trash2, X } from 'lucide-react';
+import { Home, Plus, Pencil, Trash2, X, ChevronDown, ChevronRight, Copy, ExternalLink, Lock, DoorOpen, Megaphone } from 'lucide-react';
 import { toast } from 'sonner';
 
 const UNIT_SIZES = ['0/1', '1/1', '2/1', '2/2', '3/1', '3/2', '3/3', 'other'];
@@ -21,18 +21,23 @@ const emptyForm = {
 export default function UnitsPage() {
   const [units, setUnits] = useState([]);
   const [properties, setProperties] = useState([]);
+  const [doorCodes, setDoorCodes] = useState([]);
+  const [marketingLinks, setMarketingLinks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [filterProp, setFilterProp] = useState('all');
   const [saving, setSaving] = useState(false);
+  const [expandedUnit, setExpandedUnit] = useState(null);
 
   const fetchData = async () => {
     try {
-      const [u, p] = await Promise.all([getUnits(), getProperties()]);
+      const [u, p, dc, ml] = await Promise.all([getUnits(), getProperties(), getDoorCodes(), getMarketingLinks()]);
       setUnits(u);
       setProperties(p);
+      setDoorCodes(dc);
+      setMarketingLinks(ml);
     } catch (e) {
       toast.error('Failed to load data');
     } finally {
@@ -44,6 +49,10 @@ export default function UnitsPage() {
 
   const propMap = {};
   properties.forEach(p => { propMap[p.id] = p.name; });
+  const codeMap = {};
+  doorCodes.forEach(dc => { codeMap[dc.unit_id] = dc; });
+  const linkMap = {};
+  marketingLinks.forEach(ml => { linkMap[ml.unit_id] = ml; });
 
   const filtered = filterProp === 'all' ? units : units.filter(u => u.property_id === filterProp);
 
@@ -173,22 +182,69 @@ export default function UnitsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map(u => (
-                <TableRow key={u.id} className="hover:bg-muted/40" data-testid="units-table-row">
-                  <TableCell className="font-medium">{u.unit_number}</TableCell>
-                  <TableCell className="text-sm">{propMap[u.property_id] || '-'}</TableCell>
-                  <TableCell><Badge variant="secondary">{u.unit_size === 'other' ? u.unit_size_custom : u.unit_size}</Badge></TableCell>
-                  <TableCell className="tabular-nums">${parseFloat(u.base_rent).toLocaleString()}</TableCell>
-                  <TableCell className="text-sm">{u.availability_start_date}</TableCell>
-                  <TableCell className="text-sm">{u.close_date || '-'}</TableCell>
-                  <TableCell>
-                    <div className="flex gap-1">
-                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => openEdit(u)}><Pencil className="h-4 w-4" /></Button>
-                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-destructive" onClick={() => handleDelete(u.id)}><Trash2 className="h-4 w-4" /></Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {filtered.map(u => {
+                const codes = codeMap[u.id];
+                const mlinks = linkMap[u.id];
+                const hasInfo = codes || mlinks;
+                const isExpanded = expandedUnit === u.id;
+                return (
+                  <>
+                  <TableRow key={u.id} className={`hover:bg-muted/40 ${hasInfo ? 'cursor-pointer' : ''}`} data-testid="units-table-row"
+                    onClick={() => hasInfo && setExpandedUnit(isExpanded ? null : u.id)}>
+                    <TableCell className="font-medium">
+                      <div className="flex items-center gap-1.5">
+                        {hasInfo && (isExpanded ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />)}
+                        {u.unit_number}
+                        {codes && <DoorOpen className="h-3 w-3 text-muted-foreground" />}
+                        {mlinks && <Megaphone className="h-3 w-3 text-muted-foreground" />}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-sm">{propMap[u.property_id] || '-'}</TableCell>
+                    <TableCell><Badge variant="secondary">{u.unit_size === 'other' ? u.unit_size_custom : u.unit_size}</Badge></TableCell>
+                    <TableCell className="tabular-nums">${parseFloat(u.base_rent).toLocaleString()}</TableCell>
+                    <TableCell className="text-sm">{u.availability_start_date}</TableCell>
+                    <TableCell className="text-sm">{u.close_date || '-'}</TableCell>
+                    <TableCell>
+                      <div className="flex gap-1" onClick={e => e.stopPropagation()}>
+                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => openEdit(u)}><Pencil className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-destructive" onClick={() => handleDelete(u.id)}><Trash2 className="h-4 w-4" /></Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                  {isExpanded && (
+                    <TableRow key={`${u.id}-detail`} className="bg-muted/20">
+                      <TableCell colSpan={7} className="p-3">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {codes && (
+                            <div data-testid="unit-door-codes-section">
+                              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2 flex items-center gap-1"><DoorOpen className="h-3.5 w-3.5" />Door Codes</p>
+                              <div className="grid grid-cols-5 gap-1.5">
+                                <div className="text-xs"><span className="text-muted-foreground block">Admin</span><span className="font-mono flex items-center gap-0.5"><Lock className="h-3 w-3" />****</span></div>
+                                <div className="text-xs"><span className="text-muted-foreground block">Housekeeping</span><span className="font-mono">{codes.housekeeping_code || '-'}</span></div>
+                                <div className="text-xs"><span className="text-muted-foreground block">Guest</span><span className="font-mono font-bold text-sm">{codes.guest_code || '-'}</span></div>
+                                <div className="text-xs"><span className="text-muted-foreground block">Backup 1</span><span className="font-mono">{codes.backup_code_1 || '-'}</span></div>
+                                <div className="text-xs"><span className="text-muted-foreground block">Backup 2</span><span className="font-mono">{codes.backup_code_2 || '-'}</span></div>
+                              </div>
+                            </div>
+                          )}
+                          {mlinks && (
+                            <div data-testid="unit-marketing-links-section">
+                              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2 flex items-center gap-1"><Megaphone className="h-3.5 w-3.5" />Marketing Links</p>
+                              <div className="flex flex-wrap gap-1.5">
+                                {mlinks.airbnb_link && <UnitLinkBadge label="Airbnb" url={mlinks.airbnb_link} />}
+                                {mlinks.furnished_finder_link && <UnitLinkBadge label="Furnished Finder" url={mlinks.furnished_finder_link} />}
+                                {mlinks.photos_link && <UnitLinkBadge label="Photos" url={mlinks.photos_link} />}
+                                {mlinks.additional_links?.map((al, i) => <UnitLinkBadge key={i} label={al.name} url={al.url} />)}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  </>
+                );
+              })}
             </TableBody>
           </Table>
         </Card>
@@ -269,5 +325,17 @@ export default function UnitsPage() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+function UnitLinkBadge({ label, url }) {
+  const copy = () => { navigator.clipboard.writeText(url); toast.success('Link copied'); };
+  return (
+    <span className="inline-flex items-center gap-1 border rounded-full px-2 py-0.5 bg-card text-xs">
+      <a href={url} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline flex items-center gap-0.5">
+        <ExternalLink className="h-3 w-3" />{label}
+      </a>
+      <button className="hover:text-foreground text-muted-foreground" onClick={copy}><Copy className="h-3 w-3" /></button>
+    </span>
   );
 }

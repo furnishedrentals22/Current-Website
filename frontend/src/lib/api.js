@@ -75,4 +75,48 @@ export const createNote = (data) => api.post('/notes', data).then(r => r.data);
 export const updateNote = (id, data) => api.put(`/notes/${id}`, data).then(r => r.data);
 export const deleteNote = (id) => api.delete(`/notes/${id}`).then(r => r.data);
 
+// Team Members
+export const getTeamMembers = () => api.get('/team-members').then(r => r.data);
+export const createTeamMember = (data) => api.post('/team-members', data).then(r => r.data);
+export const updateTeamMember = (id, data) => api.put(`/team-members/${id}`, data).then(r => r.data);
+export const deleteTeamMember = (id) => api.delete(`/team-members/${id}`).then(r => r.data);
+
+// Parking Spots
+export const getParkingSpots = () => api.get('/parking-spots').then(r => r.data);
+export const getParkingSpot = (id) => api.get(`/parking-spots/${id}`).then(r => r.data);
+export const createParkingSpot = (data) => api.post('/parking-spots', data).then(r => r.data);
+export const updateParkingSpot = (id, data) => api.put(`/parking-spots/${id}`, data).then(r => r.data);
+export const deleteParkingSpot = (id) => api.delete(`/parking-spots/${id}`).then(r => r.data);
+
+// Parking Assignments
+export const getParkingAssignments = (params = {}) => api.get('/parking-assignments', { params }).then(r => r.data);
+export const createParkingAssignment = (data) => api.post('/parking-assignments', data).then(r => r.data);
+export const updateParkingAssignment = (id, data) => api.put(`/parking-assignments/${id}`, data).then(r => r.data);
+export const deleteParkingAssignment = (id) => api.delete(`/parking-assignments/${id}`).then(r => r.data);
+
+// Door Codes
+export const getDoorCodes = (params = {}) => api.get('/door-codes', { params }).then(r => r.data);
+export const saveDoorCode = (data) => api.post('/door-codes', data).then(r => r.data);
+export const deleteDoorCode = (id) => api.delete(`/door-codes/${id}`).then(r => r.data);
+
+// Login Accounts
+export const getLoginAccounts = () => api.get('/login-accounts').then(r => r.data);
+export const createLoginAccount = (data) => api.post('/login-accounts', data).then(r => r.data);
+export const updateLoginAccount = (id, data) => api.put(`/login-accounts/${id}`, data).then(r => r.data);
+export const deleteLoginAccount = (id) => api.delete(`/login-accounts/${id}`).then(r => r.data);
+
+// Marketing Links
+export const getMarketingLinks = (params = {}) => api.get('/marketing-links', { params }).then(r => r.data);
+export const saveMarketingLink = (data) => api.post('/marketing-links', data).then(r => r.data);
+export const deleteMarketingLink = (id) => api.delete(`/marketing-links/${id}`).then(r => r.data);
+
+// PIN Management
+export const getPinStatus = () => api.get('/pins/status').then(r => r.data);
+export const setPin = (data) => api.post('/pins/set', data).then(r => r.data);
+export const verifyPin = (data) => api.post('/pins/verify', data).then(r => r.data);
+
+// Notifications (extended)
+export const updateNotification = (id, data) => api.put(`/notifications/${id}`, data).then(r => r.data);
+export const updateNotificationStatus = (id, status) => api.put(`/notifications/${id}/status?status=${status}`).then(r => r.data);
+
 export default api;
