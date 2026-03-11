@@ -48,7 +48,12 @@ All CRUD for each collection + specialized:
 - /api/cleaning-records — with auto-housekeeper-warning management
 - /api/notifications — full-featured: snooze, duplicate, bulk-action, status filters
 
+## Testing History
+- Iteration 10 (Mar 2026): All 21 backend tests passed, all frontend features verified — Operations v2 fixes fully validated
+
 ## Prioritized Backlog
-- P1: User feedback on Operations pages
+- P1: Await user feedback on Operations pages (Move In/Out tabs, Upcoming Cleanings backfill + Next Check-in)
 - P2: Auto-notification hooks from other pages (parking, deposits, etc.)
-- P2: Refactor TenantsPage.js and server.py into modules
+- P2: Refactor server.py into modular FastAPI structure (routers/models/services)
+- P2: Refactor large frontend pages (NotificationsPage, HousekeepingPage) into smaller components
+- P3: Fix minor React key warning on UnitsPage TableBody
