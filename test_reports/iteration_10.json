@@ -1,0 +1,97 @@
+{
+  "summary": "Comprehensive testing of Operations features v2: MoveInOut two-tab layout, cleaning records backfill with Next Check-in column, and all related backend APIs. All 21 backend tests passed (100%). All frontend UI features working correctly. Smoke test of main navigation sections passed.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "console_warnings": [
+      {"component": "UnitsPage", "issue": "React warning: Each child in a list should have unique key prop in TableBody - minor, doesn't affect functionality"}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_operations_v2.py",
+    "/app/test_reports/pytest/pytest_operations_v2.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "MoveInOutPage correctly implements two-tab layout with Move-Ins (4 items) and Move-Outs (7 items) tabs",
+    "Backend /api/move-ins-outs returns flat array; frontend correctly filters by move_in_date and move_out_date >= today",
+    "HousekeepingPage has 'NEXT CHECK IN' column showing next tenant moving into same unit",
+    "Cleaning records backfill logic works - auto-creates records for tenants with move-out in date range",
+    "All data-testid attributes properly implemented for testing",
+    "Operations nav group in sidebar correctly expands to show Move In/Out and Housekeeping sub-items"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_operations_v2.py (created new test suite for Operations v2 features)"
+  ],
+  "success_rate": {
+    "backend": "100% (21/21 passed)",
+    "frontend": "100% (all features verified)"
+  },
+  "seed_data_creation": "Existing data: 7 tenants across 2 properties, 1 housekeeper (Maria), 1 housekeeping lead (John), 4 cleaning records with next check-in data",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Operations features fully tested. MoveInOutPage now has two tabs (Move-Ins and Move-Outs) instead of previous two-table layout. HousekeepingPage Upcoming Cleanings tab displays 'Next Check In' column showing the next tenant scheduled to move into each unit. Backend auto-backfills cleaning records for tenants with upcoming move-outs. Test data: 4 upcoming move-ins, 7 upcoming move-outs, 4 cleaning records, 1 housekeeper (Maria), 1 housekeeping lead (John).",
+  "features_tested": {
+    "move_in_out_two_tab_layout": {
+      "status": "PASS",
+      "notes": "Page shows two tabs: 'Move-Ins' (4 items) and 'Move-Outs' (7 items), each with badge counts"
+    },
+    "move_ins_tab_content": {
+      "status": "PASS",
+      "notes": "Shows tenants with upcoming move-in dates, sorted by date, with green highlighted move-in dates"
+    },
+    "move_outs_tab_content": {
+      "status": "PASS",
+      "notes": "Shows tenants with upcoming move-out dates, sorted by date, with orange/red highlighted move-out dates"
+    },
+    "move_in_out_data_enrichment": {
+      "status": "PASS",
+      "notes": "Each row shows property_name/unit_number, tenant name, dates, notes, bell icon for reminders"
+    },
+    "backend_move_ins_outs_endpoint": {
+      "status": "PASS",
+      "notes": "GET /api/move-ins-outs returns flat list with property_name and unit_number enrichment"
+    },
+    "cleaning_records_backfill": {
+      "status": "PASS",
+      "notes": "Backend auto-creates cleaning records for tenants with move-out in date range who don't have records"
+    },
+    "next_check_in_column": {
+      "status": "PASS",
+      "notes": "Upcoming Cleanings table has 'NEXT CHECK IN' column showing date and tenant name of next move-in"
+    },
+    "cleaning_records_api": {
+      "status": "PASS",
+      "notes": "GET /api/cleaning-records returns records with next_check_in_date, next_check_in_tenant_name fields"
+    },
+    "cleaning_record_update": {
+      "status": "PASS",
+      "notes": "PUT /api/cleaning-records/{id} updates record fields correctly"
+    },
+    "housekeeping_page_three_tabs": {
+      "status": "PASS",
+      "notes": "Page has 3 tabs: Upcoming Cleanings (default), Current Housekeepers, Housekeeping Leads"
+    },
+    "housekeepers_crud": {
+      "status": "PASS",
+      "notes": "List, create, update, archive, delete all working for housekeepers"
+    },
+    "housekeeping_leads_crud": {
+      "status": "PASS",
+      "notes": "List, create, update, archive, delete all working for housekeeping leads"
+    },
+    "operations_nav_group": {
+      "status": "PASS",
+      "notes": "Operations group in sidebar expands to show Move In/Out and Housekeeping sub-items"
+    },
+    "smoke_test_main_sections": {
+      "status": "PASS",
+      "notes": "Properties, Units, Tenants, Leads, Notifications all load without errors"
+    }
+  }
+}
