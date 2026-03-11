@@ -789,7 +789,7 @@ async def bulk_notification_action(data: BulkNotificationAction):
 async def mark_notification_read(notification_id: str):
     result = await db.notifications.update_one(
         {"_id": ObjectId(notification_id)},
-        {"$set": {"is_read": True, "status": "done", "updated_at": datetime.now(timezone.utc).isoformat()}}
+        {"$set": {"is_read": True, "updated_at": datetime.now(timezone.utc).isoformat()}}
     )
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Notification not found")

@@ -558,22 +558,14 @@ function KanbanCard({ n, propMap, unitMap, isSelected, onToggleSelect, onEdit, o
   const unit = unitMap[n.unit_id];
   const cat = (n.category || n.notification_type || 'manual').replace('_', ' ');
 
-  const nextStatuses = {
-    upcoming: ['in_progress', 'done'],
-    in_progress: ['done', 'reassigned'],
-    done: ['archived'],
-    reassigned: ['in_progress', 'upcoming'],
-    archived: ['upcoming'],
-  };
-
   return (
-    <div className={`rounded-md border p-2 bg-card hover:shadow-sm transition-shadow cursor-pointer ${isSelected ? 'ring-2 ring-blue-400' : ''}`}
-      data-testid="kanban-card" onClick={() => setExpanded(!expanded)}>
+    <div className={`rounded-md border p-2 bg-card hover:shadow-sm transition-shadow ${isSelected ? 'ring-2 ring-blue-400' : ''}`}
+      data-testid="kanban-card">
       <div className="flex items-start gap-1.5">
         <div className="pt-0.5" onClick={e => { e.stopPropagation(); onToggleSelect(); }}>
           <Checkbox checked={isSelected} className="h-3.5 w-3.5" />
         </div>
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setExpanded(!expanded)}>
           <div className="flex items-center gap-1 mb-0.5">
             <div className={`h-2 w-2 rounded-full flex-shrink-0 ${pri.dot}`} title={pri.label} />
             <span className="text-xs font-medium truncate">{n.name || 'Untitled'}</span>
@@ -592,17 +584,25 @@ function KanbanCard({ n, propMap, unitMap, isSelected, onToggleSelect, onEdit, o
           )}
         </div>
       </div>
+      {/* Always-visible status toggle */}
+      <div className="mt-1.5 flex items-center gap-1" onClick={e => e.stopPropagation()}>
+        <Select value={currentStatus} onValueChange={val => onStatusChange(n.id, val)}>
+          <SelectTrigger className="h-6 text-[10px] w-full px-2 py-0" data-testid="card-status-toggle">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {STATUSES.map(s => (
+              <SelectItem key={s.value} value={s.value} className="text-xs">
+                <span className="flex items-center gap-1.5"><span className={`h-2 w-2 rounded-full ${s.color}`} />{s.label}</span>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
       {expanded && (
         <div className="mt-2 pt-2 border-t space-y-1.5" onClick={e => e.stopPropagation()}>
           {(n.notes || n.message) && <p className="text-[10px] text-muted-foreground">{n.notes || n.message}</p>}
           {n.is_recurring && <Badge variant="secondary" className="text-[9px] h-4">Recurring: {n.recurrence_pattern}</Badge>}
-          <div className="flex flex-wrap gap-1">
-            {(nextStatuses[currentStatus] || []).map(s => (
-              <Button key={s} variant="outline" size="sm" className="h-5 text-[9px] px-1.5" onClick={() => onStatusChange(n.id, s)}>
-                {s.replace('_', ' ')}
-              </Button>
-            ))}
-          </div>
           <div className="flex gap-1 pt-1">
             <Button variant="ghost" size="sm" className="h-6 text-[10px] px-1.5" onClick={onEdit}><Pencil className="h-3 w-3 mr-0.5" />Edit</Button>
             <Button variant="ghost" size="sm" className="h-6 text-[10px] px-1.5" onClick={onSnooze}><AlarmClock className="h-3 w-3 mr-0.5" />Snooze</Button>
@@ -657,7 +657,20 @@ function ListView({ items, propMap, unitMap, selected, allSelected, onToggleSele
                 <TableCell className="text-xs text-muted-foreground">{prop ? prop.name : ''}{unit ? ` / U${unit.unit_number}` : ''}</TableCell>
                 <TableCell className="text-xs">{n.assigned_person || '-'}</TableCell>
                 <TableCell className="text-xs tabular-nums">{n.reminder_date || '-'}{n.reminder_time ? ` ${n.reminder_time}` : ''}</TableCell>
-                <TableCell><Badge className={`text-[9px] h-4 ${STATUS_BG[st]}`}>{st.replace('_', ' ')}</Badge></TableCell>
+                <TableCell>
+                  <Select value={st} onValueChange={val => onStatusChange(n.id, val)}>
+                    <SelectTrigger className="h-6 text-[10px] w-[110px] px-2 py-0 border-0 bg-transparent" data-testid="list-status-toggle">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {STATUSES.map(s => (
+                        <SelectItem key={s.value} value={s.value} className="text-xs">
+                          <span className="flex items-center gap-1.5"><span className={`h-2 w-2 rounded-full ${s.color}`} />{s.label}</span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </TableCell>
                 <TableCell>
                   <div className="flex gap-0.5">
                     <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => onEdit(n)} title="Edit"><Pencil className="h-3 w-3" /></Button>
