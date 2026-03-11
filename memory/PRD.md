@@ -15,79 +15,54 @@ Build a comprehensive property management application for managing rental proper
 - Properties CRUD with building_id for sorting
 - Units CRUD with additional monthly costs
 - Tenants CRUD with Airbnb/VRBO support, deposit tracking
+- Tenants page redesign (Current/Future + Past tabs, spreadsheet-style)
 - Leads management with pipeline stages
 - Income calculation engine (monthly/yearly)
 - Vacancy tracking (by building, by unit size, upcoming)
 - Calendar timeline view
 - Notes system
-- Basic notification system (lead reminders, deposit returns)
-- Tenants page redesign (Current/Future + Past tabs, spreadsheet-style)
 
-### Phase 2 (Current session - Feb 2026)
-- **Info Menu** - Collapsible sidebar group with 4 sub-pages
-- **Parking Page** (2 tabs):
-  - Parking Info: CRUD for Designated Spots + Marlins Decals
-  - Tenant Assignments: Assign tenants to spots with dates, archive past tenants
-  - Auto-reminders for Marlins Decal checkout → Notifications
-  - Manual reminder creation for decal pickup
-- **Door Codes Page**:
-  - Property → Unit hierarchy with 5 code types per unit
-  - PIN-protected admin codes (shared PIN system)
-  - Guest code displayed bold/large
-  - Cross-populated to Units page (expandable detail rows)
-  - Auto-reminder on tenant move-in to update codes → Notifications
-- **Login Information Page**:
-  - 3 sensitivity levels (Low/Medium/High) with different PINs
-  - Full account credential storage (username, password, email, URL, security questions, etc.)
-  - Copy-to-clipboard for credentials
-  - PIN gate for Medium and High sensitivity levels
-- **Marketing Page**:
-  - Per-unit listing links (Airbnb, Furnished Finder, Photos)
-  - Additional custom links
-  - Copy-to-clipboard functionality
-  - Cross-populated to Units page (expandable detail rows)
-- **Notifications/Tasks Page** (Central hub - standalone top-level):
-  - 5 status tabs: Upcoming, In Progress, Done, Reassigned, Archived
-  - Full CRUD for notifications
-  - Fields: name, property, unit, assigned person, date/time, recurring, notes
-  - Sort by date or property
-  - All system reminders (parking, door codes, deposits, move-ins) flow here
-- **Team Members** - Simple CRUD for assigning people to notifications
-- **Units page updated** - Shows door code and marketing link icons, expandable detail rows
-- **Bell icon panel updated** - Works with new status-based notification model
+### Phase 2 (Feb 2026)
+- **Info Menu** — Collapsible sidebar group with 4 sub-pages
+- **Parking Page** (2 tabs: Parking Info + Tenant Assignments)
+- **Door Codes Page** — PIN-protected admin codes, cross-populated to Units page
+- **Login Information Page** — 3 sensitivity levels with different PINs
+- **Marketing Page** — Per-unit listing links, cross-populated to Units page
+- **Team Members** — Simple CRUD for assigning people
+
+### Phase 3 (Feb 2026 — Current)
+- **Notifications/Tasks Page — Full Overhaul**:
+  - **Kanban Board View** — 5 status columns (Upcoming, In Progress, Done, Reassigned, Archived) with priority-sorted cards
+  - **List View** — Sortable table with all columns (priority, name, category, property/unit, assigned, date, status, actions)
+  - **View Toggle** — Switch between Kanban and List views
+  - **Search** — Real-time search across name, notes, tenant, assigned person
+  - **Multi-Filters** — Status, Priority, Category, Property, Assigned Person with clear button
+  - **Bulk Actions** — Select multiple → Mark Done, Archive, In Progress, Delete
+  - **Snooze** — Quick snooze (+1h, +1d, +1w) or custom date/time, pushes reminder forward
+  - **Duplicate** — Copy notification as template with "(Copy)" prefix
+  - **Priority Levels** — Low (green), Medium (amber), High (orange), Urgent (red) with color dots
+  - **Category Tags** — manual, parking, door_code, deposit, move_in, move_out, housekeeping, lead, other
+  - **Recurring** — Daily/Weekly/Monthly with optional end date
+  - **Multiple Reminder Times** — Add additional time slots per notification
+  - **Status History** — Tracks all status changes with timestamps
+  - **Rich Form** — Full create/edit with all fields including priority, category, property, unit, assigned person, recurring, multiple times
 
 ## Database Collections
-- `properties` - building_id, name, address, etc.
-- `units` - property_id, unit_number, base_rent, etc.
-- `tenants` - property_id, unit_id, dates, deposit info, etc.
-- `leads` - pipeline stages, potential units, etc.
-- `notifications` - overhauled: name, status, reminder_date/time, recurring, assigned_person, etc.
-- `notes` - title, content, color
-- `parking_spots` - spot_type (designated/marlins_decal), properties, cost, etc.
-- `parking_assignments` - parking_spot_id, tenant_id, dates
-- `door_codes` - unit_id, 5 code types with notes
-- `login_accounts` - sensitivity_level, credentials, security questions
-- `marketing_links` - unit_id, airbnb/furnished_finder/photos links
-- `team_members` - name, role, phone, email
-- `settings` - PIN configuration (shared_pin, level_2_pin, level_3_pin)
+- `properties`, `units`, `tenants`, `leads`, `notes`
+- `notifications` — name, status, priority, category, reminder_date/time, reminder_times[], is_recurring, recurrence_pattern, recurrence_end_date, snooze_until, status_history[], assigned_person, property_id, unit_id, notes
+- `parking_spots`, `parking_assignments`
+- `door_codes`, `login_accounts`, `marketing_links`
+- `team_members`, `settings` (PIN config)
 
 ## Key API Endpoints
-- `/api/properties` - CRUD (sorted by building_id)
-- `/api/units` - CRUD (sorted numerically)
-- `/api/tenants` - CRUD (with auto door code reminders)
-- `/api/leads` - CRUD with pipeline stages
-- `/api/notifications` - CRUD with status management
-- `/api/parking-spots` - CRUD
-- `/api/parking-assignments` - CRUD (auto Marlins Decal reminders)
-- `/api/door-codes` - CRUD (upsert per unit)
-- `/api/login-accounts` - CRUD
-- `/api/marketing-links` - CRUD (upsert per unit)
-- `/api/team-members` - CRUD
-- `/api/pins/set`, `/api/pins/verify`, `/api/pins/status`
+- `/api/notifications` — Full CRUD with query params (status, priority, category, property_id, assigned_person)
+- `/api/notifications/{id}/snooze` — Snooze to new date/time
+- `/api/notifications/{id}/duplicate` — Create copy
+- `/api/notifications/bulk-action` — Bulk status change or delete
+- All other CRUD endpoints for properties, units, tenants, leads, parking, door codes, login accounts, marketing links, team members, pins
 
 ## Prioritized Backlog
-- P1: User feedback on new Info pages
-- P2: Refactor TenantsPage.js into smaller components
-- P2: Refactor server.py into modular routers
+- P0: Auto-notification hooks in other pages (tenant creation → move-in/move-out reminders, etc.)
+- P1: User feedback on all new features
+- P2: Refactor TenantsPage.js and server.py into smaller modules
 - P3: Housekeeping reminders integration
-- P3: Move-in/move-out reminders integration
