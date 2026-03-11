@@ -1553,10 +1553,68 @@ async def delete_housekeeping_lead(lead_id: str):
 async def list_cleaning_records(days: int = 60):
     today_str = date.today().isoformat()
     end_str = (date.today() + timedelta(days=days)).isoformat()
+    
+    # Auto-backfill: find tenants with move-out in range that don't have cleaning records
+    tenants_in_range = await db.tenants.find({
+        "move_out_date": {"$gte": today_str, "$lte": end_str}
+    }).to_list(5000)
+    
+    existing_records = await db.cleaning_records.find().to_list(10000)
+    existing_tenant_ids = {r.get("tenant_id") for r in existing_records}
+    now_str = datetime.now(timezone.utc).isoformat()
+    
+    for tenant in tenants_in_range:
+        tid = str(tenant["_id"])
+        if tid not in existing_tenant_ids:
+            cleaning_doc = {
+                "tenant_id": tid,
+                "tenant_name": tenant.get("name", ""),
+                "property_id": tenant.get("property_id", ""),
+                "unit_id": tenant.get("unit_id", ""),
+                "check_in_date": tenant.get("move_in_date", ""),
+                "check_out_date": tenant.get("move_out_date", ""),
+                "check_in_time": "", "check_out_time": "", "cleaning_time": "",
+                "assigned_cleaner_id": None, "assigned_cleaner_name": "",
+                "confirmed": False, "notes": "",
+                "created_at": now_str, "updated_at": now_str
+            }
+            await db.cleaning_records.insert_one(cleaning_doc)
+    
+    # Fetch all records in range
     docs = await db.cleaning_records.find({
         "check_out_date": {"$gte": today_str, "$lte": end_str}
     }).sort("check_out_date", 1).to_list(5000)
-    return [serialize_doc(d) for d in docs]
+    
+    # Enrich with next check-in info: for each record, find next tenant moving into same unit
+    all_tenants = await db.tenants.find().to_list(10000)
+    unit_tenants = {}
+    for t in all_tenants:
+        uid = t.get("unit_id", "")
+        if uid not in unit_tenants:
+            unit_tenants[uid] = []
+        unit_tenants[uid].append(t)
+    
+    results = []
+    for d in docs:
+        s = serialize_doc(d)
+        checkout_date = s.get("check_out_date", "")
+        unit_id = s.get("unit_id", "")
+        
+        # Find the next tenant checking into this unit after this checkout
+        next_checkin = None
+        if unit_id and checkout_date:
+            candidates = [t for t in unit_tenants.get(unit_id, [])
+                          if t.get("move_in_date", "") >= checkout_date and str(t["_id"]) != s.get("tenant_id")]
+            candidates.sort(key=lambda x: x.get("move_in_date", "9999"))
+            if candidates:
+                next_checkin = candidates[0]
+        
+        s["next_check_in_date"] = next_checkin.get("move_in_date", "") if next_checkin else ""
+        s["next_check_in_tenant_name"] = next_checkin.get("name", "") if next_checkin else ""
+        s["next_check_in_tenant_id"] = str(next_checkin["_id"]) if next_checkin else ""
+        results.append(s)
+    
+    return results
 
 @api_router.put("/cleaning-records/{record_id}")
 async def update_cleaning_record(record_id: str, data: CleaningRecordUpdate):

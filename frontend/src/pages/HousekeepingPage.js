@@ -111,10 +111,10 @@ function UpcomingCleaningsTab({ records, housekeepers, unitMap, propMap, onRefre
           <TableHeader>
             <TableRow className="bg-muted/50">
               <TableHead className="text-[10px] font-semibold uppercase min-w-[90px]">Unit</TableHead>
-              <TableHead className="text-[10px] font-semibold uppercase min-w-[90px]">Check In</TableHead>
-              <TableHead className="text-[10px] font-semibold uppercase min-w-[80px]">In Time</TableHead>
               <TableHead className="text-[10px] font-semibold uppercase min-w-[90px]">Check Out</TableHead>
               <TableHead className="text-[10px] font-semibold uppercase min-w-[80px]">Out Time</TableHead>
+              <TableHead className="text-[10px] font-semibold uppercase min-w-[100px]">Next Check In</TableHead>
+              <TableHead className="text-[10px] font-semibold uppercase min-w-[80px]">In Time</TableHead>
               <TableHead className="text-[10px] font-semibold uppercase min-w-[80px]">Clean Time</TableHead>
               <TableHead className="text-[10px] font-semibold uppercase min-w-[130px]">Assigned Cleaner</TableHead>
               <TableHead className="text-[10px] font-semibold uppercase min-w-[60px]">Done</TableHead>
@@ -134,15 +134,22 @@ function UpcomingCleaningsTab({ records, housekeepers, unitMap, propMap, onRefre
                     U{unit?.unit_number || '?'}
                     <br /><span className="text-[10px] text-muted-foreground">{r.tenant_name}</span>
                   </TableCell>
-                  <TableCell className="text-xs tabular-nums">{r.check_in_date}</TableCell>
-                  <TableCell>
-                    <Input type="time" defaultValue={r.check_in_time || ''} className="h-7 text-xs w-20 px-1"
-                      onBlur={e => { if (e.target.value !== (r.check_in_time || '')) handleFieldChange(r.id, 'check_in_time', e.target.value); }} />
-                  </TableCell>
                   <TableCell className="text-xs tabular-nums font-medium">{r.check_out_date}</TableCell>
                   <TableCell>
                     <Input type="time" defaultValue={r.check_out_time || ''} className="h-7 text-xs w-20 px-1"
                       onBlur={e => { if (e.target.value !== (r.check_out_time || '')) handleFieldChange(r.id, 'check_out_time', e.target.value); }} />
+                  </TableCell>
+                  <TableCell className="text-xs tabular-nums">
+                    {r.next_check_in_date ? (
+                      <div>
+                        <span className="font-medium text-emerald-700">{r.next_check_in_date}</span>
+                        <br /><span className="text-[10px] text-muted-foreground">{r.next_check_in_tenant_name}</span>
+                      </div>
+                    ) : <span className="text-muted-foreground italic">None</span>}
+                  </TableCell>
+                  <TableCell>
+                    <Input type="time" defaultValue={r.check_in_time || ''} className="h-7 text-xs w-20 px-1"
+                      onBlur={e => { if (e.target.value !== (r.check_in_time || '')) handleFieldChange(r.id, 'check_in_time', e.target.value); }} />
                   </TableCell>
                   <TableCell>
                     <Input type="time" defaultValue={r.cleaning_time || ''} className="h-7 text-xs w-20 px-1"
