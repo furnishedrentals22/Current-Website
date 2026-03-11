@@ -260,6 +260,34 @@ class PinSet(BaseModel):
     pin: str
     pin_type: str = "shared"
 
+class HousekeeperCreate(BaseModel):
+    name: str
+    contact: Optional[str] = ""
+    availability: Optional[str] = ""
+    preference: Optional[str] = ""
+    pay: Optional[str] = ""
+    notes: Optional[str] = ""
+    is_archived: bool = False
+
+class HousekeepingLeadCreate(BaseModel):
+    name: str
+    contact: Optional[str] = ""
+    notes: Optional[str] = ""
+    call_time: Optional[str] = ""
+    interview_pay: Optional[str] = ""
+    trial: Optional[str] = ""
+    additional_notes: Optional[str] = ""
+    is_archived: bool = False
+
+class CleaningRecordUpdate(BaseModel):
+    check_in_time: Optional[str] = ""
+    check_out_time: Optional[str] = ""
+    cleaning_time: Optional[str] = ""
+    assigned_cleaner_id: Optional[str] = None
+    assigned_cleaner_name: Optional[str] = ""
+    confirmed: bool = False
+    notes: Optional[str] = ""
+
 # ============================================================
 # PROPERTIES ENDPOINTS
 # ============================================================
@@ -472,6 +500,78 @@ async def create_tenant(data: TenantCreate):
         }
         await db.notifications.insert_one(code_notif)
     
+    # Auto-create housekeeping cleaning record + notifications for move-out
+    if data.move_out_date:
+        unit_doc2 = await db.units.find_one({"_id": ObjectId(data.unit_id)})
+        unit_num2 = unit_doc2.get("unit_number", "") if unit_doc2 else ""
+        prop_doc2 = await db.properties.find_one({"_id": ObjectId(data.property_id)})
+        prop_name2 = prop_doc2.get("name", "") if prop_doc2 else ""
+        now_hk = datetime.now(timezone.utc).isoformat()
+        tenant_id_str = str(result.inserted_id)
+        
+        # Create cleaning record
+        cleaning_doc = {
+            "tenant_id": tenant_id_str,
+            "tenant_name": data.name,
+            "property_id": data.property_id,
+            "unit_id": data.unit_id,
+            "check_in_date": data.move_in_date,
+            "check_out_date": data.move_out_date,
+            "check_in_time": "", "check_out_time": "", "cleaning_time": "",
+            "assigned_cleaner_id": None, "assigned_cleaner_name": "",
+            "confirmed": False, "notes": "",
+            "created_at": now_hk, "updated_at": now_hk
+        }
+        await db.cleaning_records.insert_one(cleaning_doc)
+        
+        move_out_dt = parse_date(data.move_out_date)
+        
+        # Notification 1: Housekeeping confirmation (1 day before move-out)
+        confirm_date = (move_out_dt - timedelta(days=1)).isoformat()
+        hk_confirm_notif = {
+            "name": f"Confirm housekeeping for Unit {unit_num2} ({prop_name2})",
+            "property_id": data.property_id,
+            "unit_id": data.unit_id,
+            "reminder_date": confirm_date,
+            "reminder_time": "09:00",
+            "status": "upcoming",
+            "priority": "high",
+            "category": "housekeeping",
+            "notification_type": "housekeeping",
+            "related_entity_type": "tenant",
+            "related_entity_id": tenant_id_str,
+            "tenant_id": tenant_id_str,
+            "tenant_name": data.name,
+            "message": f"Confirm housekeeping scheduled for Unit {unit_num2} after tenant checkout.",
+            "notification_date": confirm_date,
+            "is_read": False,
+            "created_at": now_hk, "updated_at": now_hk
+        }
+        await db.notifications.insert_one(hk_confirm_notif)
+        
+        # Notification 2: Missing housekeeper warning (7 days before move-out)
+        warn_date = (move_out_dt - timedelta(days=7)).isoformat()
+        hk_warn_notif = {
+            "name": f"No housekeeper assigned for Unit {unit_num2} ({prop_name2})",
+            "property_id": data.property_id,
+            "unit_id": data.unit_id,
+            "reminder_date": warn_date,
+            "reminder_time": "09:00",
+            "status": "upcoming",
+            "priority": "medium",
+            "category": "housekeeping",
+            "notification_type": "housekeeping_warning",
+            "related_entity_type": "tenant",
+            "related_entity_id": tenant_id_str,
+            "tenant_id": tenant_id_str,
+            "tenant_name": data.name,
+            "message": f"No housekeeper assigned yet for Unit {unit_num2} checkout.",
+            "notification_date": warn_date,
+            "is_read": False,
+            "created_at": now_hk, "updated_at": now_hk
+        }
+        await db.notifications.insert_one(hk_warn_notif)
+    
     return serialize_doc(doc)
 
 @api_router.put("/tenants/{tenant_id}")
@@ -513,6 +613,37 @@ async def update_tenant(tenant_id: str, data: TenantCreate):
     )
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Tenant not found")
+    
+    # Update cleaning record dates if move-out changed
+    old_tenant = await db.tenants.find_one({"_id": ObjectId(tenant_id)})
+    await db.cleaning_records.update_many(
+        {"tenant_id": tenant_id},
+        {"$set": {"check_in_date": data.move_in_date, "check_out_date": data.move_out_date,
+                  "tenant_name": data.name, "updated_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    
+    # Update housekeeping notification dates
+    if data.move_out_date:
+        move_out_dt = parse_date(data.move_out_date)
+        confirm_date = (move_out_dt - timedelta(days=1)).isoformat()
+        warn_date = (move_out_dt - timedelta(days=7)).isoformat()
+        unit_doc = await db.units.find_one({"_id": ObjectId(data.unit_id)})
+        unit_num = unit_doc.get("unit_number", "") if unit_doc else ""
+        prop_doc = await db.properties.find_one({"_id": ObjectId(data.property_id)})
+        prop_name = prop_doc.get("name", "") if prop_doc else ""
+        await db.notifications.update_many(
+            {"tenant_id": tenant_id, "notification_type": "housekeeping"},
+            {"$set": {"reminder_date": confirm_date, "notification_date": confirm_date,
+                      "name": f"Confirm housekeeping for Unit {unit_num} ({prop_name})",
+                      "tenant_name": data.name, "updated_at": datetime.now(timezone.utc).isoformat()}}
+        )
+        await db.notifications.update_many(
+            {"tenant_id": tenant_id, "notification_type": "housekeeping_warning"},
+            {"$set": {"reminder_date": warn_date, "notification_date": warn_date,
+                      "name": f"No housekeeper assigned for Unit {unit_num} ({prop_name})",
+                      "tenant_name": data.name, "updated_at": datetime.now(timezone.utc).isoformat()}}
+        )
+    
     doc = await db.tenants.find_one({"_id": ObjectId(tenant_id)})
     return serialize_doc(doc)
 
@@ -521,6 +652,9 @@ async def delete_tenant(tenant_id: str):
     result = await db.tenants.delete_one({"_id": ObjectId(tenant_id)})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Tenant not found")
+    # Clean up associated records
+    await db.cleaning_records.delete_many({"tenant_id": tenant_id})
+    await db.notifications.delete_many({"tenant_id": tenant_id, "notification_type": {"$in": ["housekeeping", "housekeeping_warning"]}})
     return {"message": "Tenant deleted"}
 
 @api_router.post("/tenants/{tenant_id}/confirm-moveout")
@@ -1316,6 +1450,136 @@ async def get_calendar_timeline(
         'today': today.isoformat(),
         'properties': properties_data
     }
+
+# ============================================================
+# MOVE IN / MOVE OUT ENDPOINT
+# ============================================================
+@api_router.get("/move-ins-outs")
+async def list_move_ins_outs():
+    today_str = date.today().isoformat()
+    docs = await db.tenants.find({
+        "$or": [
+            {"move_in_date": {"$gte": today_str}},
+            {"move_out_date": {"$gte": today_str}}
+        ]
+    }).to_list(5000)
+    all_units = {str(u["_id"]): u for u in await db.units.find().to_list(5000)}
+    all_props = {str(p["_id"]): p for p in await db.properties.find().to_list(1000)}
+    results = []
+    for d in docs:
+        s = serialize_doc(d)
+        unit = all_units.get(s.get("unit_id"))
+        prop = all_props.get(s.get("property_id"))
+        s["unit_number"] = unit.get("unit_number", "") if unit else ""
+        s["property_name"] = prop.get("name", "") if prop else ""
+        results.append(s)
+    results.sort(key=lambda x: min(x.get("move_in_date", "9999"), x.get("move_out_date", "9999")))
+    return results
+
+# ============================================================
+# HOUSEKEEPERS ENDPOINTS
+# ============================================================
+@api_router.get("/housekeepers")
+async def list_housekeepers(include_archived: bool = False):
+    query = {} if include_archived else {"$or": [{"is_archived": False}, {"is_archived": {"$exists": False}}]}
+    docs = await db.housekeepers.find(query).sort("name", 1).to_list(1000)
+    return [serialize_doc(d) for d in docs]
+
+@api_router.post("/housekeepers")
+async def create_housekeeper(data: HousekeeperCreate):
+    doc = data.model_dump()
+    doc["created_at"] = datetime.now(timezone.utc).isoformat()
+    doc["updated_at"] = datetime.now(timezone.utc).isoformat()
+    result = await db.housekeepers.insert_one(doc)
+    doc["_id"] = result.inserted_id
+    return serialize_doc(doc)
+
+@api_router.put("/housekeepers/{hk_id}")
+async def update_housekeeper(hk_id: str, data: HousekeeperCreate):
+    update_doc = data.model_dump()
+    update_doc["updated_at"] = datetime.now(timezone.utc).isoformat()
+    result = await db.housekeepers.update_one({"_id": ObjectId(hk_id)}, {"$set": update_doc})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Housekeeper not found")
+    doc = await db.housekeepers.find_one({"_id": ObjectId(hk_id)})
+    return serialize_doc(doc)
+
+@api_router.delete("/housekeepers/{hk_id}")
+async def delete_housekeeper(hk_id: str):
+    result = await db.housekeepers.delete_one({"_id": ObjectId(hk_id)})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Housekeeper not found")
+    return {"message": "Housekeeper deleted"}
+
+# ============================================================
+# HOUSEKEEPING LEADS ENDPOINTS
+# ============================================================
+@api_router.get("/housekeeping-leads")
+async def list_housekeeping_leads(include_archived: bool = False):
+    query = {} if include_archived else {"$or": [{"is_archived": False}, {"is_archived": {"$exists": False}}]}
+    docs = await db.housekeeping_leads.find(query).sort("name", 1).to_list(1000)
+    return [serialize_doc(d) for d in docs]
+
+@api_router.post("/housekeeping-leads")
+async def create_housekeeping_lead(data: HousekeepingLeadCreate):
+    doc = data.model_dump()
+    doc["created_at"] = datetime.now(timezone.utc).isoformat()
+    doc["updated_at"] = datetime.now(timezone.utc).isoformat()
+    result = await db.housekeeping_leads.insert_one(doc)
+    doc["_id"] = result.inserted_id
+    return serialize_doc(doc)
+
+@api_router.put("/housekeeping-leads/{lead_id}")
+async def update_housekeeping_lead(lead_id: str, data: HousekeepingLeadCreate):
+    update_doc = data.model_dump()
+    update_doc["updated_at"] = datetime.now(timezone.utc).isoformat()
+    result = await db.housekeeping_leads.update_one({"_id": ObjectId(lead_id)}, {"$set": update_doc})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Housekeeping lead not found")
+    doc = await db.housekeeping_leads.find_one({"_id": ObjectId(lead_id)})
+    return serialize_doc(doc)
+
+@api_router.delete("/housekeeping-leads/{lead_id}")
+async def delete_housekeeping_lead(lead_id: str):
+    result = await db.housekeeping_leads.delete_one({"_id": ObjectId(lead_id)})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Housekeeping lead not found")
+    return {"message": "Housekeeping lead deleted"}
+
+# ============================================================
+# CLEANING RECORDS ENDPOINTS
+# ============================================================
+@api_router.get("/cleaning-records")
+async def list_cleaning_records(days: int = 60):
+    today_str = date.today().isoformat()
+    end_str = (date.today() + timedelta(days=days)).isoformat()
+    docs = await db.cleaning_records.find({
+        "check_out_date": {"$gte": today_str, "$lte": end_str}
+    }).sort("check_out_date", 1).to_list(5000)
+    return [serialize_doc(d) for d in docs]
+
+@api_router.put("/cleaning-records/{record_id}")
+async def update_cleaning_record(record_id: str, data: CleaningRecordUpdate):
+    update_doc = data.model_dump()
+    update_doc["updated_at"] = datetime.now(timezone.utc).isoformat()
+    
+    old_record = await db.cleaning_records.find_one({"_id": ObjectId(record_id)})
+    if not old_record:
+        raise HTTPException(status_code=404, detail="Cleaning record not found")
+    
+    result = await db.cleaning_records.update_one({"_id": ObjectId(record_id)}, {"$set": update_doc})
+    
+    # If a housekeeper is now assigned, archive the "missing housekeeper" warning
+    if data.assigned_cleaner_id and not old_record.get("assigned_cleaner_id"):
+        tenant_id = old_record.get("tenant_id")
+        if tenant_id:
+            await db.notifications.update_many(
+                {"tenant_id": tenant_id, "notification_type": "housekeeping_warning", "status": "upcoming"},
+                {"$set": {"status": "done", "is_read": True, "updated_at": datetime.now(timezone.utc).isoformat()}}
+            )
+    
+    doc = await db.cleaning_records.find_one({"_id": ObjectId(record_id)})
+    return serialize_doc(doc)
 
 # ============================================================
 # AVAILABLE UNITS ENDPOINT (for lead form filtering)

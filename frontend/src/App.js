@@ -2,7 +2,7 @@ import { useState, useEffect, createContext, useContext, useCallback } from 'rea
 import '@/App.css';
 import { BrowserRouter, Routes, Route, NavLink, useLocation } from 'react-router-dom';
 import { Building2, Users, DollarSign, BarChart3, UserSearch, Calendar, Bell, FileText, StickyNote,
-  ChevronLeft, ChevronRight, ChevronDown, Menu, Info, Car, KeyRound, DoorOpen, Megaphone, Home } from 'lucide-react';
+  ChevronLeft, ChevronRight, ChevronDown, Menu, Info, Car, KeyRound, DoorOpen, Megaphone, Home, Settings, ArrowLeftRight, Brush } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
@@ -24,6 +24,8 @@ import ParkingPage from '@/pages/ParkingPage';
 import DoorCodesPage from '@/pages/DoorCodesPage';
 import LoginInfoPage from '@/pages/LoginInfoPage';
 import MarketingPage from '@/pages/MarketingPage';
+import MoveInOutPage from '@/pages/MoveInOutPage';
+import HousekeepingPage from '@/pages/HousekeepingPage';
 
 export const NotificationContext = createContext();
 export const useNotifications = () => useContext(NotificationContext);
@@ -44,6 +46,13 @@ const NAV_ITEMS = [
       { path: '/info/login-info', label: 'Login Info', icon: KeyRound, testId: 'sidebar-nav-login-info' },
       { path: '/info/door-codes', label: 'Door Codes', icon: DoorOpen, testId: 'sidebar-nav-door-codes' },
       { path: '/info/marketing', label: 'Marketing', icon: Megaphone, testId: 'sidebar-nav-marketing' },
+    ]
+  },
+  {
+    label: 'Operations', icon: Settings, testId: 'sidebar-nav-operations', isGroup: true,
+    children: [
+      { path: '/ops/move-in-out', label: 'Move In / Out', icon: ArrowLeftRight, testId: 'sidebar-nav-move-in-out' },
+      { path: '/ops/housekeeping', label: 'Housekeeping', icon: Brush, testId: 'sidebar-nav-housekeeping' },
     ]
   },
   { path: '/notifications', label: 'Notifications', icon: Bell, testId: 'sidebar-nav-notifications' },
@@ -264,6 +273,8 @@ function App() {
           <Route path="/info/login-info" element={<LoginInfoPage />} />
           <Route path="/info/door-codes" element={<DoorCodesPage />} />
           <Route path="/info/marketing" element={<MarketingPage />} />
+          <Route path="/ops/move-in-out" element={<MoveInOutPage />} />
+          <Route path="/ops/housekeeping" element={<HousekeepingPage />} />
           <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/features" element={<FeaturesPage />} />
         </Routes>

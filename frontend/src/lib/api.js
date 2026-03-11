@@ -122,4 +122,23 @@ export const snoozeNotification = (id, data) => api.post(`/notifications/${id}/s
 export const duplicateNotification = (id) => api.post(`/notifications/${id}/duplicate`).then(r => r.data);
 export const bulkNotificationAction = (data) => api.post('/notifications/bulk-action', data).then(r => r.data);
 
+// Move In / Move Out
+export const getMoveInsOuts = () => api.get('/move-ins-outs').then(r => r.data);
+
+// Housekeepers
+export const getHousekeepers = (params = {}) => api.get('/housekeepers', { params }).then(r => r.data);
+export const createHousekeeper = (data) => api.post('/housekeepers', data).then(r => r.data);
+export const updateHousekeeper = (id, data) => api.put(`/housekeepers/${id}`, data).then(r => r.data);
+export const deleteHousekeeper = (id) => api.delete(`/housekeepers/${id}`).then(r => r.data);
+
+// Housekeeping Leads
+export const getHousekeepingLeads = (params = {}) => api.get('/housekeeping-leads', { params }).then(r => r.data);
+export const createHousekeepingLead = (data) => api.post('/housekeeping-leads', data).then(r => r.data);
+export const updateHousekeepingLead = (id, data) => api.put(`/housekeeping-leads/${id}`, data).then(r => r.data);
+export const deleteHousekeepingLead = (id) => api.delete(`/housekeeping-leads/${id}`).then(r => r.data);
+
+// Cleaning Records
+export const getCleaningRecords = (params = {}) => api.get('/cleaning-records', { params }).then(r => r.data);
+export const updateCleaningRecord = (id, data) => api.put(`/cleaning-records/${id}`, data).then(r => r.data);
+
 export default api;
