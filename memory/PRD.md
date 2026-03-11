@@ -1,7 +1,7 @@
 # HarborRent - Property Management Platform PRD
 
 ## Original Problem Statement
-Build a comprehensive property management application for managing rental properties, tenants, leads, income tracking, and vacancy analysis. The system should handle both long-term and Airbnb/VRBO short-term rentals.
+Build a comprehensive property management application for managing rental properties, tenants, leads, income tracking, and vacancy analysis with operational tools for move-ins/outs, housekeeping, parking, and centralized notifications.
 
 ## Core Architecture
 - **Stack**: FastAPI (Python) + React + MongoDB (FARM stack)
@@ -12,57 +12,43 @@ Build a comprehensive property management application for managing rental proper
 ## What's Been Implemented
 
 ### Phase 1 (Previous sessions)
-- Properties CRUD with building_id for sorting
-- Units CRUD with additional monthly costs
-- Tenants CRUD with Airbnb/VRBO support, deposit tracking
+- Properties, Units, Tenants CRUD with sorting (building_id, numerical units)
 - Tenants page redesign (Current/Future + Past tabs, spreadsheet-style)
-- Leads management with pipeline stages
-- Income calculation engine (monthly/yearly)
-- Vacancy tracking (by building, by unit size, upcoming)
-- Calendar timeline view
-- Notes system
+- Leads management, Income engine, Vacancy tracking, Calendar, Notes
 
 ### Phase 2 (Feb 2026)
-- **Info Menu** — Collapsible sidebar group with 4 sub-pages
-- **Parking Page** (2 tabs: Parking Info + Tenant Assignments)
-- **Door Codes Page** — PIN-protected admin codes, cross-populated to Units page
-- **Login Information Page** — 3 sensitivity levels with different PINs
-- **Marketing Page** — Per-unit listing links, cross-populated to Units page
-- **Team Members** — Simple CRUD for assigning people
+- **Info Menu**: Parking, Login Info (PIN-protected), Door Codes (PIN-protected admin), Marketing
+- **Team Members** management
+- Cross-populate door codes + marketing links to Units page
 
-### Phase 3 (Feb 2026 — Current)
-- **Notifications/Tasks Page — Full Overhaul**:
-  - **Kanban Board View** — 5 status columns (Upcoming, In Progress, Done, Reassigned, Archived) with priority-sorted cards
-  - **List View** — Sortable table with all columns (priority, name, category, property/unit, assigned, date, status, actions)
-  - **View Toggle** — Switch between Kanban and List views
-  - **Search** — Real-time search across name, notes, tenant, assigned person
-  - **Multi-Filters** — Status, Priority, Category, Property, Assigned Person with clear button
-  - **Bulk Actions** — Select multiple → Mark Done, Archive, In Progress, Delete
-  - **Snooze** — Quick snooze (+1h, +1d, +1w) or custom date/time, pushes reminder forward
-  - **Duplicate** — Copy notification as template with "(Copy)" prefix
-  - **Priority Levels** — Low (green), Medium (amber), High (orange), Urgent (red) with color dots
-  - **Category Tags** — manual, parking, door_code, deposit, move_in, move_out, housekeeping, lead, other
-  - **Recurring** — Daily/Weekly/Monthly with optional end date
-  - **Multiple Reminder Times** — Add additional time slots per notification
-  - **Status History** — Tracks all status changes with timestamps
-  - **Rich Form** — Full create/edit with all fields including priority, category, property, unit, assigned person, recurring, multiple times
+### Phase 3 (Feb 2026)
+- **Notifications/Tasks Page** — Full overhaul: Kanban + List views, search, multi-filters, bulk actions, snooze, duplicate, priority, categories, recurring, status toggle dropdown, mark-read preserves status
+
+### Phase 4 (Feb 2026 — Current)
+- **Operations Menu** with sub-pages:
+  - **Move In / Move Out**: Upcoming moves sorted by date, notification presets (3 days before, 1 day before, day of, time of, custom)
+  - **Housekeeping** (3 tabs):
+    - Upcoming Cleanings: Spreadsheet with inline editing (times, cleaner, confirmed, notes)
+    - Current Housekeepers: CRUD with archive (name, contact, availability, preference, pay, notes)
+    - Housekeeping Leads: CRUD with archive (name, contact, call time, interview pay, trial, notes)
+- **Auto-notifications on tenant creation**:
+  - Housekeeping confirmation (1 day before move-out)
+  - Missing housekeeper warning (7 days before move-out)
+  - Auto-creates cleaning record for each tenant checkout
+  - Auto-removes notifications/records on tenant deletion
+  - Auto-updates dates when tenant is updated
+  - Auto-archives missing housekeeper warning when cleaner is assigned
 
 ## Database Collections
-- `properties`, `units`, `tenants`, `leads`, `notes`
-- `notifications` — name, status, priority, category, reminder_date/time, reminder_times[], is_recurring, recurrence_pattern, recurrence_end_date, snooze_until, status_history[], assigned_person, property_id, unit_id, notes
-- `parking_spots`, `parking_assignments`
-- `door_codes`, `login_accounts`, `marketing_links`
-- `team_members`, `settings` (PIN config)
+properties, units, tenants, leads, notes, notifications, parking_spots, parking_assignments, door_codes, login_accounts, marketing_links, team_members, settings, cleaning_records, housekeepers, housekeeping_leads
 
 ## Key API Endpoints
-- `/api/notifications` — Full CRUD with query params (status, priority, category, property_id, assigned_person)
-- `/api/notifications/{id}/snooze` — Snooze to new date/time
-- `/api/notifications/{id}/duplicate` — Create copy
-- `/api/notifications/bulk-action` — Bulk status change or delete
-- All other CRUD endpoints for properties, units, tenants, leads, parking, door codes, login accounts, marketing links, team members, pins
+All CRUD for each collection + specialized:
+- /api/move-ins-outs — enriched upcoming moves
+- /api/cleaning-records — with auto-housekeeper-warning management
+- /api/notifications — full-featured: snooze, duplicate, bulk-action, status filters
 
 ## Prioritized Backlog
-- P0: Auto-notification hooks in other pages (tenant creation → move-in/move-out reminders, etc.)
-- P1: User feedback on all new features
-- P2: Refactor TenantsPage.js and server.py into smaller modules
-- P3: Housekeeping reminders integration
+- P1: User feedback on Operations pages
+- P2: Auto-notification hooks from other pages (parking, deposits, etc.)
+- P2: Refactor TenantsPage.js and server.py into modules
