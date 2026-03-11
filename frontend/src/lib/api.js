@@ -118,5 +118,8 @@ export const verifyPin = (data) => api.post('/pins/verify', data).then(r => r.da
 // Notifications (extended)
 export const updateNotification = (id, data) => api.put(`/notifications/${id}`, data).then(r => r.data);
 export const updateNotificationStatus = (id, status) => api.put(`/notifications/${id}/status?status=${status}`).then(r => r.data);
+export const snoozeNotification = (id, data) => api.post(`/notifications/${id}/snooze`, data).then(r => r.data);
+export const duplicateNotification = (id) => api.post(`/notifications/${id}/duplicate`).then(r => r.data);
+export const bulkNotificationAction = (data) => api.post('/notifications/bulk-action', data).then(r => r.data);
 
 export default api;

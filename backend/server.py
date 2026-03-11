@@ -154,9 +154,14 @@ class NotificationCreate(BaseModel):
     status: str = "upcoming"
     is_recurring: bool = False
     recurrence_pattern: Optional[str] = None
+    recurrence_end_date: Optional[str] = None
     reminder_times: List[str] = []
     notes: Optional[str] = ""
     notification_type: Optional[str] = "manual"
+    priority: Optional[str] = "medium"
+    category: Optional[str] = "manual"
+    snooze_until: Optional[str] = None
+    status_history: List[Dict[str, Any]] = []
     related_entity_id: Optional[str] = None
     related_entity_type: Optional[str] = None
     lead_id: Optional[str] = None
@@ -166,6 +171,15 @@ class NotificationCreate(BaseModel):
     stage_name: Optional[str] = ""
     notification_date: Optional[str] = None
     message: Optional[str] = ""
+
+class BulkNotificationAction(BaseModel):
+    ids: List[str]
+    action: str
+    new_status: Optional[str] = None
+
+class SnoozeNotification(BaseModel):
+    snooze_until_date: str
+    snooze_until_time: Optional[str] = ""
 
 class NoteCreate(BaseModel):
     title: str
@@ -618,13 +632,23 @@ async def get_lead_stages():
     return STAGE_NAMES
 
 # ============================================================
-# NOTIFICATIONS ENDPOINTS (Overhauled)
+# NOTIFICATIONS ENDPOINTS (Full-featured)
 # ============================================================
 @api_router.get("/notifications")
-async def list_notifications(status: Optional[str] = None):
+async def list_notifications(status: Optional[str] = None, priority: Optional[str] = None,
+                              category: Optional[str] = None, property_id: Optional[str] = None,
+                              assigned_person: Optional[str] = None):
     query = {}
     if status:
         query["status"] = status
+    if priority:
+        query["priority"] = priority
+    if category:
+        query["category"] = category
+    if property_id:
+        query["property_id"] = property_id
+    if assigned_person:
+        query["assigned_person"] = assigned_person
     docs = await db.notifications.find(query).sort("created_at", -1).to_list(1000)
     results = []
     for d in docs:
@@ -638,6 +662,10 @@ async def list_notifications(status: Optional[str] = None):
                 s["name"] = f"{s['lead_name']} - {s['stage_name']}"
         if not s.get("reminder_date") and s.get("notification_date"):
             s["reminder_date"] = s["notification_date"]
+        if not s.get("priority"):
+            s["priority"] = "medium"
+        if not s.get("category"):
+            s["category"] = s.get("notification_type", "manual")
         results.append(s)
     return results
 
@@ -649,8 +677,13 @@ async def create_notification(data: NotificationCreate):
         doc["reminder_date"] = doc["notification_date"]
     if not doc.get("notification_date") and doc.get("reminder_date"):
         doc["notification_date"] = doc["reminder_date"]
-    doc["created_at"] = datetime.now(timezone.utc).isoformat()
-    doc["updated_at"] = datetime.now(timezone.utc).isoformat()
+    if not doc.get("category"):
+        doc["category"] = doc.get("notification_type", "manual")
+    now = datetime.now(timezone.utc).isoformat()
+    doc["created_at"] = now
+    doc["updated_at"] = now
+    if not doc.get("status_history"):
+        doc["status_history"] = [{"status": doc["status"], "timestamp": now}]
     result = await db.notifications.insert_one(doc)
     doc["_id"] = result.inserted_id
     return serialize_doc(doc)
@@ -663,7 +696,8 @@ async def update_notification(notification_id: str, data: NotificationCreate):
         update_doc["reminder_date"] = update_doc["notification_date"]
     if not update_doc.get("notification_date") and update_doc.get("reminder_date"):
         update_doc["notification_date"] = update_doc["reminder_date"]
-    update_doc["updated_at"] = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(timezone.utc).isoformat()
+    update_doc["updated_at"] = now
     result = await db.notifications.update_one(
         {"_id": ObjectId(notification_id)},
         {"$set": update_doc}
@@ -679,13 +713,77 @@ async def update_notification_status(notification_id: str, status: str = Query(.
     if status not in valid:
         raise HTTPException(status_code=400, detail=f"Invalid status. Must be one of: {valid}")
     is_read = status not in ["upcoming", "in_progress"]
+    now = datetime.now(timezone.utc).isoformat()
     result = await db.notifications.update_one(
         {"_id": ObjectId(notification_id)},
-        {"$set": {"status": status, "is_read": is_read, "updated_at": datetime.now(timezone.utc).isoformat()}}
+        {"$set": {"status": status, "is_read": is_read, "updated_at": now},
+         "$push": {"status_history": {"status": status, "timestamp": now}}}
     )
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Notification not found")
     return {"message": f"Status updated to {status}"}
+
+@api_router.post("/notifications/{notification_id}/snooze")
+async def snooze_notification(notification_id: str, data: SnoozeNotification):
+    doc = await db.notifications.find_one({"_id": ObjectId(notification_id)})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Notification not found")
+    now = datetime.now(timezone.utc).isoformat()
+    await db.notifications.update_one(
+        {"_id": ObjectId(notification_id)},
+        {"$set": {
+            "snooze_until": data.snooze_until_date,
+            "reminder_date": data.snooze_until_date,
+            "reminder_time": data.snooze_until_time or doc.get("reminder_time", ""),
+            "notification_date": data.snooze_until_date,
+            "status": "upcoming",
+            "is_read": False,
+            "updated_at": now
+        },
+         "$push": {"status_history": {"status": "snoozed", "timestamp": now, "snoozed_to": data.snooze_until_date}}}
+    )
+    updated = await db.notifications.find_one({"_id": ObjectId(notification_id)})
+    return serialize_doc(updated)
+
+@api_router.post("/notifications/{notification_id}/duplicate")
+async def duplicate_notification(notification_id: str):
+    doc = await db.notifications.find_one({"_id": ObjectId(notification_id)})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Notification not found")
+    now = datetime.now(timezone.utc).isoformat()
+    new_doc = {k: v for k, v in doc.items() if k != "_id"}
+    new_doc["name"] = f"(Copy) {new_doc.get('name', '')}"
+    new_doc["status"] = "upcoming"
+    new_doc["is_read"] = False
+    new_doc["created_at"] = now
+    new_doc["updated_at"] = now
+    new_doc["status_history"] = [{"status": "upcoming", "timestamp": now}]
+    new_doc["snooze_until"] = None
+    result = await db.notifications.insert_one(new_doc)
+    new_doc["_id"] = result.inserted_id
+    return serialize_doc(new_doc)
+
+@api_router.post("/notifications/bulk-action")
+async def bulk_notification_action(data: BulkNotificationAction):
+    if not data.ids:
+        raise HTTPException(status_code=400, detail="No notification IDs provided")
+    obj_ids = [ObjectId(i) for i in data.ids]
+    now = datetime.now(timezone.utc).isoformat()
+    if data.action == "delete":
+        result = await db.notifications.delete_many({"_id": {"$in": obj_ids}})
+        return {"message": f"Deleted {result.deleted_count} notifications"}
+    elif data.action == "status" and data.new_status:
+        valid = ["upcoming", "in_progress", "done", "reassigned", "archived"]
+        if data.new_status not in valid:
+            raise HTTPException(status_code=400, detail="Invalid status")
+        is_read = data.new_status not in ["upcoming", "in_progress"]
+        result = await db.notifications.update_many(
+            {"_id": {"$in": obj_ids}},
+            {"$set": {"status": data.new_status, "is_read": is_read, "updated_at": now},
+             "$push": {"status_history": {"status": data.new_status, "timestamp": now}}}
+        )
+        return {"message": f"Updated {result.modified_count} notifications to {data.new_status}"}
+    raise HTTPException(status_code=400, detail="Invalid action")
 
 @api_router.put("/notifications/{notification_id}/read")
 async def mark_notification_read(notification_id: str):
