@@ -6,7 +6,7 @@ from datetime import datetime, date, timedelta
 import json
 
 class LeaseTrackerAPITester:
-    def __init__(self, base_url="https://tenant-budgets.preview.emergentagent.com"):
+    def __init__(self, base_url="https://refactor-test-2.preview.emergentagent.com"):
         self.base_url = base_url
         self.api_url = f"{self.base_url}/api"
         self.tests_run = 0
