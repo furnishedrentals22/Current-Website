@@ -1,6 +1,7 @@
 import { useState, useEffect, createContext, useContext, useCallback } from 'react';
 import '@/App.css';
 import { BrowserRouter, Routes, Route, NavLink, useLocation } from 'react-router-dom';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { Building2, Users, DollarSign, BarChart3, UserSearch, Calendar, Bell, FileText, StickyNote,
   ChevronLeft, ChevronRight, ChevronDown, Menu, Info, Car, KeyRound, DoorOpen, Megaphone, Home, Settings, ArrowLeftRight, Brush, Wallet, ClipboardList } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -284,26 +285,28 @@ function App() {
   return (
     <BrowserRouter>
       <AppShell>
-        <Routes>
-          <Route path="/" element={<PropertiesPage />} />
-          <Route path="/units" element={<UnitsPage />} />
-          <Route path="/tenants" element={<TenantsPage />} />
-          <Route path="/leads" element={<LeadsPage />} />
-          <Route path="/budgeting/income" element={<IncomePage />} />
-          <Route path="/budgeting/deposits" element={<DepositsPage />} />
-          <Route path="/budgeting/rent-tracking" element={<RentTrackingPage />} />
-          <Route path="/vacancy" element={<VacancyPage />} />
-          <Route path="/calendar" element={<CalendarPage />} />
-          <Route path="/notes" element={<NotesPage />} />
-          <Route path="/info/parking" element={<ParkingPage />} />
-          <Route path="/info/login-info" element={<LoginInfoPage />} />
-          <Route path="/info/door-codes" element={<DoorCodesPage />} />
-          <Route path="/info/marketing" element={<MarketingPage />} />
-          <Route path="/ops/move-in-out" element={<MoveInOutPage />} />
-          <Route path="/ops/housekeeping" element={<HousekeepingPage />} />
-          <Route path="/notifications" element={<NotificationsPage />} />
-          <Route path="/features" element={<FeaturesPage />} />
-        </Routes>
+        <ErrorBoundary>
+          <Routes>
+            <Route path="/" element={<PropertiesPage />} />
+            <Route path="/units" element={<UnitsPage />} />
+            <Route path="/tenants" element={<TenantsPage />} />
+            <Route path="/leads" element={<LeadsPage />} />
+            <Route path="/budgeting/income" element={<IncomePage />} />
+            <Route path="/budgeting/deposits" element={<DepositsPage />} />
+            <Route path="/budgeting/rent-tracking" element={<RentTrackingPage />} />
+            <Route path="/vacancy" element={<VacancyPage />} />
+            <Route path="/calendar" element={<CalendarPage />} />
+            <Route path="/notes" element={<NotesPage />} />
+            <Route path="/info/parking" element={<ParkingPage />} />
+            <Route path="/info/login-info" element={<LoginInfoPage />} />
+            <Route path="/info/door-codes" element={<DoorCodesPage />} />
+            <Route path="/info/marketing" element={<MarketingPage />} />
+            <Route path="/ops/move-in-out" element={<MoveInOutPage />} />
+            <Route path="/ops/housekeeping" element={<HousekeepingPage />} />
+            <Route path="/notifications" element={<NotificationsPage />} />
+            <Route path="/features" element={<FeaturesPage />} />
+          </Routes>
+        </ErrorBoundary>
       </AppShell>
     </BrowserRouter>
   );

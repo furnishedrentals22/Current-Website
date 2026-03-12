@@ -1,0 +1,101 @@
+{
+  "summary": "Frontend refactoring verification for CalendarPage, IncomePage, ErrorBoundary, and VacancyPage hook fix complete. All decomposed components are working correctly. Navigation between all pages works without crashes.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "console_warnings": [
+      {
+        "warning": "Invalid prop 'data-state' supplied to React.Fragment",
+        "source": "Radix UI Collapsible component (likely VacancyPage)",
+        "impact": "Cosmetic - doesn't affect functionality",
+        "priority": "LOW"
+      }
+    ]
+  },
+  "passed_tests": [
+    "CalendarPage: Page loads with title 'Occupancy Timeline'",
+    "CalendarPage: Property selector (All Properties dropdown) visible",
+    "CalendarPage: Navigation buttons (scroll left/right, Today) working",
+    "CalendarPage: Legend shows Long-term, Airbnb/VRBO, Vacant, Lead Interest, Today",
+    "CalendarPage: TimelineHeader component renders month headers (Feb-Sep 2026)",
+    "CalendarPage: PropertyGroup components render property headers with unit counts",
+    "CalendarPage: UnitRow components render unit rows (3 units with 11 booking bars)",
+    "CalendarPage: BookingBar components show tenant bookings with colors",
+    "CalendarPage: TodayMarker shows red vertical line at current date",
+    "CalendarPage: Scroll buttons navigate timeline correctly",
+    "IncomePage: Page loads with title 'Income'",
+    "IncomePage: Year selector shows 2026 with prev/next buttons",
+    "IncomePage: IncomeKPICards component shows 3 KPI cards (Current Month, Yearly Total, Monthly Average)",
+    "IncomePage: KPI values display correctly ($8,954.39 current month, $43,061.57 yearly, $8,443 average)",
+    "IncomePage: 12 IncomeMonthRow components render (Jan-Dec)",
+    "IncomePage: Month rows are collapsible - expand to show property breakdown",
+    "IncomePage: Year navigation changes year and loads new data (2025 shows $0)",
+    "IncomePage: Current month (Mar 2026) highlighted with 'Current' badge",
+    "VacancyPage: Page loads with title 'Vacancy' and year 2026",
+    "VacancyPage: 3 tabs visible (By Building, By Unit Size, Upcoming Vacancies)",
+    "VacancyPage: Vacancy data displays correctly with color-coded percentages",
+    "VacancyPage: useCallback hook fix working - no hook-related console errors",
+    "ErrorBoundary: Wraps all routes in App.js",
+    "ErrorBoundary: No error-boundary-fallback displayed during navigation",
+    "Navigation: Properties page loads",
+    "Navigation: Tenants page loads",
+    "Navigation: Calendar page loads",
+    "Navigation: Vacancy page loads",
+    "Navigation: Income page loads",
+    "Navigation: Deposits page loads (3 tabs, $5,000 total deposits)",
+    "Navigation: Parking page loads (2 tabs, shows decal #TEST_D001)",
+    "Navigation: Notifications page loads (Kanban with 5 columns, 8 total items)"
+  ],
+  "components_verified": {
+    "calendar": [
+      "calendarConstants.js - Constants and utility functions",
+      "TimelineHeader.js - Month header rendering",
+      "BookingBar.js - Tenant booking bars with tooltips",
+      "LeadOverlay.js - Lead interest overlays",
+      "UnitRow.js - Unit rows with bookings and leads",
+      "PropertyGroup.js - Property grouping with unit list",
+      "TodayMarker.js - Current day indicator"
+    ],
+    "income": [
+      "IncomeKPICards.js - 3 KPI cards component",
+      "IncomeMonthRow.js - Collapsible month row with nested breakdown"
+    ],
+    "errorBoundary": [
+      "ErrorBoundary.js - Class component wrapping routes"
+    ],
+    "pages_updated": [
+      "CalendarPage.js - Reduced from 661 to 160 lines",
+      "IncomePage.js - Reduced from 204 to 60 lines",
+      "VacancyPage.js - Fixed useCallback warning"
+    ]
+  },
+  "test_report_links": [
+    ".screenshots/calendar_page_decomposed.png",
+    ".screenshots/income_page_decomposed.png",
+    ".screenshots/income_month_expanded.png",
+    ".screenshots/income_prev_year.png",
+    ".screenshots/parking_page.png",
+    ".screenshots/notifications_page.png",
+    ".screenshots/deposits_page.png",
+    ".screenshots/vacancy_page.png"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Console warning about 'Invalid prop data-state on React.Fragment' appears in VacancyPage - likely from Radix UI Collapsible component. Low priority, doesn't affect functionality."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "N/A - skipped as per request",
+    "frontend": "100% - all decomposed components and features verified working"
+  },
+  "seed_data_creation": "N/A",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Frontend decomposition of CalendarPage and IncomePage was verified along with ErrorBoundary addition. CalendarPage now uses 7 extracted components (TimelineHeader, BookingBar, LeadOverlay, UnitRow, PropertyGroup, TodayMarker, calendarConstants). IncomePage uses 2 extracted components (IncomeKPICards, IncomeMonthRow). All pages navigate correctly without crashing. React.Fragment warning from Radix UI Collapsible is cosmetic only.",
+  "rca_of_issue": "N/A - No issues found. Refactoring was successful."
+}

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { getVacancy } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -133,7 +133,7 @@ export default function VacancyPage() {
   const [loading, setLoading] = useState(true);
   const [expandedBuildings, setExpandedBuildings] = useState({});
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     try {
       const result = await getVacancy(year);
@@ -143,9 +143,9 @@ export default function VacancyPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [year]);
 
-  useEffect(() => { fetchData(); }, [year]);
+  useEffect(() => { fetchData(); }, [fetchData]);
 
   const toggleBuilding = (key) => setExpandedBuildings(prev => ({ ...prev, [key]: !prev[key] }));
 
