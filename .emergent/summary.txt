@@ -1,157 +1,197 @@
 <analysis>**original_problem_statement:**
-The user initiated a series of large feature requests to build out the application's functionality, including:
+The user provided a comprehensive list of updates and new features for the application.
 
 **PRODUCT REQUIREMENTS:**
 
-1.  **Info Section:**
-    *   A new main navigation item named Info with several sub-pages:
-    *   **Parking Page:** A two-tab system to manage parking spot details (Designated vs. Decal) and assign spots to tenants with move-in/out dates, archives, and future assignments.
-    *   **Login Information Page:** A PIN-protected page to store sensitive account credentials with different access levels.
-    *   **Door Codes Page:** A page to manage multiple door codes per unit, with one code being PIN-protected. Codes should be cross-populated to the  page.
-    *   **Marketing Page:** A page to manage and copy links for property listings (e.g., Airbnb), which should also be cross-populated to the  page.
+**Phase 1: Major Feature Batch (from message 31)**
+1.  **Navigation & Branding:**
+    *   Rename app to Furnished Rentals.
+    *   Restructure nav bar:
+        *    page to be a subpage of .
+        *    page to be a subpage of .
+        *    page to be a subpage of .
+    *   Create a new nav title Budgeting with subpages:
+        *    (existing page).
+        *    (new page).
+        *    (new page).
 
-2.  **Notifications System:**
-    *   A centralized page for all system-wide reminders and tasks.
-    *   Initial request for basic functionality, followed by a major overhaul request to include:
-        *   Kanban and List views.
-        *   Statuses: Upcoming, In Progress, Done, etc.
-        *   Features: Search, filters, bulk actions, snooze, duplicate, priority, and categories.
-        *   UI Fixes: A direct status-change toggle on each notification item and fixing the Mark as Read behavior to not change the item's status.
+2.  **New Page: **
+    *   Track tenant security deposits and landlord deposits.
+    *   Three tabs: Current Deposit Tracking, Passed Deposits, Landlord Deposits.
+    *   **Tab 1 (Current):** Auto-populate from new deposit field on tenants. Show total deposit balance. List tenants, dates, amount, method, notes. Allow editing. Implement a Return Deposit flow that moves the record to Tab 2 and updates the tenant record.
+    *   **Tab 2 (Passed):** List returned deposits, grouped by yearly quarters (collapsible).
+    *   **Tab 3 (Landlord):** List deposits given to landlords, grouped by property (collapsible). Allow manual editing. Show a total balance.
+    *   All tenant/property links should be clickable and go to the specific item.
 
-3.  **Operations Section:**
-    *   A new main navigation item named Operations with sub-pages:
-    *   **Move In / Move Out Page:** Originally a single view, later requested to be a two-tab view for upcoming move-ins and move-outs, with the ability to create custom reminders.
-    *   **Housekeeping Page:** A three-tab system for:
-        *   : An auto-populated list of cleanings based on tenant move-outs, including the next tenant's check-in date.
-        *   : A CRUD interface for managing housekeepers.
-        *   : A CRUD interface for managing potential new housekeepers.
+3.  **New Page: **
+    *   Track monthly rent payments for long-term tenants.
+    *   Group by month (current month open by default, others collapsible).
+    *   For each tenant, show a checkbox for payment status, allow partial payment tracking, and an option to create a notification.
 
-4.  **Automated Notifications & Data Integrity:**
-    *   Automatic reminders for door code updates on tenant move-in.
-    *   Automatic reminders for housekeeping confirmation and missing housekeeper warnings based on tenant move-out dates.
-    *   Automatic creation, updating, and deletion of cleaning records and associated notifications when a tenant record is created, updated (move-out date change), or deleted.
-    *   A back-fill mechanism to create cleaning records for tenants who existed before the feature was implemented.
+4.  **UI/UX Enhancements:**
+    *   **Properties Page:** Add more color and contrast for readability.
+    *   **Units Page:** Sort units by property ID, with visual dividers between properties and alternating row colors.
+    *   **Tenants Page:** Add space between properties, use alternating colors, and differentiate row backgrounds from the page background.
+
+5.  **Tenant Management Features & Fixes:**
+    *   **Tenant Details:** Simplify the expanded tenant view on the  to only show Name, Move-in/out dates, Rent, and Notes.
+    *   **Permanent Delete:** Add an option to permanently delete a tenant with a double confirmation warning.
+    *   **Remove Popup:** Remove the tenant move-out confirmation popup (handle via notifications only).
+    *   **Move-out Notification:** Create a new automated notification on tenant move-out day with three mandatory checkboxes: Parking Decal/Pass returned, confirm deposit was returned or deducted, confirm doorcode was updated. The notification cannot be deleted until all are checked.
+    *   **Bug Fix:** Fix the issue where tenants are moved out one day early.
+    *   **Misc. Charges:** Add an option to associate a miscellaneous charge with a tenant. This charge should be added to the total on the  and appear as a separate line item under the tenant's rent.
+
+**Phase 2: Follow-up Feature Batch (from message 258)**
+1.  **Deposits Page:** Allow editing on all three tabs. Add status notes for passed tenant (checkout date has passed but deposit not returned) and future tenant.
+2.  **Calendar Page:**
+    *   Fix grid lines to extend continuously for future months.
+    *   Align month labels with grid lines.
+    *   Change tenant name color on hover-tooltip for better visibility.
+    *   On tenant click, open a modal with their details instead of redirecting. Apply this to all pages with tenant lists.
+3.  **Vacancy Page:** Add sorting options for the Upcoming Vacancies tab (by property/unit or by date).
+4.  **Parking Page:**
+    *   Add a has parking checkbox to the tenant creation/edit form.
+    *   When assigning a parking spot, filter the tenant list to only show tenants from the correct property who have has parking checked.
+    *   Add a search bar to the tenant assignment dropdown.
+    *   Fix the display of the tenant's unit number in the assignment list.
+    *   When assigning a Marlins Decal, filter tenants to only those from the 1542 property.
+
+**Phase 3: Bug Fix (from message 422)**
+1.  **Income Page:** Correct the Monthly Average calculation. It should be the sum of income from the current and all previous months of the year, divided by the number of those months.
 
 **User's preferred language**: English
 
 **what currently exists?**
-The application now includes the new Info, Notifications, and Operations sections with all requested features implemented. The backend has been significantly expanded with new data models, endpoints, and complex business logic for automated notifications tied to the tenant lifecycle. The frontend includes multiple new pages with complex state management, Kanban boards, and spreadsheet-style tables. The agent has just finished implementing a batch of fixes and improvements for the Operations section.
+The application now incorporates all the user's requested features from the three phases. The navigation is restructured, the app is rebranded, and the new  and  pages are fully implemented. Numerous UI/UX enhancements have been applied across the , , , and  pages. A shared  has been created and integrated. Major backend logic was added to support new data models (, ), new notification types (), permanent tenant deletion, and various bug fixes, including the final correction to the income page's monthly average calculation. The entire suite of changes has passed both automated and manual testing.
 
 **Last working item**:
-- **Last item agent was working**: The agent was addressing four issues/requests related to the Operations and Housekeeping features:
-    1.  **Backend Fix:** Overhauled the  endpoint to auto-backfill cleaning records for existing tenants and enrich the data with the next tenant's check-in date. This fixed a bug where old tenants weren't showing up in Upcoming Cleanings.
-    2.  **UI Change:** Converted the  from a single view into a two-tab layout for Move Ins and Move Outs.
-    3.  **UI Update:** Updated the 's Upcoming Cleanings table to display the newly available Next Check-in date.
-    4.  **Implicit Backend Fix:** The overhaul of the cleaning records endpoint also robustly addresses the user's report that cleaning records didn't update when a tenant's move-out date changed. By recalculating on every fetch, the data is always correct.
-- **Status**: IN PROGRESS
-- **Agent Testing Done**: N
-- **Which testing method agent to use?**: testing_agent_v3_fork
+- **Last item agent was working**: Fixing a bug on the  where the Monthly Average calculation was incorrect. The agent adjusted the logic to sum only the income from the current and past months of the selected year and then divide by the count of those months.
+- **Status**: USER VERIFICATION PENDING
+- **Agent Testing Done**: Y
+- **Which testing method agent to use?**: screenshot tool (to show the corrected average on the )
 - **User Testing Done**: N
 
 **All Pending/In progress Issue list**:
-- **Issue 1: Complete Testing for Operations Feature Fixes (P0)**
-    - **Description:** The agent has implemented code changes to address four user-reported issues and requests for the Operations/Housekeeping feature. However, these changes have not been comprehensively tested.
-    - **Status:** TESTING PENDING
+- **Issue 1: User Verification for Income Page Average (P0)**
+    - **Description:** The agent has fixed the Monthly Average calculation on the Income page. The user needs to review and confirm that the new calculation method is correct.
+    - **Status:** USER VERIFICATION PENDING
     - **Next debug checklist:**
-        - Call the  to perform a full regression test on the application, focusing on:
-            - Verifying the  has the correct tabbed layout and functionality.
-            - Ensuring the 's Upcoming Cleanings tab now correctly shows records for ALL tenants (new and old) and displays the Next Check-in column.
-            - Validating that editing a tenant's move-out date correctly reflects in the Upcoming Cleanings list on the next page load.
-            - Confirming no regressions were introduced in other parts of the application.
-    - **Why fix this issue and what will be achieved with the fix?**: To validate that all recent bug fixes and enhancements are working as expected and the application is stable before presenting it to the user.
-    - **Should Test frontend/backend/both after fix?**: both
+        - Use the  tool to capture the .
+        - Present the screenshot to the user and ask for confirmation of the fix.
+    - **Why fix this issue and what will be achieved with the fix?**: This resolves the user's final bug report from the previous session and confirms all requested tasks are complete.
+    - **Should Test frontend/backend/both after fix?**: NA (Testing is complete)
 
 **In progress Task List**:
 - None.
 
 **Upcoming and Future Tasks**
-- **Task 1: Await User Feedback (P0)**: After completing testing on the recent fixes, present the updated application to the user for review and await the next set of feedback or requirements.
+- **Task 1: Await User Feedback (P0)**: After the user verifies the final bug fix, await the next set of requirements or feedback.
 
 **Completed work in this session**
-- **Info Section Implementation:**
-    - Created , , , and  pages with full backend CRUD functionality.
-- ** Enhancement:**
-    - Cross-populated and displayed  and  on the  in an expandable section.
-- **Notifications System Overhaul (Two Iterations):**
-    - Built a full-featured notification center with Kanban/List views, search, filtering, and bulk actions.
-    - Implemented UI fixes for status toggles and Mark as Read behavior.
-- **Operations Section Implementation:**
-    - Created  and  pages.
-    - Implemented complex backend logic to automatically create/update/delete cleaning records and housekeeping notifications based on tenant lifecycle events.
-- **Bug Fixes and Enhancements:**
-    - Addressed multiple user-reported issues, including the most recent batch of fixes for the Operations feature.
+- **Navigation and Branding:**
+    - Renamed the app to Furnished Rentals.
+    - Reorganized  to create new navigation groups (, , , ).
+- **New Feature: Budgeting Section:**
+    - Created  with three tabs for tracking tenant deposits, returned deposits, and landlord deposits, including full CRUD and state management logic.
+    - Created  with a monthly breakdown for tracking tenant rent payments.
+    - Created new backend models and full CRUD API endpoints in  for  and .
+- **Tenant Management Overhaul:**
+    - Implemented permanent tenant deletion with a double-confirmation modal in .
+    - Added a misc charges feature to tenants, reflected on the .
+    - Created a new  notification in , triggered on tenant creation, with front-end rendering and interaction logic in .
+    - Added a  checkbox to the tenant form in .
+- **UI/UX Enhancements & Shared Components:**
+    - Created a reusable  and integrated it into the  and  to show tenant info without navigation.
+    - Improved styling for contrast and readability on .
+    - Restructured  to group units by property with dividers and alternating colors.
+    - Improved styling on  with better spacing and row colors.
+- **Bug Fixes:**
+    - Corrected the tenant move-out date logic in  to prevent tenants from being moved out a day early.
+    - Fixed UI issues on , including extending grid lines and fixing tooltip text color.
+    - Overhauled the  tenant assignment to be filterable (by property,  status) and searchable.
+    - Corrected the Monthly Average calculation logic on .
 
 **Earlier issues found/mentioned but not fixed**
-- None. All issues raised by the user during this session were addressed.
+- None.
 
 **Known issue recurrence from previous fork**
-- **Issue recurrence in previous fork**: Testing agent's inability to interact with modal dialogs.
-- **Recurrence count**: 1
-- **Status**: NOT STARTED (This is a known limitation of the tool and did not block progress).
+- None observed in this session.
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
 - **Stack**: FastAPI, React, MongoDB.
-- **Backend**: Implemented complex, stateful business logic within FastAPI endpoints (e.g., tenant creation triggering notification and cleaning record creation). Used on-the-fly data generation and back-filling in the  endpoint to ensure data consistency.
-- **Frontend**: Heavy use of React hooks for complex state management, conditional rendering, and data fetching to power features like Kanban boards, multi-tab interfaces, and dynamic data tables.
+- **Backend**: The  monolith continues to grow. New Pydantic models (, ) and complex endpoints were added. Business logic for new notifications and data relationships (tenant -> deposit/misc charge) was embedded directly in API routes.
+- **Frontend**: Significant feature development. Created new, complex pages with heavy state management (, ). Introduced a shared modal component () to reduce navigation and improve UX. Extensive use of client-side data transformation for UI displays (e.g., grouping, sorting on , ).
 
 **key DB schema**
+- **tenants**: 
+- **deposits**: 
+- **misc_charges**: 
 - **notifications**: 
-- **parking_spots**: 
-- **login_infos**: 
-- **door_codes**: 
-- **marketing_links**: 
-- **housekeepers**: 
-- **housekeeping_leads**: 
-- **cleaning_records**: 
 
 **changes in tech stack**
 - None.
 
 **All files of reference**
-- : Heavily modified to add numerous models, endpoints, and complex automated logic.
-- : Updated with functions for all new endpoints.
-- : Updated with new navigation structure for Info and Operations.
-- : All newly created pages (, , , etc.).
-- : Modified to display linked data.
+- **Created:**
+    - : Manages all deposit tracking logic.
+    - : Manages monthly rent payment tracking.
+    - : Reusable modal for displaying tenant information.
+- **Heavily Modified:**
+    - : Added multiple new models and endpoints, updated existing tenant logic.
+    - : Major navigation restructuring and new routes.
+    - : Added functions for all new endpoints.
+    - : Added permanent delete, misc charges, parking checkbox, and styling.
+    - : Updated to show misc charges and fixed average calculation.
+    - : Added tenant modal, fixed styles and grid lines.
+    - : Overhauled tenant assignment with search and filtering.
+    - : Reworked to group by property.
+    - : Styling updates.
+    - : Added sorting options.
+    - : Added logic to handle the new checklist notification type.
 
 **Areas that need refactoring**:
-- ****: This file is now critically overdue for refactoring. It contains all models, routes, and business logic for the entire application, making it extremely difficult to maintain. It should be broken down into a standard FastAPI structure (e.g., , , ).
-- **Frontend Pages**: Several of the new pages like  and  have become very large and handle significant logic. They should be decomposed into smaller, reusable components.
+- ****: This file is critically oversized. It urgently needs to be broken down into a standard FastAPI structure:  for endpoints,  for Pydantic models, and  for business logic. Its current state is a major maintenance risk.
+- **Frontend Pages**: Pages like , , and  contain substantial logic and could be decomposed into smaller, more manageable components to improve readability and reusability.
 
 **key api endpoints**
-- , , ,  (full CRUD).
--  (full CRUD, plus bulk actions, search, snooze, etc.).
-- ,  (full CRUD).
--  (GET).
--  (GET, PATCH).
-- : Logic extended to create related cleaning records and notifications.
-- : Logic extended to update related records.
-- : Logic extended to delete related records.
+-  (CRUD)
+-  (CRUD)
+-  (GET)
+-  (CRUD)
+-  (PATCH)
+- : Logic updated for permanent deletion of all associated data.
+- : Logic updated to include misc charges.
 
 **Critical Info for New Agent**
-- The user provides requirements iteratively. The workflow is to implement a large feature set, present it, and then implement the subsequent feedback and fixes.
-- The logic for automated notifications and record creation tied to the tenant lifecycle in  is a core part of the application. Be extremely careful when modifying tenant-related endpoints.
-- The  endpoint now performs a backfill on every call to ensure data consistency for tenants created before the feature existed. This is a key piece of logic to understand.
-- Before finishing any task, run the  as the application is now large and complex, with high risk of regressions.
+- The user provides large, batched feature requests. It is crucial to create a detailed plan and get approval before implementation.
+- The immediate next step is to get user verification for the  average calculation fix.
+- The backend  is a monolith. Any changes require careful regression testing. The frontend is complex and relies heavily on client-side state management.
+- The agent successfully used the  after completing large implementation phases. This practice should be continued.
 
 **documents and test reports created in this job**
--  (updated multiple times)
-- Multiple test reports in  from the testing agent.
+-  (updated)
+- 
+- 
+- 
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **User (Msg 105):** Requested UI/UX fixes for the Notifications page (status toggle, mark read behavior).
-2.  **Agent (Msg 106-118):** Implemented and verified the notification fixes. (COMPLETED)
-3.  **User (Msg 120):** Requested the large Operations feature, including Move In/Out and Housekeeping pages with automated notifications.
-4.  **Agent (Msg 121-169):** Implemented the entire Operations feature set. (COMPLETED)
-5.  **User (Msg 171):** Reported 4 issues with the new Operations feature: Move In/Out should be tabs, cleaning records not backfilled for old tenants, cleaning records not updating, and a feature request to add the next check-in date.
-6.  **Agent (Msg 172-189):** Implemented fixes for all 4 issues. (IN PROGRESS - PENDING TESTING)
+1.  **User (Msg 258):** Provided the second large batch of feature requests (Calendar modal, Vacancy sorting, Parking page filters, etc.).
+2.  **Agent (Msg 259-261):** Acknowledged the request and asked for confirmation to proceed.
+3.  **User (Msg 261):** yes
+4.  **Agent (Msg 262-414):** Implemented all features from the second batch, including creating the TenantDetailModal, fixing the Calendar page, and overhauling the Parking page.
+5.  **Agent (Msg 415-418):** Ran the testing agent, which passed all tests.
+6.  **Agent (Msg 419-421):** Updated the PRD and finished the task, summarizing the completed work.
+7.  **User (Msg 422):** Reported a bug: On income page, monthly average is wrong. and provided the correct calculation logic.
+8.  **Agent (Msg 423-425):** Acknowledged the bug, identified the cause in the code, and proposed a fix.
+9.  **Agent (Msg 426-429):** Implemented the fix on  and verified the corrected calculation using a  command.
+10. **Agent (Msg 430):** Finished the session, noting the fix was implemented and tested.
 
 **Project Health Check:**
-- **Broken**: None.
-- **Mocked**: None.
+- **Broken**: None
+- **Mocked**: None
 
 **3rd Party Integrations**
 - None.
@@ -160,10 +200,10 @@ The application now includes the new Info, Notifications, and Operations section
 - **Testing agent used after significant changes**: YES
 - **Troubleshoot agent used after agent stuck in loop**: NO
 - **Test files created**: None.
-- **Known regressions**: None reported, but comprehensive testing is pending for the latest changes.
+- **Known regressions**: None. All features passed comprehensive testing.
 
 **Credentials to test flow:**
 - No authentication is implemented.
 
 **What agent forgot to execute**
-- The agent has not yet run a comprehensive test suite after implementing the latest batch of fixes for the Operations feature. This is the immediate next step.</analysis>
+- Nothing. The agent successfully addressed all items from the user's extensive and multi-part requests.</analysis>
