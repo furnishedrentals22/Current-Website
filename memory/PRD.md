@@ -7,10 +7,10 @@ Built with React (frontend) + FastAPI (backend) + MongoDB.
 ## Core Requirements
 
 ### Navigation Structure
-- **Properties** → Properties subpage + Units subpage
-- **Tenants** → Tenants subpage + Leads subpage
-- **Calendar** → Calendar subpage + Vacancy subpage
-- **Budgeting** → Income + Deposits + Rent Tracking
+- **Properties** > Properties subpage + Units subpage
+- **Tenants** > Tenants subpage + Leads subpage
+- **Calendar** > Calendar subpage + Vacancy subpage
+- **Budgeting** > Income + Deposits + Rent Tracking
 - **Notes**, **Info**, **Operations**, **Notifications**, **Features**
 
 ### Key User Personas
@@ -24,22 +24,21 @@ Built with React (frontend) + FastAPI (backend) + MongoDB.
 
 ### Backend (`/app/backend/`)
 ```
-server.py          # Thin entry point (~30 lines)
+main.py            # Thin entry point (~30 lines)
 database.py        # AsyncIOMotorClient connection
-helpers.py         # serialize_doc, parse_date
-schemas.py         # All Pydantic models
-core_logic.py      # Business logic (vacancy, income calc)
+models.py          # All Pydantic models
+requirements.txt
 routers/
-  properties.py    # /api/properties, /api/units
-  tenants.py       # /api/tenants, /api/misc-charges
-  leads.py         # /api/leads, /api/lead-stages
-  notifications.py # /api/notifications (full CRUD + checklist + bulk)
-  budgeting.py     # /api/income, /api/deposits, /api/landlord-deposits, /api/rent-tracking
-  calendar_router.py # /api/calendar, /api/calendar/timeline, /api/vacancy
-  operations.py    # /api/move-ins-outs, /api/housekeepers, /api/cleaning-records
-  parking.py       # /api/parking-spots, /api/parking-assignments
-  info.py          # /api/door-codes, /api/login-accounts, /api/marketing-links, /api/notes
-  admin.py         # /api/available-units, /api/dashboard, /api/team-members, /api/pins
+  admin.py
+  budgeting.py
+  calendar.py
+  info.py
+  leads.py
+  notifications.py
+  operations.py
+  parking.py
+  properties.py
+  tenants.py
 ```
 
 ### Frontend (`/app/frontend/src/`)
@@ -49,35 +48,49 @@ lib/api.js         # All API calls (axios)
 pages/
   PropertiesPage.js
   UnitsPage.js
-  TenantsPage.js   # 649 lines (decomposed from 1337)
+  TenantsPage.js     # Decomposed (uses tenants/ components)
   LeadsPage.js
   CalendarPage.js
   VacancyPage.js
-  DepositsPage.js  # 3 tabs: Current/Past/Landlord deposits
+  DepositsPage.js    # Decomposed (uses deposits/ components)
   RentTrackingPage.js
   IncomePage.js
-  NotificationsPage.js
-  ParkingPage.js
+  NotificationsPage.js # Decomposed (uses notifications/ components)
+  ParkingPage.js       # Decomposed (uses parking/ components)
   HousekeepingPage.js
   MoveInOutPage.js
   NotesPage.js
   (and more...)
 components/
-  TenantDetailModal.js    # Shared tenant detail modal (used in Calendar, Parking)
+  TenantDetailModal.js
   tenants/
-    TenantFormDialog.js   # Create/edit tenant form
-    TenantDetailDialog.js # Tenant detail view dialog
-    TenantDeleteDialog.js # Permanent delete confirmation
-    MiscChargesSection.js # Misc charges management
-    tenantUtils.js        # Shared helpers (fmtDate, sortUtils, emptyForm)
-  ui/                     # shadcn/ui components
+    TenantFormDialog.js
+    TenantDetailDialog.js
+    TenantDeleteDialog.js
+    MiscChargesSection.js
+    tenantUtils.js
+  deposits/
+    EditDepositDialog.js
+    ReturnDepositDialog.js
+  parking/
+    SpotCard.js
+    SpotDialog.js
+    AssignDialog.js
+    AssignmentsTab.js
+    AssignSection.js
+  notifications/
+    KanbanView.js
+    ListView.js
+    NotificationFormDialog.js
+    SnoozeDialog.js
+    notificationConstants.js
+  ui/                  # shadcn/ui components
 ```
 
 ### Key DB Collections
 - **properties**: `{name, address, building_id, ...}`
 - **units**: `{property_id, unit_number, base_rent, landlord_deposit, ...}`
 - **tenants**: `{property_id, unit_id, name, move_in_date, move_out_date, deposit_amount, has_parking, ...}`
-- **deposits**: legacy (tenant deposit data now on tenant record)
 - **misc_charges**: `{tenant_id, amount, description, charge_date}`
 - **rent_payments**: `{tenant_id, year, month, paid, partial_amount, note}`
 - **notifications**: `{name, type, checklist, status, ...}`
@@ -109,10 +122,16 @@ components/
 ### Phase 3 (Bug Fix)
 - Income page: Monthly Average calculation corrected (sum of past+current months / count)
 
-### Phase 4 (Refactoring)
-- Backend server.py split into 12 focused modules
-- Frontend TenantsPage.js (1337→649 lines) decomposed into 5 components
+### Phase 4 (Refactoring - Backend)
+- Backend server.py split into 12 focused modules (routers, models, database)
 - All APIs verified: 28/28 tests passing
+
+### Phase 5 (Refactoring - Frontend) - Completed Mar 12, 2026
+- TenantsPage.js (1337->649 lines) decomposed into 5 components
+- DepositsPage.js (340 lines) uses 2 extracted dialog components
+- ParkingPage.js (574->260 lines) uses 5 extracted components (SpotCard, SpotDialog, AssignDialog, AssignmentsTab, AssignSection)
+- NotificationsPage.js (717->334 lines) uses 5 extracted components (KanbanView, ListView, NotificationFormDialog, SnoozeDialog, notificationConstants)
+- All 23 frontend tests passing: 100% success rate
 
 ---
 
@@ -122,10 +141,11 @@ components/
 - None currently identified
 
 ### P2 (Medium)
-- Further frontend decomposition: DepositsPage, ParkingPage, NotificationsPage
+- Further frontend decomposition: IncomePage.js, CalendarPage.js
 - Add proper error boundaries to React components
 
 ### P3 (Low / Backlog)
+- Fix React HTML nesting warnings in JSX
 - Add pagination for large tenant/lead lists
 - Export to CSV/PDF for income reports
 - Mobile-responsive design improvements
