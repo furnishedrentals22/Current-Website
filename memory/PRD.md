@@ -1,78 +1,133 @@
-# Furnished Rentals - Property Management Platform
+# Furnished Rentals - Product Requirements Document
 
-## Original Problem Statement
-Build a comprehensive property management platform for furnished rental properties, including properties, units, tenants, leads, income tracking, calendar, vacancy tracking, notifications, and operations management.
+## Overview
+A comprehensive property management web application for managing furnished rental properties.
+Built with React (frontend) + FastAPI (backend) + MongoDB.
 
-## Tech Stack
-- **Backend**: FastAPI + MongoDB
-- **Frontend**: React + Shadcn/UI + Tailwind CSS
-- **Database**: MongoDB (local dev, Atlas production)
+## Core Requirements
+
+### Navigation Structure
+- **Properties** → Properties subpage + Units subpage
+- **Tenants** → Tenants subpage + Leads subpage
+- **Calendar** → Calendar subpage + Vacancy subpage
+- **Budgeting** → Income + Deposits + Rent Tracking
+- **Notes**, **Info**, **Operations**, **Notifications**, **Features**
+
+### Key User Personas
+- Property manager (primary)
+- Landlord (secondary)
+- Housekeeping coordinator
+
+---
 
 ## Architecture
+
+### Backend (`/app/backend/`)
 ```
-/app/
-├── backend/
-│   ├── server.py          # All endpoints & models
-│   └── core_logic.py      # Income calculation, vacancy logic
-├── frontend/
-│   └── src/
-│       ├── App.js         # Navigation & routing
-│       ├── lib/api.js     # API client
-│       ├── components/
-│       │   └── TenantDetailModal.js  # Reusable tenant detail popup
-│       └── pages/         # All page components
+server.py          # Thin entry point (~30 lines)
+database.py        # AsyncIOMotorClient connection
+helpers.py         # serialize_doc, parse_date
+schemas.py         # All Pydantic models
+core_logic.py      # Business logic (vacancy, income calc)
+routers/
+  properties.py    # /api/properties, /api/units
+  tenants.py       # /api/tenants, /api/misc-charges
+  leads.py         # /api/leads, /api/lead-stages
+  notifications.py # /api/notifications (full CRUD + checklist + bulk)
+  budgeting.py     # /api/income, /api/deposits, /api/landlord-deposits, /api/rent-tracking
+  calendar_router.py # /api/calendar, /api/calendar/timeline, /api/vacancy
+  operations.py    # /api/move-ins-outs, /api/housekeepers, /api/cleaning-records
+  parking.py       # /api/parking-spots, /api/parking-assignments
+  info.py          # /api/door-codes, /api/login-accounts, /api/marketing-links, /api/notes
+  admin.py         # /api/available-units, /api/dashboard, /api/team-members, /api/pins
 ```
 
-## Navigation Structure
-- Properties > Properties, Units
-- Tenants > Tenants, Leads
-- Calendar > Calendar, Vacancy
-- Budgeting > Income, Deposits, Rent Tracking
-- Notes
-- Info > Parking, Login Info, Door Codes, Marketing
-- Operations > Move In/Out, Housekeeping
-- Notifications
-- Features
+### Frontend (`/app/frontend/src/`)
+```
+App.js             # Router + navigation structure
+lib/api.js         # All API calls (axios)
+pages/
+  PropertiesPage.js
+  UnitsPage.js
+  TenantsPage.js   # 649 lines (decomposed from 1337)
+  LeadsPage.js
+  CalendarPage.js
+  VacancyPage.js
+  DepositsPage.js  # 3 tabs: Current/Past/Landlord deposits
+  RentTrackingPage.js
+  IncomePage.js
+  NotificationsPage.js
+  ParkingPage.js
+  HousekeepingPage.js
+  MoveInOutPage.js
+  NotesPage.js
+  (and more...)
+components/
+  TenantDetailModal.js    # Shared tenant detail modal (used in Calendar, Parking)
+  tenants/
+    TenantFormDialog.js   # Create/edit tenant form
+    TenantDetailDialog.js # Tenant detail view dialog
+    TenantDeleteDialog.js # Permanent delete confirmation
+    MiscChargesSection.js # Misc charges management
+    tenantUtils.js        # Shared helpers (fmtDate, sortUtils, emptyForm)
+  ui/                     # shadcn/ui components
+```
 
-## Implemented Features
+### Key DB Collections
+- **properties**: `{name, address, building_id, ...}`
+- **units**: `{property_id, unit_number, base_rent, landlord_deposit, ...}`
+- **tenants**: `{property_id, unit_id, name, move_in_date, move_out_date, deposit_amount, has_parking, ...}`
+- **deposits**: legacy (tenant deposit data now on tenant record)
+- **misc_charges**: `{tenant_id, amount, description, charge_date}`
+- **rent_payments**: `{tenant_id, year, month, paid, partial_amount, note}`
+- **notifications**: `{name, type, checklist, status, ...}`
+- **parking_spots**: `{spot_type, decal_number, property_ids, ...}`
+- **cleaning_records**: `{tenant_id, check_out_date, assigned_cleaner_id, ...}`
 
-### Core Pages
-- Properties: CRUD, building details, enhanced contrast/styling
-- Units: CRUD, grouped by property, alternating colors, door codes, marketing links
-- Tenants: CRUD, simplified columns (Name, Dates, Rent, Notes), has_parking checkbox, permanent delete w/ double confirm, misc charges, no moveout popup
-- Leads, Calendar, Vacancy, Notes
+---
 
-### Budgeting
-- Income: Monthly breakdown, misc charges as separate lines, monthly avg up to current month
-- Deposits: 3 tabs (Current/Past/Landlord), all editable, past/future tenant badges, deposit return flow
-- Rent Tracking: Monthly view, paid checkboxes, partial payments, notes, notification creation
+## What's Been Implemented
 
-### Info Section
-- Parking, Login Info, Door Codes, Marketing (all full CRUD)
+### Phase 1 (Original Feature Batch)
+- Navigation restructure: Properties/Tenants/Calendar/Budgeting groups
+- App renamed to "Furnished Rentals"
+- New **Deposits** page (3 tabs: Current/Past/Landlord)
+- New **Rent Tracking** page (monthly payment tracking)
+- Tenant enhancements: permanent delete, misc charges, has_parking field
+- Move-out checklist notification (mandatory 3-item checklist)
+- UI improvements: Properties, Units, Tenants, Calendar pages
+- Shared TenantDetailModal across Calendar and Parking pages
+- Bug fix: tenant move-out date off-by-one
+- Bug fix: Calendar grid lines extending for future months
 
-### Operations
-- Move In/Out (two-tab), Housekeeping (three-tab), auto cleaning records
+### Phase 2 (Follow-up Features)
+- Deposits page: edit on all tabs, status notes for passed tenants
+- Calendar: timeline segment-based view, tenant modal on click
+- Vacancy page: sorting options (by property/unit or by date)
+- Parking page: has_parking filter, search in tenant dropdown, Marlins Decal filtering
 
-### Notifications
-- Kanban/list views, move-out checklist (3 required checkboxes), auto-notifications
+### Phase 3 (Bug Fix)
+- Income page: Monthly Average calculation corrected (sum of past+current months / count)
 
-### Cross-Page Features
-- TenantDetailModal: Click any tenant name across app → popup with full details
-- Parking tenant filter: by property + has_parking, search, 1542 filter for Marlins decal
-- Calendar: grid lines through property headers, dark tooltip text, tenant click opens modal
-- Vacancy: sort by property (collapsible) or date (collapsible months)
+### Phase 4 (Refactoring)
+- Backend server.py split into 12 focused modules
+- Frontend TenantsPage.js (1337→649 lines) decomposed into 5 components
+- All APIs verified: 28/28 tests passing
 
-## Key Collections
-properties, units, tenants, leads, notes, notifications, parking_spots, parking_assignments, login_infos, door_codes, marketing_links, housekeepers, housekeeping_leads, cleaning_records, misc_charges, rent_payments
-
-## Testing History
-- Iteration 9: 18/18 (Operations features)
-- Iteration 10: 21/21 (Operations v2 fixes)
-- Iteration 11: 14/14 (Major batch 1 - nav, deposits, rent tracking, styling)
-- Iteration 12: 16/16 (Major batch 2 - calendar, vacancy, parking, tenant modal)
+---
 
 ## Prioritized Backlog
-- P1: Await user feedback
-- P2: Refactor server.py into modular FastAPI structure
-- P2: Refactor large frontend pages into smaller components
-- P3: Fix minor React HTML nesting warnings
+
+### P1 (High - Next Sprint)
+- None currently identified
+
+### P2 (Medium)
+- Further frontend decomposition: DepositsPage, ParkingPage, NotificationsPage
+- Add proper error boundaries to React components
+
+### P3 (Low / Backlog)
+- Add pagination for large tenant/lead lists
+- Export to CSV/PDF for income reports
+- Mobile-responsive design improvements
+- Add search/filter across all list pages
+- Unit tests for frontend components
