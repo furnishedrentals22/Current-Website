@@ -110,6 +110,7 @@ class TenantCreate(BaseModel):
     partial_last_month: Optional[float] = None
     pets: Optional[str] = ""
     parking: Optional[str] = ""
+    has_parking: bool = False
     notes: Optional[str] = ""
     total_rent: Optional[float] = None
     # New fields

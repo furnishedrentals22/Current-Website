@@ -6,10 +6,126 @@ import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { BarChart3, ChevronDown, ChevronRight, ChevronLeft, AlertTriangle } from 'lucide-react';
+import { BarChart3, ChevronDown, ChevronRight, ChevronLeft, AlertTriangle, ArrowUpDown } from 'lucide-react';
 import { toast } from 'sonner';
 
 const MONTH_NAMES = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const FULL_MONTH_NAMES = ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+function UpcomingVacanciesView({ vacancies }) {
+  const [sortMode, setSortMode] = useState('property');
+  const [expanded, setExpanded] = useState({});
+
+  const toggle = (key) => setExpanded(p => ({ ...p, [key]: !p[key] }));
+
+  const VacancyRow = ({ v, idx }) => (
+    <TableRow key={idx} className={`hover:bg-muted/40 ${idx % 2 === 0 ? '' : 'bg-muted/10'}`}>
+      <TableCell className="font-medium">{v.property_name}</TableCell>
+      <TableCell>Unit {v.unit_number}</TableCell>
+      <TableCell className="tabular-nums">{v.vacancy_start}</TableCell>
+      <TableCell>
+        {v.has_future_tenant ? (
+          <Badge variant="secondary" className="text-xs">Until {v.vacancy_end}</Badge>
+        ) : (
+          <Badge className="text-xs bg-amber-50 text-amber-900 border-amber-200"><AlertTriangle className="h-3 w-3 mr-1" />Vacant forward</Badge>
+        )}
+      </TableCell>
+    </TableRow>
+  );
+
+  if (sortMode === 'property') {
+    const grouped = {};
+    vacancies.forEach(v => {
+      const key = v.property_name || 'Unknown';
+      if (!grouped[key]) grouped[key] = [];
+      grouped[key].push(v);
+    });
+    Object.values(grouped).forEach(arr => arr.sort((a, b) => {
+      const aNum = parseInt(a.unit_number, 10) || 999;
+      const bNum = parseInt(b.unit_number, 10) || 999;
+      return aNum - bNum;
+    }));
+
+    return (
+      <div className="space-y-2">
+        <div className="flex gap-2 mb-2">
+          <Button size="sm" variant={sortMode === 'property' ? 'default' : 'outline'} onClick={() => setSortMode('property')} className="text-xs gap-1"><ArrowUpDown className="h-3 w-3" /> By Property</Button>
+          <Button size="sm" variant={sortMode === 'date' ? 'default' : 'outline'} onClick={() => setSortMode('date')} className="text-xs gap-1"><ArrowUpDown className="h-3 w-3" /> By Date</Button>
+        </div>
+        {Object.entries(grouped).sort((a, b) => a[0].localeCompare(b[0])).map(([propName, items]) => {
+          const isOpen = expanded[propName] !== false;
+          return (
+            <Card key={propName} className="overflow-hidden">
+              <button className="w-full flex items-center justify-between p-3 hover:bg-muted/30 transition-colors" onClick={() => toggle(propName)}>
+                <div className="flex items-center gap-2">
+                  {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                  <span className="text-sm font-semibold">{propName}</span>
+                  <Badge variant="secondary" className="text-xs">{items.length}</Badge>
+                </div>
+              </button>
+              {isOpen && (
+                <Table>
+                  <TableHeader><TableRow className="bg-muted/30">
+                    <TableHead className="text-xs font-semibold uppercase tracking-wide">Property</TableHead>
+                    <TableHead className="text-xs font-semibold uppercase tracking-wide">Unit</TableHead>
+                    <TableHead className="text-xs font-semibold uppercase tracking-wide">Vacancy Starts</TableHead>
+                    <TableHead className="text-xs font-semibold uppercase tracking-wide">Status</TableHead>
+                  </TableRow></TableHeader>
+                  <TableBody>{items.map((v, idx) => <VacancyRow key={idx} v={v} idx={idx} />)}</TableBody>
+                </Table>
+              )}
+            </Card>
+          );
+        })}
+      </div>
+    );
+  }
+
+  // Sort by date with collapsible months
+  const sortedByDate = [...vacancies].sort((a, b) => a.vacancy_start.localeCompare(b.vacancy_start));
+  const byMonth = {};
+  sortedByDate.forEach(v => {
+    const d = new Date(v.vacancy_start + 'T00:00:00');
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const label = `${FULL_MONTH_NAMES[d.getMonth() + 1]} ${d.getFullYear()}`;
+    if (!byMonth[key]) byMonth[key] = { label, items: [] };
+    byMonth[key].items.push(v);
+  });
+
+  return (
+    <div className="space-y-2">
+      <div className="flex gap-2 mb-2">
+        <Button size="sm" variant={sortMode === 'property' ? 'default' : 'outline'} onClick={() => setSortMode('property')} className="text-xs gap-1"><ArrowUpDown className="h-3 w-3" /> By Property</Button>
+        <Button size="sm" variant={sortMode === 'date' ? 'default' : 'outline'} onClick={() => setSortMode('date')} className="text-xs gap-1"><ArrowUpDown className="h-3 w-3" /> By Date</Button>
+      </div>
+      {Object.entries(byMonth).sort((a, b) => a[0].localeCompare(b[0])).map(([monthKey, { label, items }]) => {
+        const isOpen = expanded[monthKey] !== false;
+        return (
+          <Card key={monthKey} className="overflow-hidden">
+            <button className="w-full flex items-center justify-between p-3 hover:bg-muted/30 transition-colors" onClick={() => toggle(monthKey)}>
+              <div className="flex items-center gap-2">
+                {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                <span className="text-sm font-semibold">{label}</span>
+                <Badge variant="secondary" className="text-xs">{items.length}</Badge>
+              </div>
+            </button>
+            {isOpen && (
+              <Table>
+                <TableHeader><TableRow className="bg-muted/30">
+                  <TableHead className="text-xs font-semibold uppercase tracking-wide">Property</TableHead>
+                  <TableHead className="text-xs font-semibold uppercase tracking-wide">Unit</TableHead>
+                  <TableHead className="text-xs font-semibold uppercase tracking-wide">Vacancy Starts</TableHead>
+                  <TableHead className="text-xs font-semibold uppercase tracking-wide">Status</TableHead>
+                </TableRow></TableHeader>
+                <TableBody>{items.map((v, idx) => <VacancyRow key={idx} v={v} idx={idx} />)}</TableBody>
+              </Table>
+            )}
+          </Card>
+        );
+      })}
+    </div>
+  );
+}
 
 export default function VacancyPage() {
   const [year, setYear] = useState(new Date().getFullYear());
@@ -190,39 +306,7 @@ export default function VacancyPage() {
                 </CardContent>
               </Card>
             ) : (
-              <Card className="overflow-hidden">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-muted/50">
-                      <TableHead className="text-xs font-semibold uppercase tracking-wide">Property</TableHead>
-                      <TableHead className="text-xs font-semibold uppercase tracking-wide">Unit</TableHead>
-                      <TableHead className="text-xs font-semibold uppercase tracking-wide">Vacancy Starts</TableHead>
-                      <TableHead className="text-xs font-semibold uppercase tracking-wide">Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {data.upcoming_vacancies.map((v, idx) => (
-                      <TableRow key={idx} className="hover:bg-muted/40">
-                        <TableCell className="font-medium">{v.property_name}</TableCell>
-                        <TableCell>{v.unit_number}</TableCell>
-                        <TableCell>{v.vacancy_start}</TableCell>
-                        <TableCell>
-                          {v.has_future_tenant ? (
-                            <Badge variant="secondary" className="text-xs">
-                              Until {v.vacancy_end}
-                            </Badge>
-                          ) : (
-                            <Badge className="text-xs bg-amber-50 text-amber-900 border-amber-200">
-                              <AlertTriangle className="h-3 w-3 mr-1" />
-                              Vacant forward
-                            </Badge>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </Card>
+              <UpcomingVacanciesView vacancies={data.upcoming_vacancies} />
             )}
           </TabsContent>
         </Tabs>

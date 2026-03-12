@@ -1,0 +1,108 @@
+{
+  "summary": "Comprehensive testing of Major Update Batch 2 (deposits editable, calendar improvements, vacancy sorting, parking filters, has_parking checkbox). Backend: 16/16 tests passed. Frontend: All features verified working.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/tenants", "issue": "has_parking field returns null for legacy tenants (acceptable - frontend handles this)", "note": "Not a bug - new field defaults to false in frontend"}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "console_warnings": [
+      {"component": "DepositsPage Table", "issue": "React HTML nesting warnings - <tr> in <span>, <span> in <tbody> - minor, doesn't affect functionality"}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_batch2_features.py",
+    "/app/test_reports/pytest/pytest_batch2_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [],
+  "updated_files": [
+    "/app/backend/tests/test_batch2_features.py (created for batch 2 testing)"
+  ],
+  "success_rate": {
+    "backend": "100% (16/16 passed)",
+    "frontend": "100% (all features verified)"
+  },
+  "seed_data_creation": "No new seed data - used existing test data",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Major batch 2 fully tested. Key features verified: 1) Deposits page has edit buttons on all 3 tabs with Past/Future Tenant status badges. 2) Calendar shows tenant bars with dark tooltip text, clicking opens TenantDetailModal. 3) Vacancy page has 'By Property' and 'By Date' sort toggle buttons. 4) Income page monthly average is calculated correctly (based on months up to current). 5) Parking page has tenant search, property+parking filter, unit display. 6) Tenants page has 'Has parking spot' checkbox in edit form.",
+  "features_tested": {
+    "deposits_current_endpoint": {
+      "status": "PASS",
+      "notes": "GET /api/deposits/current returns deposits with tenant status (move_in_date, move_out_date)"
+    },
+    "deposits_past_endpoint": {
+      "status": "PASS",
+      "notes": "GET /api/deposits/past returns past deposits"
+    },
+    "tenant_update_deposit_fields": {
+      "status": "PASS",
+      "notes": "Tenants have deposit_amount, deposit_date, payment_method fields"
+    },
+    "landlord_deposits_endpoint": {
+      "status": "PASS",
+      "notes": "GET /api/landlord-deposits returns properties with units"
+    },
+    "landlord_deposit_update": {
+      "status": "PASS",
+      "notes": "PUT /api/landlord-deposits/{unit_id}?amount=X works correctly"
+    },
+    "tenant_create_with_has_parking": {
+      "status": "PASS",
+      "notes": "POST /api/tenants accepts has_parking field"
+    },
+    "calendar_page_loading": {
+      "status": "PASS",
+      "notes": "Calendar page loads without errors, 11 tenant booking bars visible"
+    },
+    "calendar_tooltip_dark_text": {
+      "status": "PASS",
+      "notes": "Tooltip shows dark text on light background - tenant name, type, dates, rent visible"
+    },
+    "calendar_tenant_click_modal": {
+      "status": "PASS",
+      "notes": "Clicking tenant bar opens TenantDetailModal (not navigate away)"
+    },
+    "deposits_edit_buttons": {
+      "status": "PASS",
+      "notes": "Edit buttons visible on Current Deposits tab (3 edit buttons)"
+    },
+    "deposits_status_badges": {
+      "status": "PASS",
+      "notes": "Past Tenant / Future Tenant badges visible"
+    },
+    "vacancy_sort_buttons": {
+      "status": "PASS",
+      "notes": "'By Property' and 'By Date' buttons visible and working"
+    },
+    "income_monthly_average": {
+      "status": "PASS",
+      "notes": "$14,354 monthly average based on 3 months (Jan-Mar 2026)"
+    },
+    "parking_tenant_search": {
+      "status": "PASS",
+      "notes": "Search input in tenant assignment dialog with 'Search tenants...' placeholder"
+    },
+    "parking_unit_display": {
+      "status": "PASS",
+      "notes": "Tenant list shows '(Property - Unit X)' format"
+    },
+    "tenants_has_parking_checkbox": {
+      "status": "PASS",
+      "notes": "'Has parking spot' checkbox visible in tenant edit form under Parking Info section"
+    },
+    "tenant_detail_modal": {
+      "status": "PASS",
+      "notes": "TenantDetailModal opens and shows tenant info correctly"
+    },
+    "no_console_errors": {
+      "status": "PASS",
+      "notes": "Only minor React HTML nesting warnings - no functional issues"
+    }
+  }
+}

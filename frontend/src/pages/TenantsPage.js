@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
 import { Card, CardContent } from '@/components/ui/card';
 import { Users, Plus, Pencil, Trash2, ChevronDown, ChevronRight, AlertTriangle, CheckCircle2 } from 'lucide-react';
@@ -49,7 +50,7 @@ const emptyForm = {
   move_in_date: '', move_out_date: '', is_airbnb_vrbo: false,
   deposit_amount: '', deposit_date: '', monthly_rent: '',
   partial_first_month: '', partial_last_month: '',
-  pets: '', parking: '', notes: '', total_rent: '',
+  pets: '', parking: '', has_parking: false, notes: '', total_rent: '',
   payment_method: '', rent_due_date: '',
   moveout_confirmed: false, moveout_confirmed_date: null,
   deposit_return_date: '', deposit_return_amount: '', deposit_return_method: ''
@@ -350,6 +351,7 @@ export default function TenantsPage() {
       partial_last_month: tenant.partial_last_month || '',
       pets: tenant.pets || '',
       parking: tenant.parking || '',
+      has_parking: tenant.has_parking || false,
       notes: tenant.notes || '',
       total_rent: tenant.total_rent || '',
       payment_method: tenant.payment_method || '',
@@ -1202,8 +1204,12 @@ export default function TenantsPage() {
                     <Input value={form.pets} onChange={e => setForm({...form, pets: e.target.value})} />
                   </div>
                   <div className="space-y-2">
-                    <Label>Parking</Label>
+                    <Label>Parking Info</Label>
                     <Input value={form.parking} onChange={e => setForm({...form, parking: e.target.value})} />
+                    <div className="flex items-center gap-2 mt-1">
+                      <Checkbox checked={form.has_parking || false} onCheckedChange={(v) => setForm({...form, has_parking: !!v})} data-testid="tenant-has-parking-checkbox" />
+                      <Label className="text-xs cursor-pointer">Has parking spot</Label>
+                    </div>
                   </div>
                 </div>
                 {/* Deposit Return Fields */}

@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getParkingSpots, createParkingSpot, updateParkingSpot, deleteParkingSpot,
   getParkingAssignments, createParkingAssignment, updateParkingAssignment, deleteParkingAssignment,
-  getProperties, getTenants, createNotification } from '@/lib/api';
+  getProperties, getUnits, getTenants, createNotification } from '@/lib/api';
+import { TenantDetailModal } from '@/components/TenantDetailModal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -11,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
-import { Car, Plus, Pencil, Trash2, UserPlus, ChevronDown, ChevronRight, Bell } from 'lucide-react';
+import { Car, Plus, Pencil, Trash2, UserPlus, ChevronDown, ChevronRight, Bell, Search } from 'lucide-react';
 import { toast } from 'sonner';
 
 const emptySpotForm = {
@@ -28,6 +29,7 @@ export default function ParkingPage() {
   const [spots, setSpots] = useState([]);
   const [assignments, setAssignments] = useState([]);
   const [properties, setProperties] = useState([]);
+  const [allUnits, setAllUnits] = useState([]);
   const [tenants, setTenants] = useState([]);
   const [loading, setLoading] = useState(true);
   const [spotDialog, setSpotDialog] = useState(false);
@@ -40,13 +42,15 @@ export default function ParkingPage() {
   const [reminderForm, setReminderForm] = useState({ date: '', time: '', notes: '' });
   const [reminderContext, setReminderContext] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [tenantSearch, setTenantSearch] = useState('');
+  const [tenantDetailId, setTenantDetailId] = useState(null);
 
   const fetchData = useCallback(async () => {
     try {
-      const [sp, asgn, props, ten] = await Promise.all([
-        getParkingSpots(), getParkingAssignments(), getProperties(), getTenants()
+      const [sp, asgn, props, units, ten] = await Promise.all([
+        getParkingSpots(), getParkingAssignments(), getProperties(), getUnits(), getTenants()
       ]);
-      setSpots(sp); setAssignments(asgn); setProperties(props); setTenants(ten);
+      setSpots(sp); setAssignments(asgn); setProperties(props); setAllUnits(units); setTenants(ten);
     } catch { toast.error('Failed to load data'); }
     finally { setLoading(false); }
   }, []);
@@ -55,6 +59,8 @@ export default function ParkingPage() {
 
   const propMap = {};
   properties.forEach(p => { propMap[p.id] = p; });
+  const unitMap = {};
+  allUnits.forEach(u => { unitMap[u.id] = u; });
   const tenantMap = {};
   tenants.forEach(t => { tenantMap[t.id] = t; });
   const spotMap = {};
@@ -217,9 +223,10 @@ export default function ParkingPage() {
         </TabsContent>
 
         <TabsContent value="assignments" className="mt-4">
-          <AssignmentsTab spots={spots} assignments={assignments} propMap={propMap} tenantMap={tenantMap}
+          <AssignmentsTab spots={spots} assignments={assignments} propMap={propMap} unitMap={unitMap} tenantMap={tenantMap}
             today={today} onAssign={openAssign} onEditAssign={openEditAssign}
-            onDeleteAssign={handleDeleteAssign} onAddReminder={openReminderDialog} />
+            onDeleteAssign={handleDeleteAssign} onAddReminder={openReminderDialog}
+            onTenantClick={(tid) => setTenantDetailId(tid)} />
         </TabsContent>
       </Tabs>
 
@@ -304,7 +311,7 @@ export default function ParkingPage() {
       </Dialog>
 
       {/* Assignment Dialog */}
-      <Dialog open={assignDialog} onOpenChange={setAssignDialog}>
+      <Dialog open={assignDialog} onOpenChange={(v) => { setAssignDialog(v); setTenantSearch(''); }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingAssign ? 'Edit Assignment' : 'Assign Tenant'}</DialogTitle>
@@ -313,13 +320,80 @@ export default function ParkingPage() {
           <div className="grid gap-4 py-3">
             <div className="space-y-2">
               <Label>Tenant *</Label>
-              <Select value={assignForm.tenant_id || '_none'} onValueChange={v => { if (v !== '_none') handleTenantSelect(v); }}>
-                <SelectTrigger data-testid="assign-tenant-select"><SelectValue placeholder="Select tenant" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="_none">Select...</SelectItem>
-                  {tenants.map(t => <SelectItem key={t.id} value={t.id}>{t.name} ({propMap[t.property_id]?.name} - Unit {t.unit_id?.slice(-4)})</SelectItem>)}
-                </SelectContent>
-              </Select>
+              {/* Search input */}
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  className="pl-9"
+                  placeholder="Search tenants..."
+                  value={tenantSearch}
+                  onChange={e => setTenantSearch(e.target.value)}
+                  data-testid="assign-tenant-search"
+                />
+              </div>
+              {/* Filtered tenant list */}
+              {(() => {
+                const spot = spotMap[assignForm.parking_spot_id];
+                const isDecal = spot?.spot_type === 'decal';
+                const spotPropIds = spot?.property_ids || [];
+
+                // Determine the "1542" property id
+                const prop1542 = properties.find(p => p.name?.includes('1542') || p.address?.includes('1542'));
+
+                let filteredTenants = tenants;
+
+                if (isDecal && prop1542) {
+                  // Marlins decal: only tenants from 1542 property
+                  filteredTenants = tenants.filter(t => t.property_id === prop1542.id);
+                } else if (!isDecal && spotPropIds.length > 0) {
+                  // Designated: only tenants from the spot's property with has_parking=true
+                  filteredTenants = tenants.filter(t =>
+                    spotPropIds.includes(t.property_id) && t.has_parking
+                  );
+                }
+
+                // Apply search filter
+                if (tenantSearch.trim()) {
+                  const q = tenantSearch.toLowerCase();
+                  filteredTenants = filteredTenants.filter(t =>
+                    t.name?.toLowerCase().includes(q) ||
+                    (unitMap[t.unit_id]?.unit_number || '').toLowerCase().includes(q) ||
+                    (propMap[t.property_id]?.name || '').toLowerCase().includes(q)
+                  );
+                }
+
+                return (
+                  <div className="max-h-40 overflow-y-auto border rounded-md" data-testid="assign-tenant-list">
+                    {filteredTenants.length === 0 ? (
+                      <p className="px-3 py-4 text-xs text-muted-foreground text-center">
+                        {!isDecal && spotPropIds.length > 0 ? 'No tenants with parking enabled for this property' : 'No matching tenants'}
+                      </p>
+                    ) : (
+                      filteredTenants.map(t => {
+                        const unit = unitMap[t.unit_id];
+                        const prop = propMap[t.property_id];
+                        const isSelected = assignForm.tenant_id === t.id;
+                        return (
+                          <button
+                            key={t.id}
+                            className={`w-full text-left px-3 py-2 text-sm hover:bg-muted/50 border-b border-border/30 transition-colors ${isSelected ? 'bg-primary/10 font-medium' : ''}`}
+                            onClick={() => handleTenantSelect(t.id)}
+                            data-testid="assign-tenant-option"
+                          >
+                            <span>{t.name}</span>
+                            <span className="text-muted-foreground ml-2 text-xs">
+                              ({prop?.name || ''} - Unit {unit?.unit_number || '?'})
+                            </span>
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
+                );
+              })()}
+              {assignForm.tenant_id && (
+                <p className="text-xs text-muted-foreground">Selected: <strong>{assignForm.tenant_name}</strong></p>
+              )}
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -370,6 +444,9 @@ export default function ParkingPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Tenant Detail Modal */}
+      <TenantDetailModal tenantId={tenantDetailId} open={!!tenantDetailId} onClose={() => setTenantDetailId(null)} />
     </div>
   );
 }
@@ -405,7 +482,7 @@ function SpotCard({ spot, propMap, onEdit, onDelete }) {
   );
 }
 
-function AssignmentsTab({ spots, assignments, propMap, tenantMap, today, onAssign, onEditAssign, onDeleteAssign, onAddReminder }) {
+function AssignmentsTab({ spots, assignments, propMap, unitMap, tenantMap, today, onAssign, onEditAssign, onDeleteAssign, onAddReminder, onTenantClick }) {
   const [expandedSpots, setExpandedSpots] = useState({});
   const toggle = (id) => setExpandedSpots(p => ({ ...p, [id]: !p[id] }));
 
@@ -445,12 +522,12 @@ function AssignmentsTab({ spots, assignments, propMap, tenantMap, today, onAssig
                   <p className="text-xs text-muted-foreground p-3">No tenants assigned</p>
                 ) : (
                   <div>
-                    {current.length > 0 && <AssignSection title="Current" items={current} tenantMap={tenantMap} propMap={propMap}
-                      bgClass="bg-emerald-50" onEdit={onEditAssign} onDelete={onDeleteAssign} isDecal={isDecal} onAddReminder={onAddReminder} />}
-                    {future.length > 0 && <AssignSection title="Future" items={future} tenantMap={tenantMap} propMap={propMap}
-                      bgClass="bg-blue-50" onEdit={onEditAssign} onDelete={onDeleteAssign} isDecal={isDecal} onAddReminder={onAddReminder} />}
-                    {past.length > 0 && <AssignSection title="Archive" items={past} tenantMap={tenantMap} propMap={propMap}
-                      bgClass="bg-stone-50" onEdit={onEditAssign} onDelete={onDeleteAssign} isDecal={isDecal} onAddReminder={onAddReminder} />}
+                    {current.length > 0 && <AssignSection title="Current" items={current} tenantMap={tenantMap} propMap={propMap} unitMap={unitMap}
+                      bgClass="bg-emerald-50" onEdit={onEditAssign} onDelete={onDeleteAssign} isDecal={isDecal} onAddReminder={onAddReminder} onTenantClick={onTenantClick} />}
+                    {future.length > 0 && <AssignSection title="Future" items={future} tenantMap={tenantMap} propMap={propMap} unitMap={unitMap}
+                      bgClass="bg-blue-50" onEdit={onEditAssign} onDelete={onDeleteAssign} isDecal={isDecal} onAddReminder={onAddReminder} onTenantClick={onTenantClick} />}
+                    {past.length > 0 && <AssignSection title="Archive" items={past} tenantMap={tenantMap} propMap={propMap} unitMap={unitMap}
+                      bgClass="bg-stone-50" onEdit={onEditAssign} onDelete={onDeleteAssign} isDecal={isDecal} onAddReminder={onAddReminder} onTenantClick={onTenantClick} />}
                   </div>
                 )}
               </div>
@@ -462,29 +539,35 @@ function AssignmentsTab({ spots, assignments, propMap, tenantMap, today, onAssig
   );
 }
 
-function AssignSection({ title, items, tenantMap, propMap, bgClass, onEdit, onDelete, isDecal, onAddReminder }) {
+function AssignSection({ title, items, tenantMap, propMap, unitMap, bgClass, onEdit, onDelete, isDecal, onAddReminder, onTenantClick }) {
   return (
     <div>
       <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground border-b bg-muted/20">{title}</div>
-      {items.map(a => (
-        <div key={a.id} className={`flex items-center justify-between px-3 py-2 border-b last:border-0 ${bgClass}`} data-testid="parking-assignment-row">
-          <div className="flex items-center gap-3 text-sm">
-            <span className="font-medium">{a.tenant_name || tenantMap[a.tenant_id]?.name || 'Unknown'}</span>
-            {propMap[a.property_id] && <span className="text-xs text-muted-foreground">{propMap[a.property_id].name}</span>}
-            <span className="text-xs text-muted-foreground">{a.start_date} to {a.end_date}</span>
-            {a.notes && <span className="text-xs text-muted-foreground italic">{a.notes}</span>}
+      {items.map(a => {
+        const unit = unitMap[a.unit_id];
+        return (
+          <div key={a.id} className={`flex items-center justify-between px-3 py-2 border-b last:border-0 ${bgClass}`} data-testid="parking-assignment-row">
+            <div className="flex items-center gap-3 text-sm">
+              <button className="font-medium text-blue-600 hover:underline" onClick={() => onTenantClick && onTenantClick(a.tenant_id)}>
+                {a.tenant_name || tenantMap[a.tenant_id]?.name || 'Unknown'}
+              </button>
+              {propMap[a.property_id] && <span className="text-xs text-muted-foreground">{propMap[a.property_id].name}</span>}
+              {unit && <span className="text-xs text-muted-foreground">Unit {unit.unit_number}</span>}
+              <span className="text-xs text-muted-foreground">{a.start_date} to {a.end_date}</span>
+              {a.notes && <span className="text-xs text-muted-foreground italic">{a.notes}</span>}
+            </div>
+            <div className="flex gap-1">
+              {isDecal && (
+                <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => onAddReminder(a)} title="Add reminder">
+                  <Bell className="h-3.5 w-3.5" />
+                </Button>
+              )}
+              <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => onEdit(a)}><Pencil className="h-3.5 w-3.5" /></Button>
+              <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive" onClick={() => onDelete(a.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
+            </div>
           </div>
-          <div className="flex gap-1">
-            {isDecal && (
-              <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => onAddReminder(a)} title="Add reminder">
-                <Bell className="h-3.5 w-3.5" />
-              </Button>
-            )}
-            <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => onEdit(a)}><Pencil className="h-3.5 w-3.5" /></Button>
-            <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive" onClick={() => onDelete(a.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
-          </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

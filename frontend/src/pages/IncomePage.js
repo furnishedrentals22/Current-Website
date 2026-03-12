@@ -88,9 +88,19 @@ export default function IncomePage() {
               </CardHeader>
               <CardContent>
                 <p className="font-heading text-3xl font-semibold tabular-nums">
-                  ${data.months.filter(m => m.total > 0).length > 0
-                    ? Math.round(data.yearly_total / data.months.filter(m => m.total > 0).length).toLocaleString()
-                    : '0'}
+                  ${(() => {
+                    const now = new Date();
+                    const maxMonth = year === now.getFullYear() ? now.getMonth() + 1 : 12;
+                    const monthsUpToCurrent = data.months.filter(m => m.month <= maxMonth);
+                    return monthsUpToCurrent.length > 0
+                      ? Math.round(data.yearly_total / monthsUpToCurrent.length).toLocaleString()
+                      : '0';
+                  })()}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {year === new Date().getFullYear()
+                    ? `Based on ${Math.min(new Date().getMonth() + 1, 12)} months`
+                    : 'Based on 12 months'}
                 </p>
               </CardContent>
             </Card>

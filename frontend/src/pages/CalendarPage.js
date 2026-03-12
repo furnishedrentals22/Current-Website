@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { getCalendarTimeline, getProperties } from '@/lib/api';
+import { getCalendarTimeline, getProperties, getTenants } from '@/lib/api';
+import { TenantDetailModal } from '@/components/TenantDetailModal';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -154,7 +154,7 @@ function TimelineHeader({ months, rangeStart, totalWidth }) {
 }
 
 /** Booking bar for a confirmed tenant */
-function BookingBar({ booking, rangeStart, rangeEnd, navigate }) {
+function BookingBar({ booking, rangeStart, rangeEnd, onTenantClick }) {
   const start = dateMax([parseISO(booking.start_date), rangeStart]);
   const end = dateMin([parseISO(booking.end_date), rangeEnd]);
   const x = dateToX(start, rangeStart);
@@ -164,7 +164,7 @@ function BookingBar({ booking, rangeStart, rangeEnd, navigate }) {
 
   const handleClick = (e) => {
     e.stopPropagation();
-    navigate('/tenants');
+    onTenantClick(booking.tenant_id);
   };
 
   return (
@@ -198,10 +198,10 @@ function BookingBar({ booking, rangeStart, rangeEnd, navigate }) {
         </TooltipTrigger>
         <TooltipContent
           side="top"
-          className="bg-card border border-border rounded-lg px-3 py-2 shadow-lg max-w-xs"
+          className="bg-card border border-border rounded-lg px-3 py-2 shadow-lg max-w-xs text-foreground"
         >
           <div className="space-y-1">
-            <p className="text-sm font-semibold">{booking.name}</p>
+            <p className="text-sm font-semibold text-foreground">{booking.name}</p>
             <div className="flex items-center gap-1.5">
               <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
                 {isAirbnb ? 'Airbnb/VRBO' : 'Long-term'}
@@ -221,7 +221,7 @@ function BookingBar({ booking, rangeStart, rangeEnd, navigate }) {
 }
 
 /** Lead overlay bar (striped pattern, only on vacant days) */
-function LeadOverlay({ lead, bookings, rangeStart, rangeEnd, navigate }) {
+function LeadOverlay({ lead, bookings, rangeStart, rangeEnd, onLeadClick }) {
   // Split lead range into visible "vacant-only" segments
   const leadStart = dateMax([parseISO(lead.start_date), rangeStart]);
   const leadEnd = dateMin([parseISO(lead.end_date), rangeEnd]);
@@ -264,7 +264,7 @@ function LeadOverlay({ lead, bookings, rangeStart, rangeEnd, navigate }) {
 
   const handleClick = (e) => {
     e.stopPropagation();
-    navigate('/leads');
+    if (onLeadClick) onLeadClick(lead.lead_id);
   };
 
   return (
@@ -304,10 +304,10 @@ function LeadOverlay({ lead, bookings, rangeStart, rangeEnd, navigate }) {
               </TooltipTrigger>
               <TooltipContent
                 side="top"
-                className="bg-card border border-border rounded-lg px-3 py-2 shadow-lg max-w-xs"
+                className="bg-card border border-border rounded-lg px-3 py-2 shadow-lg max-w-xs text-foreground"
               >
                 <div className="space-y-1">
-                  <p className="text-sm font-semibold">{lead.name}</p>
+                  <p className="text-sm font-semibold text-foreground">{lead.name}</p>
                   <Badge variant="secondary" className="text-[10px] px-1.5 py-0">Lead</Badge>
                   <p className="text-xs text-muted-foreground">
                     {format(parseISO(lead.start_date), 'MMM d, yyyy')} — {format(parseISO(lead.end_date), 'MMM d, yyyy')}
@@ -326,7 +326,7 @@ function LeadOverlay({ lead, bookings, rangeStart, rangeEnd, navigate }) {
 }
 
 /** Single unit row in the timeline */
-function UnitRow({ unit, rangeStart, rangeEnd, months, totalWidth, navigate }) {
+function UnitRow({ unit, rangeStart, rangeEnd, months, totalWidth, onTenantClick }) {
   return (
     <div className="flex" style={{ height: ROW_HEIGHT }} data-testid="calendar-timeline-unit-row">
       {/* Sticky left label */}
@@ -360,7 +360,7 @@ function UnitRow({ unit, rangeStart, rangeEnd, months, totalWidth, navigate }) {
             bookings={unit.bookings}
             rangeStart={rangeStart}
             rangeEnd={rangeEnd}
-            navigate={navigate}
+            onLeadClick={() => {}}
           />
         ))}
         {/* Booking bars */}
@@ -370,7 +370,7 @@ function UnitRow({ unit, rangeStart, rangeEnd, months, totalWidth, navigate }) {
             booking={booking}
             rangeStart={rangeStart}
             rangeEnd={rangeEnd}
-            navigate={navigate}
+            onTenantClick={onTenantClick}
           />
         ))}
       </div>
@@ -379,7 +379,7 @@ function UnitRow({ unit, rangeStart, rangeEnd, months, totalWidth, navigate }) {
 }
 
 /** Property group header + unit rows */
-function PropertyGroup({ property, rangeStart, rangeEnd, months, totalWidth, navigate }) {
+function PropertyGroup({ property, rangeStart, rangeEnd, months, totalWidth, onTenantClick }) {
   return (
     <div>
       {/* Property header */}
@@ -393,7 +393,19 @@ function PropertyGroup({ property, rangeStart, rangeEnd, months, totalWidth, nav
             {property.units.length} {property.units.length === 1 ? 'unit' : 'units'}
           </Badge>
         </div>
-        <div className="flex-1 bg-muted/50 border-b" style={{ width: totalWidth }} />
+        <div className="relative bg-muted/50 border-b" style={{ width: totalWidth }}>
+          {/* Month grid lines in property header */}
+          {months.map((month, i) => {
+            const x = dateToX(month, rangeStart);
+            return (
+              <div
+                key={i}
+                className="absolute top-0 h-full border-r"
+                style={{ left: x, borderColor: COLORS.monthBorder }}
+              />
+            );
+          })}
+        </div>
       </div>
       {/* Unit rows */}
       {property.units.map((unit) => (
@@ -404,7 +416,7 @@ function PropertyGroup({ property, rangeStart, rangeEnd, months, totalWidth, nav
           rangeEnd={rangeEnd}
           months={months}
           totalWidth={totalWidth}
-          navigate={navigate}
+          onTenantClick={onTenantClick}
         />
       ))}
     </div>
@@ -437,8 +449,8 @@ export default function CalendarPage() {
   const [loading, setLoading] = useState(true);
   const [properties, setProperties] = useState([]);
   const [selectedProperty, setSelectedProperty] = useState('all');
+  const [tenantDetailId, setTenantDetailId] = useState(null);
   const scrollRef = useRef(null);
-  const navigate = useNavigate();
 
   // Fetch property list for selector
   useEffect(() => {
@@ -627,7 +639,7 @@ export default function CalendarPage() {
                 rangeEnd={rangeEnd}
                 months={months}
                 totalWidth={totalWidth}
-                navigate={navigate}
+                onTenantClick={(tid) => setTenantDetailId(tid)}
               />
             ))}
 
@@ -636,6 +648,13 @@ export default function CalendarPage() {
           </div>
         </Card>
       )}
+
+      {/* Tenant Detail Modal */}
+      <TenantDetailModal
+        tenantId={tenantDetailId}
+        open={!!tenantDetailId}
+        onClose={() => setTenantDetailId(null)}
+      />
     </div>
   );
 }

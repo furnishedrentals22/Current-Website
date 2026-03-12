@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { getCurrentDeposits, getPastDeposits, returnDeposit, getLandlordDeposits, updateLandlordDeposit } from '@/lib/api';
+import { getCurrentDeposits, getPastDeposits, returnDeposit, getLandlordDeposits, updateLandlordDeposit, updateTenant } from '@/lib/api';
+import { TenantDetailModal } from '@/components/TenantDetailModal';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,7 +8,6 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Wallet, ChevronDown, ChevronRight, Pencil, Check, X, ArrowDownLeft } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -33,8 +32,14 @@ const getQuarterKey = (dateStr) => {
   return `${d.getFullYear()}-${Math.floor(d.getMonth() / 3)}`;
 };
 
+const getTenantStatus = (tenant) => {
+  const today = new Date().toISOString().split('T')[0];
+  if (tenant.move_in_date > today) return 'future';
+  if (tenant.move_out_date < today) return 'past';
+  return 'current';
+};
+
 export default function DepositsPage() {
-  const navigate = useNavigate();
   const [tab, setTab] = useState('current');
   const [currentData, setCurrentData] = useState({ deposits: [], total: 0 });
   const [pastData, setPastData] = useState({ deposits: [] });
@@ -47,13 +52,20 @@ export default function DepositsPage() {
   const [confirmReturn, setConfirmReturn] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  // Edit deposit dialog
+  const [editDialog, setEditDialog] = useState(null);
+  const [editForm, setEditForm] = useState({});
+
   // Landlord deposit editing
   const [editingLandlord, setEditingLandlord] = useState(null);
   const [landlordAmount, setLandlordAmount] = useState('');
 
-  // Collapsed state for past quarters and landlord properties
+  // Collapsed state
   const [expandedQuarters, setExpandedQuarters] = useState({});
   const [expandedLandlordProps, setExpandedLandlordProps] = useState({});
+
+  // Tenant detail modal
+  const [tenantDetailId, setTenantDetailId] = useState(null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -64,30 +76,20 @@ export default function DepositsPage() {
       setCurrentData(curr);
       setPastData(past);
       setLandlordData(landlord);
-    } catch (e) {
-      toast.error('Failed to load deposits data');
-    } finally {
-      setLoading(false);
-    }
+    } catch { toast.error('Failed to load deposits data'); }
+    finally { setLoading(false); }
   }, []);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
   const openReturnDialog = (deposit) => {
     setReturnDialog(deposit);
-    setReturnForm({
-      return_date: new Date().toISOString().split('T')[0],
-      return_method: '',
-      return_amount: deposit.deposit_amount || ''
-    });
+    setReturnForm({ return_date: new Date().toISOString().split('T')[0], return_method: '', return_amount: deposit.deposit_amount || '' });
     setConfirmReturn(false);
   };
 
   const handleReturnDeposit = async () => {
-    if (!confirmReturn) {
-      setConfirmReturn(true);
-      return;
-    }
+    if (!confirmReturn) { setConfirmReturn(true); return; }
     setSaving(true);
     try {
       await returnDeposit(returnDialog.id, {
@@ -98,11 +100,41 @@ export default function DepositsPage() {
       toast.success('Deposit returned successfully');
       setReturnDialog(null);
       fetchData();
-    } catch (e) {
-      toast.error('Failed to return deposit');
-    } finally {
-      setSaving(false);
-    }
+    } catch { toast.error('Failed to return deposit'); }
+    finally { setSaving(false); }
+  };
+
+  const openEditDialog = (deposit) => {
+    setEditDialog(deposit);
+    setEditForm({
+      deposit_amount: deposit.deposit_amount || '',
+      deposit_date: deposit.deposit_date || '',
+      payment_method: deposit.payment_method || '',
+      notes: deposit.notes || '',
+      deposit_return_date: deposit.deposit_return_date || '',
+      deposit_return_amount: deposit.deposit_return_amount || '',
+      deposit_return_method: deposit.deposit_return_method || '',
+    });
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editDialog) return;
+    setSaving(true);
+    try {
+      const updates = { ...editDialog };
+      if (editForm.deposit_amount !== '') updates.deposit_amount = parseFloat(editForm.deposit_amount);
+      updates.deposit_date = editForm.deposit_date;
+      updates.payment_method = editForm.payment_method;
+      updates.notes = editForm.notes;
+      if (editForm.deposit_return_date) updates.deposit_return_date = editForm.deposit_return_date;
+      if (editForm.deposit_return_amount !== '') updates.deposit_return_amount = parseFloat(editForm.deposit_return_amount);
+      if (editForm.deposit_return_method) updates.deposit_return_method = editForm.deposit_return_method;
+      await updateTenant(editDialog.id, updates);
+      toast.success('Deposit info updated');
+      setEditDialog(null);
+      fetchData();
+    } catch { toast.error('Failed to update'); }
+    finally { setSaving(false); }
   };
 
   const handleSaveLandlordDeposit = async (unitId) => {
@@ -111,13 +143,18 @@ export default function DepositsPage() {
       toast.success('Landlord deposit updated');
       setEditingLandlord(null);
       fetchData();
-    } catch (e) {
-      toast.error('Failed to update');
-    }
+    } catch { toast.error('Failed to update'); }
   };
 
   const thClass = "px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground whitespace-nowrap border-b border-border/60";
   const tdClass = "px-3 py-2.5 text-[12px] whitespace-nowrap border-b border-border/40";
+
+  const StatusBadge = ({ tenant }) => {
+    const status = getTenantStatus(tenant);
+    if (status === 'past') return <Badge variant="outline" className="text-[10px] border-amber-300 text-amber-700 bg-amber-50 ml-1">Past Tenant</Badge>;
+    if (status === 'future') return <Badge variant="outline" className="text-[10px] border-sky-300 text-sky-700 bg-sky-50 ml-1">Future Tenant</Badge>;
+    return null;
+  };
 
   // ============ TAB 1: CURRENT DEPOSITS ============
   const renderCurrentTab = () => (
@@ -125,12 +162,9 @@ export default function DepositsPage() {
       <Card className="mb-4 bg-emerald-50 border-emerald-200">
         <CardContent className="py-4">
           <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Total Deposits Held</p>
-          <p className="font-heading text-3xl font-bold tabular-nums text-emerald-900" data-testid="deposits-total">
-            {fmtMoney(currentData.total)}
-          </p>
+          <p className="font-heading text-3xl font-bold tabular-nums text-emerald-900" data-testid="deposits-total">{fmtMoney(currentData.total)}</p>
         </CardContent>
       </Card>
-
       {currentData.deposits.length === 0 ? (
         <div className="text-center py-12 text-muted-foreground text-sm">No current deposits</div>
       ) : (
@@ -154,13 +188,10 @@ export default function DepositsPage() {
                 {currentData.deposits.map((d, idx) => (
                   <tr key={d.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-muted/20'} data-testid="deposit-row">
                     <td className={tdClass}>
-                      <button className="font-medium text-blue-600 hover:underline" onClick={() => navigate('/tenants')}>{d.name}</button>
+                      <button className="font-medium text-blue-600 hover:underline" onClick={() => setTenantDetailId(d.id)}>{d.name}</button>
+                      <StatusBadge tenant={d} />
                     </td>
-                    <td className={tdClass}>
-                      <button className="text-blue-600 hover:underline" onClick={() => navigate('/')}>{d.property_name}</button>
-                      {' / '}
-                      <button className="text-blue-600 hover:underline" onClick={() => navigate('/units')}>Unit {d.unit_number}</button>
-                    </td>
+                    <td className={tdClass}>{d.property_name} / Unit {d.unit_number}</td>
                     <td className={`${tdClass} tabular-nums`}>{fmtDate(d.move_in_date)}</td>
                     <td className={`${tdClass} tabular-nums`}>{fmtDate(d.move_out_date)}</td>
                     <td className={`${tdClass} tabular-nums font-medium`}>{fmtMoney(d.deposit_amount)}</td>
@@ -168,9 +199,14 @@ export default function DepositsPage() {
                     <td className={`${tdClass} tabular-nums`}>{fmtDate(d.deposit_date)}</td>
                     <td className={`${tdClass} max-w-[150px] truncate`} title={d.notes || ''}>{d.notes || '-'}</td>
                     <td className={tdClass}>
-                      <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => openReturnDialog(d)} data-testid="return-deposit-btn">
-                        <ArrowDownLeft className="h-3 w-3" /> Return
-                      </Button>
+                      <div className="flex gap-1">
+                        <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => openEditDialog(d)} data-testid="edit-deposit-btn">
+                          <Pencil className="h-3 w-3" />
+                        </Button>
+                        <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => openReturnDialog(d)} data-testid="return-deposit-btn">
+                          <ArrowDownLeft className="h-3 w-3" /> Return
+                        </Button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -186,8 +222,6 @@ export default function DepositsPage() {
   const renderPastTab = () => {
     const deposits = pastData.deposits || [];
     if (deposits.length === 0) return <div className="text-center py-12 text-muted-foreground text-sm">No past deposits</div>;
-
-    // Group by quarter of return date
     const quarterGroups = {};
     deposits.forEach(d => {
       const qKey = getQuarterKey(d.deposit_return_date);
@@ -195,9 +229,7 @@ export default function DepositsPage() {
       if (!quarterGroups[qKey]) quarterGroups[qKey] = { label: qLabel, deposits: [] };
       quarterGroups[qKey].deposits.push(d);
     });
-
     const sorted = Object.entries(quarterGroups).sort((a, b) => b[0].localeCompare(a[0]));
-
     return (
       <div className="space-y-2">
         {sorted.map(([qKey, { label, deposits: qDeposits }]) => {
@@ -224,13 +256,14 @@ export default function DepositsPage() {
                         <th className={thClass}>Return Date</th>
                         <th className={thClass}>Return Amt</th>
                         <th className={thClass}>Return Method</th>
+                        <th className={thClass}>Actions</th>
                       </tr>
                     </thead>
                     <tbody>
                       {qDeposits.map((d, idx) => (
                         <tr key={d.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-muted/20'}>
                           <td className={tdClass}>
-                            <button className="font-medium text-blue-600 hover:underline" onClick={() => navigate('/tenants')}>{d.name}</button>
+                            <button className="font-medium text-blue-600 hover:underline" onClick={() => setTenantDetailId(d.id)}>{d.name}</button>
                           </td>
                           <td className={tdClass}>{d.property_name} / Unit {d.unit_number}</td>
                           <td className={`${tdClass} tabular-nums`}>{fmtDate(d.move_in_date)}</td>
@@ -239,6 +272,11 @@ export default function DepositsPage() {
                           <td className={`${tdClass} tabular-nums`}>{fmtDate(d.deposit_return_date)}</td>
                           <td className={`${tdClass} tabular-nums`}>{fmtMoney(d.deposit_return_amount)}</td>
                           <td className={tdClass}>{d.deposit_return_method || '-'}</td>
+                          <td className={tdClass}>
+                            <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => openEditDialog(d)} data-testid="edit-past-deposit-btn">
+                              <Pencil className="h-3 w-3" />
+                            </Button>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -258,12 +296,9 @@ export default function DepositsPage() {
       <Card className="mb-4 bg-amber-50 border-amber-200">
         <CardContent className="py-4">
           <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Total Landlord Deposits</p>
-          <p className="font-heading text-3xl font-bold tabular-nums text-amber-900" data-testid="landlord-deposits-total">
-            {fmtMoney(landlordData.total)}
-          </p>
+          <p className="font-heading text-3xl font-bold tabular-nums text-amber-900" data-testid="landlord-deposits-total">{fmtMoney(landlordData.total)}</p>
         </CardContent>
       </Card>
-
       <div className="space-y-2">
         {landlordData.properties?.map(prop => {
           const isExpanded = expandedLandlordProps[prop.property_id];
@@ -273,7 +308,7 @@ export default function DepositsPage() {
                 onClick={() => setExpandedLandlordProps(p => ({ ...p, [prop.property_id]: !p[prop.property_id] }))}>
                 <div className="flex items-center gap-2">
                   {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                  <button className="text-sm font-semibold text-blue-600 hover:underline" onClick={(e) => { e.stopPropagation(); navigate('/'); }}>{prop.property_name}</button>
+                  <span className="text-sm font-semibold">{prop.property_name}</span>
                   {prop.building_id != null && <Badge variant="outline" className="text-xs">Bldg #{prop.building_id}</Badge>}
                 </div>
                 <span className="text-sm font-semibold tabular-nums">{fmtMoney(prop.total)}</span>
@@ -282,18 +317,13 @@ export default function DepositsPage() {
                 <div className="border-t">
                   {prop.units.map((u, idx) => (
                     <div key={u.unit_id} className={`flex items-center justify-between px-6 py-3 ${idx % 2 === 0 ? 'bg-white' : 'bg-muted/20'} border-b border-border/30`}>
-                      <button className="text-sm text-blue-600 hover:underline" onClick={() => navigate('/units')}>Unit {u.unit_number}</button>
+                      <span className="text-sm">Unit {u.unit_number}</span>
                       {editingLandlord === u.unit_id ? (
                         <div className="flex items-center gap-2">
                           <span className="text-sm">$</span>
-                          <Input className="w-28 h-8 text-sm" type="number" value={landlordAmount}
-                            onChange={e => setLandlordAmount(e.target.value)} />
-                          <Button size="sm" className="h-7 w-7 p-0" onClick={() => handleSaveLandlordDeposit(u.unit_id)}>
-                            <Check className="h-3 w-3" />
-                          </Button>
-                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setEditingLandlord(null)}>
-                            <X className="h-3 w-3" />
-                          </Button>
+                          <Input className="w-28 h-8 text-sm" type="number" value={landlordAmount} onChange={e => setLandlordAmount(e.target.value)} />
+                          <Button size="sm" className="h-7 w-7 p-0" onClick={() => handleSaveLandlordDeposit(u.unit_id)}><Check className="h-3 w-3" /></Button>
+                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setEditingLandlord(null)}><X className="h-3 w-3" /></Button>
                         </div>
                       ) : (
                         <div className="flex items-center gap-2">
@@ -336,7 +366,6 @@ export default function DepositsPage() {
               Landlord Deposits
             </TabsTrigger>
           </TabsList>
-
           <TabsContent value="current" className="mt-4">{renderCurrentTab()}</TabsContent>
           <TabsContent value="past" className="mt-4">{renderPastTab()}</TabsContent>
           <TabsContent value="landlord" className="mt-4">{renderLandlordTab()}</TabsContent>
@@ -347,15 +376,8 @@ export default function DepositsPage() {
       <Dialog open={!!returnDialog} onOpenChange={() => { setReturnDialog(null); setConfirmReturn(false); }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle className="font-heading">
-              {confirmReturn ? 'Confirm Deposit Return' : 'Return Deposit'}
-            </DialogTitle>
-            <DialogDescription>
-              {confirmReturn
-                ? 'Please confirm the deposit return details below.'
-                : `Return deposit for ${returnDialog?.name}`
-              }
-            </DialogDescription>
+            <DialogTitle className="font-heading">{confirmReturn ? 'Confirm Deposit Return' : 'Return Deposit'}</DialogTitle>
+            <DialogDescription>{confirmReturn ? 'Please confirm the deposit return details below.' : `Return deposit for ${returnDialog?.name}`}</DialogDescription>
           </DialogHeader>
           {returnDialog && !confirmReturn && (
             <div className="space-y-4 py-2">
@@ -364,24 +386,15 @@ export default function DepositsPage() {
                 <p className="text-xs text-muted-foreground">{returnDialog.property_name} - Unit {returnDialog.unit_number}</p>
                 <p className="text-xs text-muted-foreground">Original deposit: {fmtMoney(returnDialog.deposit_amount)}</p>
               </div>
-              <div className="space-y-2">
-                <Label>Return Date</Label>
-                <Input type="date" value={returnForm.return_date} onChange={e => setReturnForm({ ...returnForm, return_date: e.target.value })} />
-              </div>
-              <div className="space-y-2">
-                <Label>Return Method</Label>
-                <Input value={returnForm.return_method} onChange={e => setReturnForm({ ...returnForm, return_method: e.target.value })} placeholder="e.g. Check, Zelle, Cash" />
-              </div>
-              <div className="space-y-2">
-                <Label>Return Amount</Label>
-                <Input type="number" value={returnForm.return_amount} onChange={e => setReturnForm({ ...returnForm, return_amount: e.target.value })} />
-              </div>
+              <div className="space-y-2"><Label>Return Date</Label><Input type="date" value={returnForm.return_date} onChange={e => setReturnForm({ ...returnForm, return_date: e.target.value })} /></div>
+              <div className="space-y-2"><Label>Return Method</Label><Input value={returnForm.return_method} onChange={e => setReturnForm({ ...returnForm, return_method: e.target.value })} placeholder="e.g. Check, Zelle, Cash" /></div>
+              <div className="space-y-2"><Label>Return Amount</Label><Input type="number" value={returnForm.return_amount} onChange={e => setReturnForm({ ...returnForm, return_amount: e.target.value })} /></div>
             </div>
           )}
           {confirmReturn && (
             <div className="py-2 space-y-2">
               <div className="p-4 rounded-lg border-2 border-amber-300 bg-amber-50">
-                <p className="text-sm font-semibold mb-2">Are you sure you want to return this deposit?</p>
+                <p className="text-sm font-semibold mb-2">Are you sure?</p>
                 <p className="text-xs">Tenant: <strong>{returnDialog?.name}</strong></p>
                 <p className="text-xs">Amount: <strong>{fmtMoney(returnForm.return_amount)}</strong></p>
                 <p className="text-xs">Date: <strong>{returnForm.return_date}</strong></p>
@@ -391,12 +404,47 @@ export default function DepositsPage() {
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => { setReturnDialog(null); setConfirmReturn(false); }}>Cancel</Button>
-            <Button onClick={handleReturnDeposit} disabled={saving} data-testid="confirm-return-deposit-btn">
-              {saving ? 'Saving...' : confirmReturn ? 'Confirm Return' : 'Next'}
-            </Button>
+            <Button onClick={handleReturnDeposit} disabled={saving}>{saving ? 'Saving...' : confirmReturn ? 'Confirm Return' : 'Next'}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Edit Deposit Dialog */}
+      <Dialog open={!!editDialog} onOpenChange={() => setEditDialog(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-heading">Edit Deposit</DialogTitle>
+            <DialogDescription>Edit deposit information for {editDialog?.name}</DialogDescription>
+          </DialogHeader>
+          {editDialog && (
+            <div className="space-y-3 py-2">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1"><Label className="text-xs">Deposit Amount</Label><Input type="number" value={editForm.deposit_amount} onChange={e => setEditForm({ ...editForm, deposit_amount: e.target.value })} /></div>
+                <div className="space-y-1"><Label className="text-xs">Deposit Date</Label><Input type="date" value={editForm.deposit_date} onChange={e => setEditForm({ ...editForm, deposit_date: e.target.value })} /></div>
+              </div>
+              <div className="space-y-1"><Label className="text-xs">Payment Method</Label><Input value={editForm.payment_method} onChange={e => setEditForm({ ...editForm, payment_method: e.target.value })} /></div>
+              <div className="space-y-1"><Label className="text-xs">Notes</Label><Input value={editForm.notes} onChange={e => setEditForm({ ...editForm, notes: e.target.value })} /></div>
+              {editDialog.deposit_return_date && (
+                <>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground pt-2">Return Info</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="space-y-1"><Label className="text-xs">Return Date</Label><Input type="date" value={editForm.deposit_return_date} onChange={e => setEditForm({ ...editForm, deposit_return_date: e.target.value })} /></div>
+                    <div className="space-y-1"><Label className="text-xs">Return Amount</Label><Input type="number" value={editForm.deposit_return_amount} onChange={e => setEditForm({ ...editForm, deposit_return_amount: e.target.value })} /></div>
+                    <div className="space-y-1"><Label className="text-xs">Return Method</Label><Input value={editForm.deposit_return_method} onChange={e => setEditForm({ ...editForm, deposit_return_method: e.target.value })} /></div>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditDialog(null)}>Cancel</Button>
+            <Button onClick={handleSaveEdit} disabled={saving}>{saving ? 'Saving...' : 'Save'}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Tenant Detail Modal */}
+      <TenantDetailModal tenantId={tenantDetailId} open={!!tenantDetailId} onClose={() => setTenantDetailId(null)} />
     </div>
   );
 }
