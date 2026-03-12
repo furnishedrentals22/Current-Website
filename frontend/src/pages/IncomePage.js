@@ -92,15 +92,19 @@ export default function IncomePage() {
                     const now = new Date();
                     const maxMonth = year === now.getFullYear() ? now.getMonth() + 1 : 12;
                     const monthsUpToCurrent = data.months.filter(m => m.month <= maxMonth);
-                    return monthsUpToCurrent.length > 0
-                      ? Math.round(data.yearly_total / monthsUpToCurrent.length).toLocaleString()
-                      : '0';
+                    const totalUpToCurrent = monthsUpToCurrent.reduce((sum, m) => sum + (m.total || 0), 0);
+                    const count = monthsUpToCurrent.length;
+                    return count > 0 ? Math.round(totalUpToCurrent / count).toLocaleString() : '0';
                   })()}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {year === new Date().getFullYear()
-                    ? `Based on ${Math.min(new Date().getMonth() + 1, 12)} months`
-                    : 'Based on 12 months'}
+                  {(() => {
+                    const now = new Date();
+                    const maxMonth = year === now.getFullYear() ? now.getMonth() + 1 : 12;
+                    const monthsUpToCurrent = data.months.filter(m => m.month <= maxMonth);
+                    const totalUpToCurrent = monthsUpToCurrent.reduce((sum, m) => sum + (m.total || 0), 0);
+                    return `$${totalUpToCurrent.toLocaleString()} / ${monthsUpToCurrent.length} months`;
+                  })()}
                 </p>
               </CardContent>
             </Card>
