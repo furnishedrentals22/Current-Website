@@ -121,6 +121,23 @@ class TenantCreate(BaseModel):
     deposit_return_date: Optional[str] = None
     deposit_return_amount: Optional[float] = None
     deposit_return_method: Optional[str] = ""
+    # Misc charges
+    misc_charges: List[Dict[str, Any]] = []
+
+class MiscChargeCreate(BaseModel):
+    amount: float
+    description: str = ""
+    charge_date: str
+
+class RentPaymentUpdate(BaseModel):
+    paid: bool = False
+    partial_amount: Optional[float] = None
+    note: str = ""
+
+class DepositReturnRequest(BaseModel):
+    return_date: str
+    return_method: str = ""
+    return_amount: Optional[float] = None
 
 class LeadCreate(BaseModel):
     name: str
@@ -416,7 +433,7 @@ async def get_pending_moveouts():
     """Get tenants whose move_out_date has passed but moveout not confirmed."""
     today_str = date.today().isoformat()
     docs = await db.tenants.find({
-        "move_out_date": {"$lte": today_str},
+        "move_out_date": {"$lt": today_str},
         "$or": [
             {"moveout_confirmed": {"$exists": False}},
             {"moveout_confirmed": False}
@@ -571,6 +588,33 @@ async def create_tenant(data: TenantCreate):
             "created_at": now_hk, "updated_at": now_hk
         }
         await db.notifications.insert_one(hk_warn_notif)
+        
+        # Notification 3: Move-out day checklist
+        moveout_checklist_notif = {
+            "name": f"Move-Out Checklist - {data.name} (Unit {unit_num2})",
+            "property_id": data.property_id,
+            "unit_id": data.unit_id,
+            "reminder_date": data.move_out_date,
+            "reminder_time": "09:00",
+            "status": "upcoming",
+            "priority": "high",
+            "category": "moveout",
+            "notification_type": "moveout_checklist",
+            "related_entity_type": "tenant",
+            "related_entity_id": tenant_id_str,
+            "tenant_id": tenant_id_str,
+            "tenant_name": data.name,
+            "message": f"Complete move-out checklist for {data.name} - Unit {unit_num2} ({prop_name2})",
+            "notification_date": data.move_out_date,
+            "is_read": False,
+            "checklist": [
+                {"key": "parking_returned", "label": "Parking Decal/Pass returned", "checked": False},
+                {"key": "deposit_confirmed", "label": "Confirm deposit was returned or deducted", "checked": False},
+                {"key": "doorcode_updated", "label": "Confirm doorcode was updated", "checked": False}
+            ],
+            "created_at": now_hk, "updated_at": now_hk
+        }
+        await db.notifications.insert_one(moveout_checklist_notif)
     
     return serialize_doc(doc)
 
@@ -643,6 +687,13 @@ async def update_tenant(tenant_id: str, data: TenantCreate):
                       "name": f"No housekeeper assigned for Unit {unit_num} ({prop_name})",
                       "tenant_name": data.name, "updated_at": datetime.now(timezone.utc).isoformat()}}
         )
+        # Update moveout checklist notification date
+        await db.notifications.update_many(
+            {"tenant_id": tenant_id, "notification_type": "moveout_checklist"},
+            {"$set": {"reminder_date": data.move_out_date, "notification_date": data.move_out_date,
+                      "name": f"Move-Out Checklist - {data.name} (Unit {unit_num})",
+                      "tenant_name": data.name, "updated_at": datetime.now(timezone.utc).isoformat()}}
+        )
     
     doc = await db.tenants.find_one({"_id": ObjectId(tenant_id)})
     return serialize_doc(doc)
@@ -652,10 +703,12 @@ async def delete_tenant(tenant_id: str):
     result = await db.tenants.delete_one({"_id": ObjectId(tenant_id)})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Tenant not found")
-    # Clean up associated records
+    # Clean up all associated records
     await db.cleaning_records.delete_many({"tenant_id": tenant_id})
-    await db.notifications.delete_many({"tenant_id": tenant_id, "notification_type": {"$in": ["housekeeping", "housekeeping_warning"]}})
-    return {"message": "Tenant deleted"}
+    await db.notifications.delete_many({"tenant_id": tenant_id})
+    await db.misc_charges.delete_many({"tenant_id": tenant_id})
+    await db.rent_payments.delete_many({"tenant_id": tenant_id})
+    return {"message": "Tenant and all associated data deleted"}
 
 @api_router.post("/tenants/{tenant_id}/confirm-moveout")
 async def confirm_moveout(tenant_id: str):
@@ -941,9 +994,17 @@ async def mark_notification_unread(notification_id: str):
 
 @api_router.delete("/notifications/{notification_id}")
 async def delete_notification(notification_id: str):
-    result = await db.notifications.delete_one({"_id": ObjectId(notification_id)})
-    if result.deleted_count == 0:
+    notif = await db.notifications.find_one({"_id": ObjectId(notification_id)})
+    if not notif:
         raise HTTPException(status_code=404, detail="Notification not found")
+    
+    # Prevent deletion of moveout_checklist if not all items checked
+    if notif.get("notification_type") == "moveout_checklist":
+        checklist = notif.get("checklist", [])
+        if checklist and not all(item.get("checked", False) for item in checklist):
+            raise HTTPException(status_code=400, detail="All checklist items must be checked before deleting this notification")
+    
+    await db.notifications.delete_one({"_id": ObjectId(notification_id)})
     return {"message": "Notification deleted"}
 
 # ============================================================
@@ -958,10 +1019,24 @@ async def get_income(year: int = Query(default=None)):
     all_tenants = await db.tenants.find().to_list(5000)
     all_units = await db.units.find().to_list(5000)
     all_properties = await db.properties.find().to_list(1000)
+    all_misc_charges = await db.misc_charges.find().to_list(10000)
     
     # Build lookup maps
     unit_map = {str(u['_id']): u for u in all_units}
     prop_map = {str(p['_id']): p for p in all_properties}
+    
+    # Group misc charges by tenant_id and month
+    misc_by_tenant_month = {}
+    for mc in all_misc_charges:
+        if not mc.get('charge_date'):
+            continue
+        cd = parse_date(mc['charge_date'])
+        if cd.year != year:
+            continue
+        key = (mc.get('tenant_id', ''), cd.month)
+        if key not in misc_by_tenant_month:
+            misc_by_tenant_month[key] = []
+        misc_by_tenant_month[key].append(mc)
     
     months_data = []
     yearly_total = 0.0
@@ -1020,12 +1095,27 @@ async def get_income(year: int = Query(default=None)):
                         'tenants': []
                     }
                 properties_breakdown[prop_id]['units'][unit_id]['total'] += income
+                
+                # Check for misc charges for this tenant in this month
+                tid = str(tenant['_id'])
+                misc_list = misc_by_tenant_month.get((tid, month), [])
+                misc_total = sum(mc.get('amount', 0) for mc in misc_list)
+                misc_items = [{'description': mc.get('description', 'Misc'), 'amount': mc.get('amount', 0)} for mc in misc_list]
+                
                 properties_breakdown[prop_id]['units'][unit_id]['tenants'].append({
-                    'tenant_id': str(tenant['_id']),
+                    'tenant_id': tid,
                     'tenant_name': tenant.get('name', 'Unknown'),
                     'is_airbnb': tenant.get('is_airbnb_vrbo', False),
-                    'income': round(income, 2)
+                    'income': round(income, 2),
+                    'misc_charges': misc_items,
+                    'misc_total': round(misc_total, 2)
                 })
+                
+                # Add misc charges to totals
+                if misc_total > 0:
+                    month_total += misc_total
+                    properties_breakdown[prop_id]['total'] += misc_total
+                    properties_breakdown[prop_id]['units'][unit_id]['total'] += misc_total
         
         # Convert units dict to list for JSON
         properties_list = []
@@ -2061,6 +2151,291 @@ async def delete_note(note_id: str):
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Note not found")
     return {"message": "Note deleted"}
+
+# ============================================================
+# DEPOSITS ENDPOINTS
+# ============================================================
+@api_router.get("/deposits/current")
+async def get_current_deposits():
+    """Get all current (unreturned) deposits from long-term tenants."""
+    tenants = await db.tenants.find({
+        "is_airbnb_vrbo": {"$ne": True},
+        "deposit_amount": {"$gt": 0},
+        "$or": [
+            {"deposit_return_date": {"$exists": False}},
+            {"deposit_return_date": None},
+            {"deposit_return_date": ""}
+        ]
+    }).to_list(5000)
+    
+    all_units = await db.units.find().to_list(5000)
+    all_props = await db.properties.find().to_list(1000)
+    unit_map = {str(u['_id']): u for u in all_units}
+    prop_map = {str(p['_id']): p for p in all_props}
+    
+    results = []
+    total = 0.0
+    for t in tenants:
+        unit = unit_map.get(t.get('unit_id', ''), {})
+        prop = prop_map.get(t.get('property_id', ''), {})
+        deposit_amt = t.get('deposit_amount', 0) or 0
+        total += deposit_amt
+        results.append({
+            **serialize_doc(t),
+            'unit_number': unit.get('unit_number', ''),
+            'property_name': prop.get('name', ''),
+        })
+    
+    return {"deposits": results, "total": round(total, 2)}
+
+@api_router.get("/deposits/past")
+async def get_past_deposits():
+    """Get all returned deposits."""
+    tenants = await db.tenants.find({
+        "is_airbnb_vrbo": {"$ne": True},
+        "deposit_amount": {"$gt": 0},
+        "deposit_return_date": {"$nin": [None, ""]}
+    }).to_list(5000)
+    
+    all_units = await db.units.find().to_list(5000)
+    all_props = await db.properties.find().to_list(1000)
+    unit_map = {str(u['_id']): u for u in all_units}
+    prop_map = {str(p['_id']): p for p in all_props}
+    
+    results = []
+    for t in tenants:
+        unit = unit_map.get(t.get('unit_id', ''), {})
+        prop = prop_map.get(t.get('property_id', ''), {})
+        results.append({
+            **serialize_doc(t),
+            'unit_number': unit.get('unit_number', ''),
+            'property_name': prop.get('name', ''),
+        })
+    
+    return {"deposits": results}
+
+@api_router.post("/tenants/{tenant_id}/return-deposit")
+async def return_deposit(tenant_id: str, data: DepositReturnRequest):
+    """Process deposit return for a tenant."""
+    tenant = await db.tenants.find_one({"_id": ObjectId(tenant_id)})
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    
+    return_amount = data.return_amount if data.return_amount is not None else tenant.get('deposit_amount', 0)
+    now = datetime.now(timezone.utc).isoformat()
+    
+    # Update tenant with deposit return info
+    deposit_note = f"Deposit returned: ${return_amount:,.2f} on {data.return_date} via {data.return_method}"
+    existing_notes = tenant.get('notes', '') or ''
+    new_notes = f"{existing_notes}\n{deposit_note}".strip() if existing_notes else deposit_note
+    
+    await db.tenants.update_one(
+        {"_id": ObjectId(tenant_id)},
+        {"$set": {
+            "deposit_return_date": data.return_date,
+            "deposit_return_amount": return_amount,
+            "deposit_return_method": data.return_method,
+            "notes": new_notes,
+            "updated_at": now
+        }}
+    )
+    
+    updated = await db.tenants.find_one({"_id": ObjectId(tenant_id)})
+    return serialize_doc(updated)
+
+@api_router.get("/landlord-deposits")
+async def get_landlord_deposits():
+    """Get landlord deposits for all units, grouped by property."""
+    all_units = await db.units.find().to_list(5000)
+    all_props = await db.properties.find().to_list(1000)
+    prop_map = {str(p['_id']): p for p in all_props}
+    
+    # Sort properties by building_id
+    sorted_props = sorted(all_props, key=lambda p: (p.get('building_id') if p.get('building_id') is not None else 99999, p.get('name', '')))
+    
+    properties = []
+    total = 0.0
+    for prop in sorted_props:
+        pid = str(prop['_id'])
+        prop_units = [u for u in all_units if u.get('property_id') == pid]
+        prop_units.sort(key=lambda u: (int(u.get('unit_number', '0')) if u.get('unit_number', '').isdigit() else 99999, u.get('unit_number', '')))
+        
+        units_data = []
+        prop_total = 0.0
+        for u in prop_units:
+            amt = u.get('landlord_deposit', 0) or 0
+            prop_total += amt
+            units_data.append({
+                'unit_id': str(u['_id']),
+                'unit_number': u.get('unit_number', ''),
+                'landlord_deposit': amt
+            })
+        
+        total += prop_total
+        properties.append({
+            'property_id': pid,
+            'property_name': prop.get('name', ''),
+            'building_id': prop.get('building_id'),
+            'total': round(prop_total, 2),
+            'units': units_data
+        })
+    
+    return {"properties": properties, "total": round(total, 2)}
+
+@api_router.put("/landlord-deposits/{unit_id}")
+async def update_landlord_deposit(unit_id: str, amount: float = Query(...)):
+    """Update landlord deposit amount for a unit."""
+    result = await db.units.update_one(
+        {"_id": ObjectId(unit_id)},
+        {"$set": {"landlord_deposit": amount, "updated_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Unit not found")
+    return {"message": "Landlord deposit updated"}
+
+# ============================================================
+# MISC CHARGES ENDPOINTS
+# ============================================================
+@api_router.post("/tenants/{tenant_id}/misc-charges")
+async def create_misc_charge(tenant_id: str, data: MiscChargeCreate):
+    """Add a misc charge to a tenant."""
+    tenant = await db.tenants.find_one({"_id": ObjectId(tenant_id)})
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    
+    now = datetime.now(timezone.utc).isoformat()
+    doc = {
+        "tenant_id": tenant_id,
+        "tenant_name": tenant.get("name", ""),
+        "unit_id": tenant.get("unit_id", ""),
+        "property_id": tenant.get("property_id", ""),
+        "amount": data.amount,
+        "description": data.description,
+        "charge_date": data.charge_date,
+        "created_at": now,
+        "updated_at": now
+    }
+    result = await db.misc_charges.insert_one(doc)
+    doc["_id"] = result.inserted_id
+    return serialize_doc(doc)
+
+@api_router.get("/misc-charges")
+async def list_misc_charges(tenant_id: Optional[str] = None):
+    """Get misc charges, optionally filtered by tenant_id."""
+    query = {}
+    if tenant_id:
+        query["tenant_id"] = tenant_id
+    docs = await db.misc_charges.find(query).to_list(5000)
+    return [serialize_doc(d) for d in docs]
+
+@api_router.delete("/misc-charges/{charge_id}")
+async def delete_misc_charge(charge_id: str):
+    result = await db.misc_charges.delete_one({"_id": ObjectId(charge_id)})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Charge not found")
+    return {"message": "Misc charge deleted"}
+
+# ============================================================
+# RENT TRACKING ENDPOINTS
+# ============================================================
+@api_router.get("/rent-tracking")
+async def get_rent_tracking(year: int = Query(default=None), month: int = Query(default=None)):
+    """Get rent tracking data for a specific month."""
+    if year is None:
+        year = datetime.now().year
+    if month is None:
+        month = datetime.now().month
+    
+    # Get all long-term tenants active in this month
+    month_start = date(year, month, 1)
+    month_end = date(year, month + 1, 1) if month < 12 else date(year + 1, 1, 1)
+    month_start_str = month_start.isoformat()
+    month_end_str = month_end.isoformat()
+    
+    all_tenants = await db.tenants.find({
+        "is_airbnb_vrbo": {"$ne": True},
+        "move_in_date": {"$lt": month_end_str},
+        "move_out_date": {"$gt": month_start_str}
+    }).to_list(5000)
+    
+    all_units = await db.units.find().to_list(5000)
+    all_props = await db.properties.find().to_list(1000)
+    unit_map = {str(u['_id']): u for u in all_units}
+    prop_map = {str(p['_id']): p for p in all_props}
+    
+    # Get existing payment records for this month
+    payments = await db.rent_payments.find({
+        "year": year, "month": month
+    }).to_list(5000)
+    payment_map = {p['tenant_id']: p for p in payments}
+    
+    tenants_data = []
+    for t in all_tenants:
+        tid = str(t['_id'])
+        unit = unit_map.get(t.get('unit_id', ''), {})
+        prop = prop_map.get(t.get('property_id', ''), {})
+        payment = payment_map.get(tid, {})
+        
+        tenants_data.append({
+            'tenant_id': tid,
+            'tenant_name': t.get('name', ''),
+            'property_id': t.get('property_id', ''),
+            'property_name': prop.get('name', ''),
+            'building_id': prop.get('building_id'),
+            'unit_id': t.get('unit_id', ''),
+            'unit_number': unit.get('unit_number', ''),
+            'monthly_rent': t.get('monthly_rent', 0),
+            'move_in_date': t.get('move_in_date', ''),
+            'move_out_date': t.get('move_out_date', ''),
+            'paid': payment.get('paid', False),
+            'partial_amount': payment.get('partial_amount'),
+            'note': payment.get('note', ''),
+        })
+    
+    return {"year": year, "month": month, "tenants": tenants_data}
+
+@api_router.put("/rent-tracking/{tenant_id}")
+async def update_rent_payment(tenant_id: str, data: RentPaymentUpdate, year: int = Query(...), month: int = Query(...)):
+    """Update rent payment status for a tenant in a specific month."""
+    now = datetime.now(timezone.utc).isoformat()
+    await db.rent_payments.update_one(
+        {"tenant_id": tenant_id, "year": year, "month": month},
+        {"$set": {
+            "tenant_id": tenant_id,
+            "year": year,
+            "month": month,
+            "paid": data.paid,
+            "partial_amount": data.partial_amount,
+            "note": data.note,
+            "updated_at": now
+        }},
+        upsert=True
+    )
+    return {"message": "Payment updated"}
+
+# ============================================================
+# NOTIFICATION CHECKLIST ENDPOINT
+# ============================================================
+@api_router.put("/notifications/{notification_id}/checklist")
+async def update_notification_checklist(notification_id: str, key: str = Query(...), checked: bool = Query(...)):
+    """Update a checklist item on a notification."""
+    notif = await db.notifications.find_one({"_id": ObjectId(notification_id)})
+    if not notif:
+        raise HTTPException(status_code=404, detail="Notification not found")
+    
+    checklist = notif.get("checklist", [])
+    for item in checklist:
+        if item.get("key") == key:
+            item["checked"] = checked
+            break
+    
+    await db.notifications.update_one(
+        {"_id": ObjectId(notification_id)},
+        {"$set": {"checklist": checklist, "updated_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    
+    updated = await db.notifications.find_one({"_id": ObjectId(notification_id)})
+    return serialize_doc(updated)
 
 # Include router
 app.include_router(api_router)

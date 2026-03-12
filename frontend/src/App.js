@@ -2,7 +2,7 @@ import { useState, useEffect, createContext, useContext, useCallback } from 'rea
 import '@/App.css';
 import { BrowserRouter, Routes, Route, NavLink, useLocation } from 'react-router-dom';
 import { Building2, Users, DollarSign, BarChart3, UserSearch, Calendar, Bell, FileText, StickyNote,
-  ChevronLeft, ChevronRight, ChevronDown, Menu, Info, Car, KeyRound, DoorOpen, Megaphone, Home, Settings, ArrowLeftRight, Brush } from 'lucide-react';
+  ChevronLeft, ChevronRight, ChevronDown, Menu, Info, Car, KeyRound, DoorOpen, Megaphone, Home, Settings, ArrowLeftRight, Brush, Wallet, ClipboardList } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
@@ -26,18 +26,42 @@ import LoginInfoPage from '@/pages/LoginInfoPage';
 import MarketingPage from '@/pages/MarketingPage';
 import MoveInOutPage from '@/pages/MoveInOutPage';
 import HousekeepingPage from '@/pages/HousekeepingPage';
+import DepositsPage from '@/pages/DepositsPage';
+import RentTrackingPage from '@/pages/RentTrackingPage';
 
 export const NotificationContext = createContext();
 export const useNotifications = () => useContext(NotificationContext);
 
 const NAV_ITEMS = [
-  { path: '/', label: 'Properties', icon: Building2, testId: 'sidebar-nav-properties' },
-  { path: '/units', label: 'Units', icon: Home, testId: 'sidebar-nav-units' },
-  { path: '/tenants', label: 'Tenants', icon: Users, testId: 'sidebar-nav-tenants' },
-  { path: '/leads', label: 'Leads', icon: UserSearch, testId: 'sidebar-nav-leads' },
-  { path: '/income', label: 'Income', icon: DollarSign, testId: 'sidebar-nav-income' },
-  { path: '/vacancy', label: 'Vacancy', icon: BarChart3, testId: 'sidebar-nav-vacancies' },
-  { path: '/calendar', label: 'Calendar', icon: Calendar, testId: 'sidebar-nav-calendar' },
+  {
+    label: 'Properties', icon: Building2, testId: 'sidebar-nav-properties-group', isGroup: true,
+    children: [
+      { path: '/', label: 'Properties', icon: Building2, testId: 'sidebar-nav-properties' },
+      { path: '/units', label: 'Units', icon: Home, testId: 'sidebar-nav-units' },
+    ]
+  },
+  {
+    label: 'Tenants', icon: Users, testId: 'sidebar-nav-tenants-group', isGroup: true,
+    children: [
+      { path: '/tenants', label: 'Tenants', icon: Users, testId: 'sidebar-nav-tenants' },
+      { path: '/leads', label: 'Leads', icon: UserSearch, testId: 'sidebar-nav-leads' },
+    ]
+  },
+  {
+    label: 'Calendar', icon: Calendar, testId: 'sidebar-nav-calendar-group', isGroup: true,
+    children: [
+      { path: '/calendar', label: 'Calendar', icon: Calendar, testId: 'sidebar-nav-calendar' },
+      { path: '/vacancy', label: 'Vacancy', icon: BarChart3, testId: 'sidebar-nav-vacancies' },
+    ]
+  },
+  {
+    label: 'Budgeting', icon: DollarSign, testId: 'sidebar-nav-budgeting', isGroup: true,
+    children: [
+      { path: '/budgeting/income', label: 'Income', icon: DollarSign, testId: 'sidebar-nav-income' },
+      { path: '/budgeting/deposits', label: 'Deposits', icon: Wallet, testId: 'sidebar-nav-deposits' },
+      { path: '/budgeting/rent-tracking', label: 'Rent Tracking', icon: ClipboardList, testId: 'sidebar-nav-rent-tracking' },
+    ]
+  },
   { path: '/notes', label: 'Notes', icon: StickyNote, testId: 'sidebar-nav-notes' },
   {
     label: 'Info', icon: Info, testId: 'sidebar-nav-info', isGroup: true,
@@ -120,7 +144,7 @@ function NavItem({ item, collapsed, isActive, onClick }) {
 }
 
 function NavGroup({ item, collapsed, location, onClick }) {
-  const isChildActive = item.children?.some(c => location.pathname.startsWith(c.path));
+  const isChildActive = item.children?.some(c => c.path === '/' ? location.pathname === '/' : location.pathname.startsWith(c.path));
   const [open, setOpen] = useState(isChildActive);
 
   useEffect(() => { if (isChildActive) setOpen(true); }, [isChildActive]);
@@ -159,7 +183,7 @@ function Sidebar({ collapsed, setCollapsed }) {
   return (
     <aside className={`hidden lg:flex flex-col bg-card border-r border-border/70 transition-[width] duration-200 ${collapsed ? 'w-[72px]' : 'w-[272px]'}`}>
       <div className="flex items-center h-16 px-4 border-b border-border/70">
-        {!collapsed && <h1 className="font-heading text-lg font-bold text-primary tracking-tight">HarborRent</h1>}
+        {!collapsed && <h1 className="font-heading text-lg font-bold text-primary tracking-tight">Furnished Rentals</h1>}
         <Button variant="ghost" size="sm" className={`${collapsed ? 'mx-auto' : 'ml-auto'} h-8 w-8`} onClick={() => setCollapsed(!collapsed)}>
           {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
         </Button>
@@ -187,7 +211,7 @@ function MobileNav() {
       </SheetTrigger>
       <SheetContent side="left" className="w-[272px] p-0">
         <SheetHeader className="p-4 border-b">
-          <SheetTitle className="font-heading text-lg font-bold text-primary">HarborRent</SheetTitle>
+          <SheetTitle className="font-heading text-lg font-bold text-primary">Furnished Rentals</SheetTitle>
         </SheetHeader>
         <nav className="flex flex-col gap-1 p-3">
           {NAV_ITEMS.map((item, idx) => {
@@ -265,7 +289,9 @@ function App() {
           <Route path="/units" element={<UnitsPage />} />
           <Route path="/tenants" element={<TenantsPage />} />
           <Route path="/leads" element={<LeadsPage />} />
-          <Route path="/income" element={<IncomePage />} />
+          <Route path="/budgeting/income" element={<IncomePage />} />
+          <Route path="/budgeting/deposits" element={<DepositsPage />} />
+          <Route path="/budgeting/rent-tracking" element={<RentTrackingPage />} />
           <Route path="/vacancy" element={<VacancyPage />} />
           <Route path="/calendar" element={<CalendarPage />} />
           <Route path="/notes" element={<NotesPage />} />

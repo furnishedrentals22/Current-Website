@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { getTenants, createTenant, updateTenant, deleteTenant, confirmMoveout, getPendingMoveouts, getProperties, getUnits, createNotification } from '@/lib/api';
+import { getTenants, createTenant, updateTenant, deleteTenant, confirmMoveout, getPendingMoveouts, getProperties, getUnits, createNotification, createMiscCharge, getMiscCharges, deleteMiscCharge } from '@/lib/api';
 import { useNotifications } from '@/App';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -98,6 +98,91 @@ const getQuarterSortKey = (dateStr) => {
 };
 
 // ============================================================
+// MISC CHARGES SECTION (for tenant edit dialog)
+// ============================================================
+function MiscChargesSection({ tenantId, fetchData }) {
+  const [charges, setCharges] = useState([]);
+  const [showAdd, setShowAdd] = useState(false);
+  const [newCharge, setNewCharge] = useState({ amount: '', description: '', charge_date: new Date().toISOString().split('T')[0] });
+
+  const loadCharges = useCallback(async () => {
+    try {
+      const data = await getMiscCharges({ tenant_id: tenantId });
+      setCharges(data);
+    } catch { /* ignore */ }
+  }, [tenantId]);
+
+  useEffect(() => { loadCharges(); }, [loadCharges]);
+
+  const handleAdd = async () => {
+    if (!newCharge.amount || !newCharge.charge_date) { toast.error('Amount and date required'); return; }
+    try {
+      await createMiscCharge(tenantId, { amount: parseFloat(newCharge.amount), description: newCharge.description, charge_date: newCharge.charge_date });
+      toast.success('Misc charge added');
+      setNewCharge({ amount: '', description: '', charge_date: new Date().toISOString().split('T')[0] });
+      setShowAdd(false);
+      loadCharges();
+    } catch { toast.error('Failed to add charge'); }
+  };
+
+  const handleRemove = async (id) => {
+    try {
+      await deleteMiscCharge(id);
+      toast.success('Charge removed');
+      loadCharges();
+    } catch { toast.error('Failed to remove'); }
+  };
+
+  return (
+    <div data-testid="misc-charges-section">
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Misc Charges</p>
+      {charges.length > 0 && (
+        <div className="space-y-1 mb-2">
+          {charges.map(c => (
+            <div key={c.id} className="flex items-center justify-between p-2 rounded-lg border bg-muted/20 text-sm">
+              <div className="flex items-center gap-3">
+                <span className="tabular-nums font-medium">${parseFloat(c.amount).toLocaleString()}</span>
+                <span className="text-muted-foreground">{c.description || 'Misc'}</span>
+                <span className="text-xs text-muted-foreground tabular-nums">{fmtDate(c.charge_date)}</span>
+              </div>
+              <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-destructive" onClick={() => handleRemove(c.id)}>
+                <Trash2 className="h-3 w-3" />
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
+      {showAdd ? (
+        <div className="space-y-2 p-3 border rounded-lg bg-muted/10">
+          <div className="grid grid-cols-3 gap-2">
+            <div className="space-y-1">
+              <Label className="text-xs">Amount *</Label>
+              <Input type="number" value={newCharge.amount} onChange={e => setNewCharge({ ...newCharge, amount: e.target.value })} placeholder="0.00" className="h-8" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Description</Label>
+              <Input value={newCharge.description} onChange={e => setNewCharge({ ...newCharge, description: e.target.value })} placeholder="e.g. Late fee" className="h-8" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Date *</Label>
+              <Input type="date" value={newCharge.charge_date} onChange={e => setNewCharge({ ...newCharge, charge_date: e.target.value })} className="h-8" />
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Button size="sm" onClick={handleAdd} data-testid="save-misc-charge-btn">Save</Button>
+            <Button size="sm" variant="outline" onClick={() => setShowAdd(false)}>Cancel</Button>
+          </div>
+        </div>
+      ) : (
+        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setShowAdd(true)} data-testid="add-misc-charge-btn">
+          + Add Misc Charge
+        </Button>
+      )}
+    </div>
+  );
+}
+
+// ============================================================
 // MAIN COMPONENT
 // ============================================================
 export default function TenantsPage() {
@@ -156,12 +241,7 @@ export default function TenantsPage() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  // Show moveout popup for pending moveouts
-  useEffect(() => {
-    if (pendingMoveouts.length > 0 && !moveoutDialog) {
-      setMoveoutDialog(pendingMoveouts[0]);
-    }
-  }, [pendingMoveouts, moveoutDialog]);
+  // Show moveout popup for pending moveouts - REMOVED (handled by notifications only)
 
   // Maps
   const propMap = useMemo(() => {
@@ -199,11 +279,11 @@ export default function TenantsPage() {
   const today = new Date().toISOString().split('T')[0];
 
   const currentTenants = useMemo(() => tenants.filter(t =>
-    t.move_in_date <= today && t.move_out_date > today
+    t.move_in_date <= today && t.move_out_date >= today
   ), [tenants, today]);
 
   const pendingMoveoutTenants = useMemo(() => tenants.filter(t =>
-    t.move_out_date <= today && !t.moveout_confirmed
+    t.move_out_date < today && !t.moveout_confirmed
   ), [tenants, today]);
 
   const futureTenants = useMemo(() => tenants.filter(t =>
@@ -211,7 +291,7 @@ export default function TenantsPage() {
   ), [tenants, today]);
 
   const pastTenants = useMemo(() => tenants.filter(t =>
-    t.move_out_date <= today && t.moveout_confirmed
+    t.move_out_date < today && t.moveout_confirmed
   ), [tenants, today]);
 
   // Group tenants by property_id -> unit_id
@@ -327,12 +407,28 @@ export default function TenantsPage() {
     }
   };
 
+  // Permanent delete state
+  const [deleteDialog, setDeleteDialog] = useState(null);
+  const [deleteConfirmStep, setDeleteConfirmStep] = useState(0);
+
   const handleDelete = async (id, e) => {
     if (e) e.stopPropagation();
-    if (!window.confirm('Delete this tenant?')) return;
+    const tenant = tenants.find(t => t.id === id);
+    setDeleteDialog(tenant);
+    setDeleteConfirmStep(1);
+  };
+
+  const handlePermanentDelete = async () => {
+    if (deleteConfirmStep === 1) {
+      setDeleteConfirmStep(2);
+      return;
+    }
     try {
-      await deleteTenant(id);
-      toast.success('Tenant deleted');
+      await deleteTenant(deleteDialog.id);
+      toast.success('Tenant and all associated data permanently deleted');
+      setDeleteDialog(null);
+      setDeleteConfirmStep(0);
+      refreshNotifications();
       fetchData();
     } catch (e2) {
       toast.error(e2.response?.data?.detail || 'Failed to delete tenant');
@@ -385,38 +481,22 @@ export default function TenantsPage() {
   // ============================================================
   const currentColumns = [
     { key: 'unit', label: 'Unit', w: '70px' },
-    { key: 'name', label: 'Tenant Name', w: '160px' },
-    { key: 'phone', label: 'Phone', w: '110px' },
-    { key: 'email', label: 'Email', w: '160px' },
-    { key: 'move_in', label: 'Move In', w: '80px' },
-    { key: 'move_out', label: 'Move Out', w: '80px' },
-    { key: 'rent_due', label: 'Rent Due Day', w: '90px' },
-    { key: 'rent', label: 'Monthly Rent', w: '100px' },
-    { key: 'payment', label: 'Payment Method', w: '120px' },
-    { key: 'deposit_amt', label: 'Deposit Amt', w: '95px' },
-    { key: 'deposit_date', label: 'Deposit Date', w: '90px' },
-    { key: 'parking', label: 'Parking', w: '80px' },
-    { key: 'notes', label: 'Notes', w: '120px' },
+    { key: 'name', label: 'Tenant Name', w: '200px' },
+    { key: 'move_in', label: 'Move In', w: '90px' },
+    { key: 'move_out', label: 'Move Out', w: '90px' },
+    { key: 'rent', label: 'Monthly Rent', w: '110px' },
+    { key: 'notes', label: 'Notes', w: '180px' },
     { key: 'actions', label: 'Actions', w: '80px' },
   ];
 
   // PAST TAB COLUMNS
   const pastColumns = [
     { key: 'unit', label: 'Unit', w: '70px' },
-    { key: 'name', label: 'Tenant Name', w: '160px' },
-    { key: 'phone', label: 'Phone', w: '110px' },
-    { key: 'email', label: 'Email', w: '160px' },
-    { key: 'move_in', label: 'Move In', w: '80px' },
-    { key: 'move_out', label: 'Move Out', w: '80px' },
-    { key: 'rent_due', label: 'Rent Due Day', w: '90px' },
-    { key: 'rent', label: 'Rent', w: '90px' },
-    { key: 'payment', label: 'Payment Method', w: '120px' },
-    { key: 'deposit_amt', label: 'Deposit Amt', w: '95px' },
-    { key: 'deposit_date', label: 'Deposit Date', w: '90px' },
-    { key: 'dep_return_date', label: 'Dep Return Date', w: '110px' },
-    { key: 'dep_return_amt', label: 'Dep Return Amt', w: '110px' },
-    { key: 'dep_return_method', label: 'Dep Return Method', w: '120px' },
-    { key: 'notes', label: 'Notes', w: '120px' },
+    { key: 'name', label: 'Tenant Name', w: '200px' },
+    { key: 'move_in', label: 'Move In', w: '90px' },
+    { key: 'move_out', label: 'Move Out', w: '90px' },
+    { key: 'rent', label: 'Rent', w: '100px' },
+    { key: 'notes', label: 'Notes', w: '180px' },
     { key: 'actions', label: 'Actions', w: '80px' },
   ];
 
@@ -434,8 +514,8 @@ export default function TenantsPage() {
       : isPending
         ? 'bg-amber-50/60'
         : idx % 2 === 0
-          ? 'bg-transparent'
-          : 'bg-muted/20';
+          ? 'bg-white'
+          : 'bg-slate-50';
 
     return (
       <tr
@@ -461,17 +541,10 @@ export default function TenantsPage() {
             </span>
           )}
         </td>
-        <td className={tdClass}>{fmt(tenant.phone)}</td>
-        <td className={tdClass}>{fmt(tenant.email)}</td>
         <td className={`${tdClass} tabular-nums`}>{fmtDate(tenant.move_in_date)}</td>
         <td className={`${tdClass} tabular-nums`}>{fmtDate(tenant.move_out_date)}</td>
-        <td className={tdClass}>{isAirbnb ? '' : fmt(tenant.rent_due_date)}</td>
         <td className={`${tdClass} tabular-nums`}>{rentDisplay}</td>
-        <td className={tdClass}>{isAirbnb ? '' : fmt(tenant.payment_method)}</td>
-        <td className={`${tdClass} tabular-nums`}>{fmtMoney(tenant.deposit_amount)}</td>
-        <td className={`${tdClass} tabular-nums`}>{fmtDate(tenant.deposit_date)}</td>
-        <td className={tdClass}>{fmt(tenant.parking)}</td>
-        <td className={`${tdClass} max-w-[120px] truncate`} title={tenant.notes || ''}>{fmt(tenant.notes)}</td>
+        <td className={`${tdClass} max-w-[180px] truncate`} title={tenant.notes || ''}>{fmt(tenant.notes)}</td>
         <td className={tdClass}>
           <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
             {isPending && (
@@ -503,8 +576,8 @@ export default function TenantsPage() {
     const bgClass = isAirbnb
       ? 'bg-emerald-50/60'
       : idx % 2 === 0
-        ? 'bg-transparent'
-        : 'bg-muted/20';
+        ? 'bg-white'
+        : 'bg-slate-50';
 
     return (
       <tr
@@ -522,19 +595,10 @@ export default function TenantsPage() {
             </span>
           )}
         </td>
-        <td className={tdClass}>{fmt(tenant.phone)}</td>
-        <td className={tdClass}>{fmt(tenant.email)}</td>
         <td className={`${tdClass} tabular-nums`}>{fmtDate(tenant.move_in_date)}</td>
         <td className={`${tdClass} tabular-nums`}>{fmtDate(tenant.move_out_date)}</td>
-        <td className={tdClass}>{isAirbnb ? '' : fmt(tenant.rent_due_date)}</td>
         <td className={`${tdClass} tabular-nums`}>{rentDisplay}</td>
-        <td className={tdClass}>{isAirbnb ? '' : fmt(tenant.payment_method)}</td>
-        <td className={`${tdClass} tabular-nums`}>{fmtMoney(tenant.deposit_amount)}</td>
-        <td className={`${tdClass} tabular-nums`}>{fmtDate(tenant.deposit_date)}</td>
-        <td className={`${tdClass} tabular-nums`}>{fmtDate(tenant.deposit_return_date)}</td>
-        <td className={`${tdClass} tabular-nums`}>{fmtMoney(tenant.deposit_return_amount)}</td>
-        <td className={tdClass}>{fmt(tenant.deposit_return_method)}</td>
-        <td className={`${tdClass} max-w-[120px] truncate`} title={tenant.notes || ''}>{fmt(tenant.notes)}</td>
+        <td className={`${tdClass} max-w-[180px] truncate`} title={tenant.notes || ''}>{fmt(tenant.notes)}</td>
         <td className={tdClass}>
           <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
             <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => openEdit(tenant)} data-testid="tenant-edit-button">
@@ -593,10 +657,10 @@ export default function TenantsPage() {
       const isExpanded = expandedProps[`cf-${propId}`];
 
       return (
-        <div key={propId} className="border-b border-border/60" data-testid={`property-group-${propId}`}>
+        <div key={propId} className="mb-3 rounded-lg border border-border/60 bg-card shadow-sm overflow-hidden" data-testid={`property-group-${propId}`}>
           {/* Property Header Row */}
           <button
-            className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-muted/30 transition-colors"
+            className="w-full flex items-center gap-3 px-4 py-3 text-left bg-slate-100 hover:bg-slate-200 transition-colors border-b border-border/40"
             onClick={() => setExpandedProps(prev => ({ ...prev, [`cf-${propId}`]: !prev[`cf-${propId}`] }))}
             data-testid={`property-toggle-${propId}`}
           >
@@ -629,7 +693,7 @@ export default function TenantsPage() {
                     return [
                       // Current tenant rows
                       ...unitCurrentTenants.map(t => {
-                        const isPending = t.move_out_date <= today && !t.moveout_confirmed;
+                        const isPending = t.move_out_date < today && !t.moveout_confirmed;
                         return renderCurrentRow(t, rowIdx++, false, isPending);
                       }),
                       // Future toggle row (if future tenants exist)
@@ -683,9 +747,9 @@ export default function TenantsPage() {
       const isExpanded = expandedPastProps[`past-${propId}`];
 
       return (
-        <div key={propId} className="border-b border-border/60" data-testid={`past-property-group-${propId}`}>
+        <div key={propId} className="mb-3 rounded-lg border border-border/60 bg-card shadow-sm overflow-hidden" data-testid={`past-property-group-${propId}`}>
           <button
-            className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-muted/30 transition-colors"
+            className="w-full flex items-center gap-3 px-4 py-3 text-left bg-slate-100 hover:bg-slate-200 transition-colors border-b border-border/40"
             onClick={() => setExpandedPastProps(prev => ({ ...prev, [`past-${propId}`]: !prev[`past-${propId}`] }))}
             data-testid={`past-property-toggle-${propId}`}
           >
@@ -1039,44 +1103,6 @@ export default function TenantsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* ===== MOVE-OUT CONFIRMATION POPUP ===== */}
-      <Dialog open={!!moveoutDialog} onOpenChange={() => dismissMoveoutDialog()}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="font-heading flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-amber-500" />
-              Confirm Move-out
-            </DialogTitle>
-            <DialogDescription>
-              The following tenant's move-out date has passed. Please confirm they have moved out.
-            </DialogDescription>
-          </DialogHeader>
-          {moveoutDialog && (
-            <div className="py-2 space-y-3">
-              <div className="p-3 rounded-lg border bg-amber-50/50 border-amber-200">
-                <p className="font-medium">{moveoutDialog.name}</p>
-                <p className="text-sm text-muted-foreground">
-                  {propMap[moveoutDialog.property_id]?.name || ''} — Unit {unitMap[moveoutDialog.unit_id]?.unit_number || ''}
-                </p>
-                <p className="text-sm text-muted-foreground">Move-out date: {moveoutDialog.move_out_date}</p>
-              </div>
-              {!moveoutDialog.is_airbnb_vrbo && moveoutDialog.deposit_amount && (
-                <p className="text-sm text-muted-foreground">
-                  A deposit return reminder (${parseFloat(moveoutDialog.deposit_amount).toLocaleString()}) will be created for 3 days after confirmation.
-                </p>
-              )}
-            </div>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={dismissMoveoutDialog}>Later</Button>
-            <Button onClick={() => moveoutDialog && handleConfirmMoveout(moveoutDialog)}>
-              <CheckCircle2 className="h-4 w-4 mr-2" />
-              Confirm Moved Out
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       {/* ===== TENANT CREATE/EDIT DIALOG ===== */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -1201,6 +1227,13 @@ export default function TenantsPage() {
                   <Label>Notes</Label>
                   <Textarea value={form.notes} onChange={e => setForm({...form, notes: e.target.value})} />
                 </div>
+                {/* Misc Charges Section */}
+                {editing && (
+                  <>
+                    <Separator />
+                    <MiscChargesSection tenantId={editing} fetchData={fetchData} />
+                  </>
+                )}
               </>
             ) : (
               <>
@@ -1238,6 +1271,57 @@ export default function TenantsPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
             <Button onClick={handleSave} disabled={saving} data-testid="tenant-save-button">{saving ? 'Saving...' : (editing ? 'Update' : 'Create')}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ===== PERMANENT DELETE DIALOG ===== */}
+      <Dialog open={!!deleteDialog} onOpenChange={() => { setDeleteDialog(null); setDeleteConfirmStep(0); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-heading flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-5 w-5" />
+              {deleteConfirmStep === 2 ? 'Final Confirmation' : 'Delete Tenant Permanently'}
+            </DialogTitle>
+            <DialogDescription>
+              {deleteConfirmStep === 2
+                ? 'This action cannot be undone.'
+                : 'Are you sure you want to permanently delete this tenant?'}
+            </DialogDescription>
+          </DialogHeader>
+          {deleteDialog && (
+            <div className="py-2 space-y-3">
+              <div className="p-3 rounded-lg border bg-red-50/50 border-red-200">
+                <p className="font-medium">{deleteDialog.name}</p>
+                <p className="text-sm text-muted-foreground">
+                  {propMap[deleteDialog.property_id]?.name || ''} — Unit {unitMap[deleteDialog.unit_id]?.unit_number || ''}
+                </p>
+              </div>
+              {deleteConfirmStep === 1 && (
+                <div className="p-3 rounded-lg border-2 border-red-300 bg-red-50">
+                  <p className="text-sm font-semibold text-red-800">Warning: This will permanently delete:</p>
+                  <ul className="text-xs text-red-700 mt-1 space-y-0.5 list-disc ml-4">
+                    <li>All income records from this tenant</li>
+                    <li>All notifications associated with this tenant</li>
+                    <li>All cleaning records</li>
+                    <li>All misc charges</li>
+                    <li>All rent payment tracking data</li>
+                  </ul>
+                </div>
+              )}
+              {deleteConfirmStep === 2 && (
+                <div className="p-3 rounded-lg border-2 border-red-400 bg-red-100">
+                  <p className="text-sm font-bold text-red-900">ARE YOU ABSOLUTELY SURE?</p>
+                  <p className="text-xs text-red-800 mt-1">This will permanently delete {deleteDialog.name} and ALL associated data. This cannot be reversed.</p>
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setDeleteDialog(null); setDeleteConfirmStep(0); }}>Cancel</Button>
+            <Button variant="destructive" onClick={handlePermanentDelete} data-testid="confirm-permanent-delete-btn">
+              {deleteConfirmStep === 2 ? 'Yes, Delete Everything' : 'Continue'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

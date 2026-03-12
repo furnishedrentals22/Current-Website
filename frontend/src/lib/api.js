@@ -141,4 +141,23 @@ export const deleteHousekeepingLead = (id) => api.delete(`/housekeeping-leads/${
 export const getCleaningRecords = (params = {}) => api.get('/cleaning-records', { params }).then(r => r.data);
 export const updateCleaningRecord = (id, data) => api.put(`/cleaning-records/${id}`, data).then(r => r.data);
 
+// Deposits
+export const getCurrentDeposits = () => api.get('/deposits/current').then(r => r.data);
+export const getPastDeposits = () => api.get('/deposits/past').then(r => r.data);
+export const returnDeposit = (tenantId, data) => api.post(`/tenants/${tenantId}/return-deposit`, data).then(r => r.data);
+export const getLandlordDeposits = () => api.get('/landlord-deposits').then(r => r.data);
+export const updateLandlordDeposit = (unitId, amount) => api.put(`/landlord-deposits/${unitId}?amount=${amount}`).then(r => r.data);
+
+// Misc Charges
+export const createMiscCharge = (tenantId, data) => api.post(`/tenants/${tenantId}/misc-charges`, data).then(r => r.data);
+export const getMiscCharges = (params = {}) => api.get('/misc-charges', { params }).then(r => r.data);
+export const deleteMiscCharge = (id) => api.delete(`/misc-charges/${id}`).then(r => r.data);
+
+// Rent Tracking
+export const getRentTracking = (params = {}) => api.get('/rent-tracking', { params }).then(r => r.data);
+export const updateRentPayment = (tenantId, data, year, month) => api.put(`/rent-tracking/${tenantId}?year=${year}&month=${month}`, data).then(r => r.data);
+
+// Notification Checklist
+export const updateNotificationChecklist = (id, key, checked) => api.put(`/notifications/${id}/checklist?key=${key}&checked=${checked}`).then(r => r.data);
+
 export default api;

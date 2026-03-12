@@ -48,13 +48,37 @@ export default function UnitsPage() {
   useEffect(() => { fetchData(); }, []);
 
   const propMap = {};
-  properties.forEach(p => { propMap[p.id] = p.name; });
+  properties.forEach(p => { propMap[p.id] = p; });
   const codeMap = {};
   doorCodes.forEach(dc => { codeMap[dc.unit_id] = dc; });
   const linkMap = {};
   marketingLinks.forEach(ml => { linkMap[ml.unit_id] = ml; });
 
   const filtered = filterProp === 'all' ? units : units.filter(u => u.property_id === filterProp);
+
+  // Sort by property building_id first, then unit_number
+  const sortedProps = [...properties].sort((a, b) => {
+    const aId = a.building_id != null ? a.building_id : 99999;
+    const bId = b.building_id != null ? b.building_id : 99999;
+    if (aId !== bId) return aId - bId;
+    return (a.name || '').localeCompare(b.name || '');
+  });
+
+  const groupedByProp = {};
+  filtered.forEach(u => {
+    const pid = u.property_id;
+    if (!groupedByProp[pid]) groupedByProp[pid] = [];
+    groupedByProp[pid].push(u);
+  });
+  // Sort units numerically within each group
+  Object.values(groupedByProp).forEach(arr => arr.sort((a, b) => {
+    const aNum = parseInt(a.unit_number, 10);
+    const bNum = parseInt(b.unit_number, 10);
+    if (isNaN(aNum) && isNaN(bNum)) return 0;
+    if (isNaN(aNum)) return 1;
+    if (isNaN(bNum)) return -1;
+    return aNum - bNum;
+  }));
 
   const openCreate = () => {
     setEditing(null);
@@ -168,86 +192,97 @@ export default function UnitsPage() {
           </CardContent>
         </Card>
       ) : (
-        <Card className="overflow-hidden">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-muted/50">
-                <TableHead className="text-xs font-semibold uppercase tracking-wide">Unit #</TableHead>
-                <TableHead className="text-xs font-semibold uppercase tracking-wide">Property</TableHead>
-                <TableHead className="text-xs font-semibold uppercase tracking-wide">Size</TableHead>
-                <TableHead className="text-xs font-semibold uppercase tracking-wide">Base Rent</TableHead>
-                <TableHead className="text-xs font-semibold uppercase tracking-wide">Available From</TableHead>
-                <TableHead className="text-xs font-semibold uppercase tracking-wide">Close Date</TableHead>
-                <TableHead className="text-xs font-semibold uppercase tracking-wide w-[100px]">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.map(u => {
-                const codes = codeMap[u.id];
-                const mlinks = linkMap[u.id];
-                const hasInfo = codes || mlinks;
-                const isExpanded = expandedUnit === u.id;
-                return (
-                  <>
-                  <TableRow key={u.id} className={`hover:bg-muted/40 ${hasInfo ? 'cursor-pointer' : ''}`} data-testid="units-table-row"
-                    onClick={() => hasInfo && setExpandedUnit(isExpanded ? null : u.id)}>
-                    <TableCell className="font-medium">
-                      <div className="flex items-center gap-1.5">
-                        {hasInfo && (isExpanded ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />)}
-                        {u.unit_number}
-                        {codes && <DoorOpen className="h-3 w-3 text-muted-foreground" />}
-                        {mlinks && <Megaphone className="h-3 w-3 text-muted-foreground" />}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-sm">{propMap[u.property_id] || '-'}</TableCell>
-                    <TableCell><Badge variant="secondary">{u.unit_size === 'other' ? u.unit_size_custom : u.unit_size}</Badge></TableCell>
-                    <TableCell className="tabular-nums">${parseFloat(u.base_rent).toLocaleString()}</TableCell>
-                    <TableCell className="text-sm">{u.availability_start_date}</TableCell>
-                    <TableCell className="text-sm">{u.close_date || '-'}</TableCell>
-                    <TableCell>
-                      <div className="flex gap-1" onClick={e => e.stopPropagation()}>
-                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => openEdit(u)}><Pencil className="h-4 w-4" /></Button>
-                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-destructive" onClick={() => handleDelete(u.id)}><Trash2 className="h-4 w-4" /></Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                  {isExpanded && (
-                    <TableRow key={`${u.id}-detail`} className="bg-muted/20">
-                      <TableCell colSpan={7} className="p-3">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          {codes && (
-                            <div data-testid="unit-door-codes-section">
-                              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2 flex items-center gap-1"><DoorOpen className="h-3.5 w-3.5" />Door Codes</p>
-                              <div className="grid grid-cols-5 gap-1.5">
-                                <div className="text-xs"><span className="text-muted-foreground block">Admin</span><span className="font-mono flex items-center gap-0.5"><Lock className="h-3 w-3" />****</span></div>
-                                <div className="text-xs"><span className="text-muted-foreground block">Housekeeping</span><span className="font-mono">{codes.housekeeping_code || '-'}</span></div>
-                                <div className="text-xs"><span className="text-muted-foreground block">Guest</span><span className="font-mono font-bold text-sm">{codes.guest_code || '-'}</span></div>
-                                <div className="text-xs"><span className="text-muted-foreground block">Backup 1</span><span className="font-mono">{codes.backup_code_1 || '-'}</span></div>
-                                <div className="text-xs"><span className="text-muted-foreground block">Backup 2</span><span className="font-mono">{codes.backup_code_2 || '-'}</span></div>
-                              </div>
-                            </div>
-                          )}
-                          {mlinks && (
-                            <div data-testid="unit-marketing-links-section">
-                              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2 flex items-center gap-1"><Megaphone className="h-3.5 w-3.5" />Marketing Links</p>
-                              <div className="flex flex-wrap gap-1.5">
-                                {mlinks.airbnb_link && <UnitLinkBadge label="Airbnb" url={mlinks.airbnb_link} />}
-                                {mlinks.furnished_finder_link && <UnitLinkBadge label="Furnished Finder" url={mlinks.furnished_finder_link} />}
-                                {mlinks.photos_link && <UnitLinkBadge label="Photos" url={mlinks.photos_link} />}
-                                {mlinks.additional_links?.map((al, i) => <UnitLinkBadge key={i} label={al.name} url={al.url} />)}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </TableCell>
+        <div className="space-y-4">
+          {sortedProps.filter(p => groupedByProp[p.id]).map(prop => {
+            const propUnits = groupedByProp[prop.id] || [];
+            return (
+              <Card key={prop.id} className="overflow-hidden" data-testid={`units-property-group-${prop.id}`}>
+                <div className="px-4 py-3 bg-slate-100 border-b border-border/50 flex items-center gap-2">
+                  <span className="text-sm font-semibold">{prop.name}</span>
+                  {prop.building_id != null && <Badge variant="outline" className="text-xs">Bldg #{prop.building_id}</Badge>}
+                  <Badge variant="secondary" className="text-xs">{propUnits.length} units</Badge>
+                </div>
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/30">
+                      <TableHead className="text-xs font-semibold uppercase tracking-wide">Unit #</TableHead>
+                      <TableHead className="text-xs font-semibold uppercase tracking-wide">Size</TableHead>
+                      <TableHead className="text-xs font-semibold uppercase tracking-wide">Base Rent</TableHead>
+                      <TableHead className="text-xs font-semibold uppercase tracking-wide">Available From</TableHead>
+                      <TableHead className="text-xs font-semibold uppercase tracking-wide">Close Date</TableHead>
+                      <TableHead className="text-xs font-semibold uppercase tracking-wide w-[100px]">Actions</TableHead>
                     </TableRow>
-                  )}
-                  </>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </Card>
+                  </TableHeader>
+                  <TableBody>
+                    {propUnits.map((u, idx) => {
+                      const codes = codeMap[u.id];
+                      const mlinks = linkMap[u.id];
+                      const hasInfo = codes || mlinks;
+                      const isExpanded = expandedUnit === u.id;
+                      const rowBg = idx % 2 === 0 ? 'bg-white' : 'bg-slate-50';
+                      return (
+                        <>
+                        <TableRow key={u.id} className={`${rowBg} hover:bg-muted/40 ${hasInfo ? 'cursor-pointer' : ''}`} data-testid="units-table-row"
+                          onClick={() => hasInfo && setExpandedUnit(isExpanded ? null : u.id)}>
+                          <TableCell className="font-medium">
+                            <div className="flex items-center gap-1.5">
+                              {hasInfo && (isExpanded ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />)}
+                              {u.unit_number}
+                              {codes && <DoorOpen className="h-3 w-3 text-muted-foreground" />}
+                              {mlinks && <Megaphone className="h-3 w-3 text-muted-foreground" />}
+                            </div>
+                          </TableCell>
+                          <TableCell><Badge variant="secondary">{u.unit_size === 'other' ? u.unit_size_custom : u.unit_size}</Badge></TableCell>
+                          <TableCell className="tabular-nums">${parseFloat(u.base_rent).toLocaleString()}</TableCell>
+                          <TableCell className="text-sm">{u.availability_start_date}</TableCell>
+                          <TableCell className="text-sm">{u.close_date || '-'}</TableCell>
+                          <TableCell>
+                            <div className="flex gap-1" onClick={e => e.stopPropagation()}>
+                              <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => openEdit(u)}><Pencil className="h-4 w-4" /></Button>
+                              <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-destructive" onClick={() => handleDelete(u.id)}><Trash2 className="h-4 w-4" /></Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                        {isExpanded && (
+                          <TableRow key={`${u.id}-detail`} className="bg-amber-50/40">
+                            <TableCell colSpan={6} className="p-3">
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {codes && (
+                                  <div data-testid="unit-door-codes-section">
+                                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2 flex items-center gap-1"><DoorOpen className="h-3.5 w-3.5" />Door Codes</p>
+                                    <div className="grid grid-cols-5 gap-1.5">
+                                      <div className="text-xs"><span className="text-muted-foreground block">Admin</span><span className="font-mono flex items-center gap-0.5"><Lock className="h-3 w-3" />****</span></div>
+                                      <div className="text-xs"><span className="text-muted-foreground block">Housekeeping</span><span className="font-mono">{codes.housekeeping_code || '-'}</span></div>
+                                      <div className="text-xs"><span className="text-muted-foreground block">Guest</span><span className="font-mono font-bold text-sm">{codes.guest_code || '-'}</span></div>
+                                      <div className="text-xs"><span className="text-muted-foreground block">Backup 1</span><span className="font-mono">{codes.backup_code_1 || '-'}</span></div>
+                                      <div className="text-xs"><span className="text-muted-foreground block">Backup 2</span><span className="font-mono">{codes.backup_code_2 || '-'}</span></div>
+                                    </div>
+                                  </div>
+                                )}
+                                {mlinks && (
+                                  <div data-testid="unit-marketing-links-section">
+                                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2 flex items-center gap-1"><Megaphone className="h-3.5 w-3.5" />Marketing Links</p>
+                                    <div className="flex flex-wrap gap-1.5">
+                                      {mlinks.airbnb_link && <UnitLinkBadge label="Airbnb" url={mlinks.airbnb_link} />}
+                                      {mlinks.furnished_finder_link && <UnitLinkBadge label="Furnished Finder" url={mlinks.furnished_finder_link} />}
+                                      {mlinks.photos_link && <UnitLinkBadge label="Photos" url={mlinks.photos_link} />}
+                                      {mlinks.additional_links?.map((al, i) => <UnitLinkBadge key={i} label={al.name} url={al.url} />)}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        )}
+                        </>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </Card>
+            );
+          })}
+        </div>
       )}
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

@@ -149,12 +149,20 @@ export default function IncomePage() {
                                         <CollapsibleContent>
                                           <div className="pl-6 space-y-1">
                                             {unit.tenants.map((tenant, idx) => (
-                                              <div key={idx} className="flex items-center justify-between py-1 pr-2">
-                                                <div className="flex items-center gap-2">
-                                                  <span className="text-xs text-muted-foreground">{tenant.tenant_name}</span>
-                                                  {tenant.is_airbnb && <Badge className="text-[10px] bg-sky-100 text-sky-900 border-sky-200">Airbnb</Badge>}
+                                              <div key={idx}>
+                                                <div className="flex items-center justify-between py-1 pr-2">
+                                                  <div className="flex items-center gap-2">
+                                                    <span className="text-xs text-muted-foreground">{tenant.tenant_name}</span>
+                                                    {tenant.is_airbnb && <Badge className="text-[10px] bg-sky-100 text-sky-900 border-sky-200">Airbnb</Badge>}
+                                                  </div>
+                                                  <span className="text-xs tabular-nums">${tenant.income.toLocaleString()}</span>
                                                 </div>
-                                                <span className="text-xs tabular-nums">${tenant.income.toLocaleString()}</span>
+                                                {tenant.misc_charges && tenant.misc_charges.length > 0 && tenant.misc_charges.map((mc, mi) => (
+                                                  <div key={mi} className="flex items-center justify-between py-0.5 pr-2 pl-4">
+                                                    <span className="text-[11px] text-muted-foreground italic">Misc: {mc.description || 'Misc charge'}</span>
+                                                    <span className="text-[11px] tabular-nums text-muted-foreground">${mc.amount.toLocaleString()}</span>
+                                                  </div>
+                                                ))}
                                               </div>
                                             ))}
                                           </div>

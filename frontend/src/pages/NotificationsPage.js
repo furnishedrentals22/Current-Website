@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   getNotifications, createNotification, updateNotification, updateNotificationStatus,
   deleteNotification, snoozeNotification, duplicateNotification, bulkNotificationAction,
-  getProperties, getUnits, getTeamMembers
+  getProperties, getUnits, getTeamMembers, updateNotificationChecklist
 } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -200,12 +200,17 @@ export default function NotificationsPage() {
   const handleDelete = async (id) => {
     if (!window.confirm('Delete?')) return;
     try { await deleteNotification(id); toast.success('Deleted'); setSelected(s => { const ns = new Set(s); ns.delete(id); return ns; }); fetchData(); }
-    catch { toast.error('Failed'); }
+    catch (e) { toast.error(e.response?.data?.detail || 'Failed to delete — check all checklist items first'); }
   };
 
   const handleDuplicate = async (id) => {
     try { await duplicateNotification(id); toast.success('Duplicated'); fetchData(); }
     catch { toast.error('Failed'); }
+  };
+
+  const handleChecklistToggle = async (notifId, key, checked) => {
+    try { await updateNotificationChecklist(notifId, key, checked); fetchData(); }
+    catch { toast.error('Failed to update checklist'); }
   };
 
   const openSnooze = (n) => {
@@ -366,12 +371,12 @@ export default function NotificationsPage() {
           <KanbanView groups={kanbanGroups} propMap={propMap} unitMap={unitMap} selected={selected}
             onToggleSelect={toggleSelect} onEdit={openEdit} onDelete={handleDelete}
             onStatusChange={handleStatusChange} onDuplicate={handleDuplicate}
-            onSnooze={openSnooze} onQuickSnooze={quickSnooze} getPriorityInfo={getPriorityInfo} />
+            onSnooze={openSnooze} onQuickSnooze={quickSnooze} getPriorityInfo={getPriorityInfo} onChecklistToggle={handleChecklistToggle} />
         ) : (
           <ListView items={sortedList} propMap={propMap} unitMap={unitMap} selected={selected} allSelected={selected.size === filtered.length && filtered.length > 0}
             onToggleSelect={toggleSelect} onSelectAll={selectAll} onEdit={openEdit} onDelete={handleDelete}
             onStatusChange={handleStatusChange} onDuplicate={handleDuplicate}
-            onSnooze={openSnooze} listSort={listSort} onToggleSort={toggleSort} getPriorityInfo={getPriorityInfo} />
+            onSnooze={openSnooze} listSort={listSort} onToggleSort={toggleSort} getPriorityInfo={getPriorityInfo} onChecklistToggle={handleChecklistToggle} />
         )
       }
 
@@ -520,7 +525,7 @@ export default function NotificationsPage() {
 }
 
 /* ========== KANBAN VIEW ========== */
-function KanbanView({ groups, propMap, unitMap, selected, onToggleSelect, onEdit, onDelete, onStatusChange, onDuplicate, onSnooze, onQuickSnooze, getPriorityInfo }) {
+function KanbanView({ groups, propMap, unitMap, selected, onToggleSelect, onEdit, onDelete, onStatusChange, onDuplicate, onSnooze, onQuickSnooze, getPriorityInfo, onChecklistToggle }) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-3" data-testid="kanban-view">
       {STATUSES.map(status => {
@@ -539,7 +544,7 @@ function KanbanView({ groups, propMap, unitMap, selected, onToggleSelect, onEdit
                     isSelected={selected.has(n.id)} onToggleSelect={() => onToggleSelect(n.id)}
                     onEdit={() => onEdit(n)} onDelete={() => onDelete(n.id)} onDuplicate={() => onDuplicate(n.id)}
                     onSnooze={() => onSnooze(n)} onStatusChange={onStatusChange}
-                    currentStatus={status.value} getPriorityInfo={getPriorityInfo} />
+                    currentStatus={status.value} getPriorityInfo={getPriorityInfo} onChecklistToggle={onChecklistToggle} />
                 ))}
                 {items.length === 0 && <p className="text-[10px] text-muted-foreground text-center py-6">Empty</p>}
               </div>
@@ -551,7 +556,7 @@ function KanbanView({ groups, propMap, unitMap, selected, onToggleSelect, onEdit
   );
 }
 
-function KanbanCard({ n, propMap, unitMap, isSelected, onToggleSelect, onEdit, onDelete, onDuplicate, onSnooze, onStatusChange, currentStatus, getPriorityInfo }) {
+function KanbanCard({ n, propMap, unitMap, isSelected, onToggleSelect, onEdit, onDelete, onDuplicate, onSnooze, onStatusChange, currentStatus, getPriorityInfo, onChecklistToggle }) {
   const [expanded, setExpanded] = useState(false);
   const pri = getPriorityInfo(n.priority || 'medium');
   const prop = propMap[n.property_id];
@@ -602,6 +607,16 @@ function KanbanCard({ n, propMap, unitMap, isSelected, onToggleSelect, onEdit, o
       {expanded && (
         <div className="mt-2 pt-2 border-t space-y-1.5" onClick={e => e.stopPropagation()}>
           {(n.notes || n.message) && <p className="text-[10px] text-muted-foreground">{n.notes || n.message}</p>}
+          {n.checklist && n.checklist.length > 0 && (
+            <div className="space-y-1" data-testid="notification-checklist">
+              {n.checklist.map(item => (
+                <div key={item.key} className="flex items-center gap-2">
+                  <Checkbox checked={item.checked} onCheckedChange={() => onChecklistToggle(n.id, item.key, !item.checked)} className="h-3.5 w-3.5" data-testid={`checklist-${item.key}`} />
+                  <span className={`text-[10px] ${item.checked ? 'line-through text-muted-foreground' : ''}`}>{item.label}</span>
+                </div>
+              ))}
+            </div>
+          )}
           {n.is_recurring && <Badge variant="secondary" className="text-[9px] h-4">Recurring: {n.recurrence_pattern}</Badge>}
           <div className="flex gap-1 pt-1">
             <Button variant="ghost" size="sm" className="h-6 text-[10px] px-1.5" onClick={onEdit}><Pencil className="h-3 w-3 mr-0.5" />Edit</Button>
@@ -616,7 +631,7 @@ function KanbanCard({ n, propMap, unitMap, isSelected, onToggleSelect, onEdit, o
 }
 
 /* ========== LIST VIEW ========== */
-function ListView({ items, propMap, unitMap, selected, allSelected, onToggleSelect, onSelectAll, onEdit, onDelete, onStatusChange, onDuplicate, onSnooze, listSort, onToggleSort, getPriorityInfo }) {
+function ListView({ items, propMap, unitMap, selected, allSelected, onToggleSelect, onSelectAll, onEdit, onDelete, onStatusChange, onDuplicate, onSnooze, listSort, onToggleSort, getPriorityInfo, onChecklistToggle }) {
   const SortHeader = ({ col, label }) => (
     <TableHead className="text-[10px] font-semibold uppercase tracking-wide cursor-pointer select-none" onClick={() => onToggleSort(col)}>
       <span className="flex items-center gap-1">{label}{listSort.col === col && (listSort.dir === 'asc' ? ' \u2191' : ' \u2193')}</span>
@@ -652,7 +667,19 @@ function ListView({ items, propMap, unitMap, selected, allSelected, onToggleSele
               <TableRow key={n.id} className={`${STATUS_BG[st] || ''} ${selected.has(n.id) ? 'ring-1 ring-inset ring-blue-400' : ''}`} data-testid="list-view-row">
                 <TableCell><Checkbox checked={selected.has(n.id)} onCheckedChange={() => onToggleSelect(n.id)} className="h-3.5 w-3.5" /></TableCell>
                 <TableCell><div className={`h-2.5 w-2.5 rounded-full ${pri.dot}`} title={pri.label} /></TableCell>
-                <TableCell className="font-medium text-xs max-w-[200px] truncate">{n.name || 'Untitled'}</TableCell>
+                <TableCell className="font-medium text-xs max-w-[200px]">
+                  <span className="truncate block">{n.name || 'Untitled'}</span>
+                  {n.checklist && n.checklist.length > 0 && (
+                    <div className="mt-1 space-y-0.5">
+                      {n.checklist.map(item => (
+                        <div key={item.key} className="flex items-center gap-1.5">
+                          <Checkbox checked={item.checked} onCheckedChange={() => onChecklistToggle(n.id, item.key, !item.checked)} className="h-3 w-3" data-testid={`list-checklist-${item.key}`} />
+                          <span className={`text-[10px] ${item.checked ? 'line-through text-muted-foreground' : ''}`}>{item.label}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </TableCell>
                 <TableCell><Badge variant="outline" className="text-[9px] h-4">{cat}</Badge></TableCell>
                 <TableCell className="text-xs text-muted-foreground">{prop ? prop.name : ''}{unit ? ` / U${unit.unit_number}` : ''}</TableCell>
                 <TableCell className="text-xs">{n.assigned_person || '-'}</TableCell>

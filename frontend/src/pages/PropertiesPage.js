@@ -253,9 +253,9 @@ export default function PropertiesPage() {
             const isUnitsOpen = expandedUnits[prop.id];
 
             return (
-              <Card key={prop.id} className="overflow-hidden" data-testid="properties-table-row">
+              <Card key={prop.id} className="overflow-hidden border-l-4 border-l-primary/30 shadow-sm" data-testid="properties-table-row">
                 {/* Property Summary Header - Always Visible */}
-                <div className="p-5">
+                <div className="p-5 bg-gradient-to-r from-slate-50 to-white">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-3 mb-1">
@@ -325,7 +325,7 @@ export default function PropertiesPage() {
 
                 {/* Expandable: Property Details */}
                 {isDetailsOpen && (
-                  <div className="px-5 pb-5 border-t bg-muted/20">
+                  <div className="px-5 pb-5 border-t bg-amber-50/40">
                     <div className="pt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                       <div className="space-y-1">
                         <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
