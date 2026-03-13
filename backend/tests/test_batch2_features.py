@@ -13,7 +13,7 @@ import requests
 import os
 from datetime import date
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://refactor-test-2.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://stability-release.preview.emergentagent.com')
 
 
 class TestDepositsEndpoints:
