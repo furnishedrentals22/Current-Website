@@ -229,18 +229,16 @@ export default function VacancyPage() {
                                     </TableCell>
                                   </TableRow>
                                 </CollapsibleTrigger>
-                                <CollapsibleContent asChild>
-                                  <>
-                                    {month.units.map(unit => (
-                                      <TableRow key={unit.unit_id} className="bg-muted/10">
-                                        <TableCell className="pl-8 text-sm text-muted-foreground">Unit {unit.unit_number}</TableCell>
-                                        <TableCell className={`tabular-nums text-sm ${getVacancyColor(unit.vacancy_pct)}`}>{unit.vacancy_pct}%</TableCell>
-                                        <TableCell className="tabular-nums text-sm">{unit.vacant_days}</TableCell>
-                                        <TableCell className="tabular-nums text-sm">{unit.total_days}</TableCell>
-                                        <TableCell></TableCell>
-                                      </TableRow>
-                                    ))}
-                                  </>
+                                <CollapsibleContent>
+                                  {month.units.map(unit => (
+                                    <TableRow key={unit.unit_id} className="bg-muted/10">
+                                      <TableCell className="pl-8 text-sm text-muted-foreground">Unit {unit.unit_number}</TableCell>
+                                      <TableCell className={`tabular-nums text-sm ${getVacancyColor(unit.vacancy_pct)}`}>{unit.vacancy_pct}%</TableCell>
+                                      <TableCell className="tabular-nums text-sm">{unit.vacant_days}</TableCell>
+                                      <TableCell className="tabular-nums text-sm">{unit.total_days}</TableCell>
+                                      <TableCell></TableCell>
+                                    </TableRow>
+                                  ))}
                                 </CollapsibleContent>
                               </>
                             </Collapsible>

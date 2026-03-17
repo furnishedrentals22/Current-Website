@@ -106,15 +106,18 @@ components/
   - Assigned personnel: multi-select from list + custom manual entry
   - Completed requests auto-move to archive section (collapsed by default)
 - **Housekeeping page redesigned** (all 3 tabs → card-based layout):
-  - Unit numbers without "U" prefix
-  - Dates formatted as `Tue, 3/17`
-  - Times only shown when they exist
-  - Click-to-edit modal (replaces inline table editing)
-  - Maintenance person assignment field in cleaning modal
-  - Amber maintenance indicator on card when assigned
-  - Alternating card backgrounds
+  - Unit numbers without "U" prefix, dates as `Tue, 3/17`, no bubble UI
+  - Click-to-edit modal, maintenance person assignment, amber indicator
   - Housekeepers + Leads tabs also converted to card layout
 - 100% test pass rate (24/24 backend, all frontend flows)
+
+### Phase 8: Vacancy/Tenant/Property Feature Updates (Feb 2026)
+- **Vacancy page**: By Building tab sorts by `building_id` ascending (numeric, nulls last); upcoming vacancies = 90-day rolling window
+- **Tenant creation**: Airbnb tenant type now has Parking Info field (identical to long-term)
+- **Property**: `marlins_decal_property` toggle in create/edit; badge in detail view
+- **Tenant-Property integration**: `marlins_decal` checkbox on tenant form when selected property has the flag; shown in tenant detail dialog
+- Fixed pre-existing `CollapsibleContent asChild` console warning in VacancyPage
+- 100% test pass rate (21/21 backend + all frontend flows)
 
 ---
 
