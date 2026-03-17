@@ -253,3 +253,28 @@ class CleaningRecordUpdate(BaseModel):
     assigned_cleaner_name: Optional[str] = ""
     confirmed: bool = False
     notes: Optional[str] = ""
+    assigned_maintenance_id: Optional[str] = None
+    assigned_maintenance_name: Optional[str] = ""
+    maintenance_note: Optional[str] = ""
+
+
+class MaintenancePersonnelCreate(BaseModel):
+    name: str
+    contact: Optional[str] = ""
+    role: Optional[str] = ""
+    notes: Optional[str] = ""
+    is_archived: bool = False
+
+
+class MaintenanceRequestCreate(BaseModel):
+    property_id: Optional[str] = None
+    unit_id: Optional[str] = None
+    title: str
+    description: Optional[str] = ""
+    status: Optional[str] = "Pending"
+    status_color: Optional[str] = "gray"
+    access_info: Optional[str] = ""
+    assigned_personnel: List[Dict[str, Any]] = []
+    notes: Optional[str] = ""
+    is_completed: bool = False
+    completed_at: Optional[str] = None

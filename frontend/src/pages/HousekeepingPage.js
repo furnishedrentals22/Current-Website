@@ -3,20 +3,25 @@ import {
   getCleaningRecords, updateCleaningRecord,
   getHousekeepers, createHousekeeper, updateHousekeeper, deleteHousekeeper,
   getHousekeepingLeads, createHousekeepingLead, updateHousekeepingLead, deleteHousekeepingLead,
-  getProperties, getUnits
+  getProperties, getUnits, getMaintenancePersonnel
 } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Brush, Plus, Pencil, Trash2, Archive, UserSearch } from 'lucide-react';
+import { Plus, Pencil, Trash2, Archive, Wrench } from 'lucide-react';
 import { toast } from 'sonner';
+
+const formatShortDate = (dateStr) => {
+  if (!dateStr) return '';
+  const d = new Date(dateStr + 'T12:00:00');
+  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  return `${days[d.getDay()]}, ${d.getMonth() + 1}/${d.getDate()}`;
+};
 
 export default function HousekeepingPage() {
   const [records, setRecords] = useState([]);
@@ -24,18 +29,31 @@ export default function HousekeepingPage() {
   const [leads, setLeads] = useState([]);
   const [properties, setProperties] = useState([]);
   const [units, setUnits] = useState([]);
+  const [maintenancePersonnel, setMaintenancePersonnel] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showArchived, setShowArchived] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
-      const [r, hk, hl, p, u] = await Promise.all([
-        getCleaningRecords(), getHousekeepers({ include_archived: showArchived }),
-        getHousekeepingLeads({ include_archived: showArchived }), getProperties(), getUnits()
+      const [r, hk, hl, p, u, mp] = await Promise.all([
+        getCleaningRecords(),
+        getHousekeepers({ include_archived: showArchived }),
+        getHousekeepingLeads({ include_archived: showArchived }),
+        getProperties(),
+        getUnits(),
+        getMaintenancePersonnel()
       ]);
-      setRecords(r); setHousekeepers(hk); setLeads(hl); setProperties(p); setUnits(u);
-    } catch { toast.error('Failed to load data'); }
-    finally { setLoading(false); }
+      setRecords(r);
+      setHousekeepers(hk);
+      setLeads(hl);
+      setProperties(p);
+      setUnits(u);
+      setMaintenancePersonnel(mp);
+    } catch {
+      toast.error('Failed to load data');
+    } finally {
+      setLoading(false);
+    }
   }, [showArchived]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
@@ -45,10 +63,14 @@ export default function HousekeepingPage() {
   const propMap = {};
   properties.forEach(p => { propMap[p.id] = p; });
 
+  if (loading) return <div className="py-12 text-center text-muted-foreground text-sm">Loading...</div>;
+
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="font-heading text-2xl font-semibold tracking-tight" data-testid="housekeeping-page-title">Housekeeping</h1>
+        <h1 className="font-heading text-2xl font-semibold tracking-tight" data-testid="housekeeping-page-title">
+          Housekeeping
+        </h1>
         <p className="text-sm text-muted-foreground mt-1">Manage cleanings, housekeepers, and leads</p>
       </div>
 
@@ -60,18 +82,32 @@ export default function HousekeepingPage() {
         </TabsList>
 
         <TabsContent value="upcoming" className="mt-4">
-          <UpcomingCleaningsTab records={records} housekeepers={housekeepers.filter(h => !h.is_archived)}
-            unitMap={unitMap} propMap={propMap} onRefresh={fetchData} />
+          <UpcomingCleaningsTab
+            records={records}
+            housekeepers={housekeepers.filter(h => !h.is_archived)}
+            maintenancePersonnel={maintenancePersonnel}
+            unitMap={unitMap}
+            propMap={propMap}
+            onRefresh={fetchData}
+          />
         </TabsContent>
 
         <TabsContent value="housekeepers" className="mt-4">
-          <HousekeepersTab housekeepers={housekeepers} showArchived={showArchived}
-            setShowArchived={setShowArchived} onRefresh={fetchData} />
+          <HousekeepersTab
+            housekeepers={housekeepers}
+            showArchived={showArchived}
+            setShowArchived={setShowArchived}
+            onRefresh={fetchData}
+          />
         </TabsContent>
 
         <TabsContent value="leads" className="mt-4">
-          <HousekeepingLeadsTab leads={leads} showArchived={showArchived}
-            setShowArchived={setShowArchived} onRefresh={fetchData} />
+          <HousekeepingLeadsTab
+            leads={leads}
+            showArchived={showArchived}
+            setShowArchived={setShowArchived}
+            onRefresh={fetchData}
+          />
         </TabsContent>
       </Tabs>
     </div>
@@ -79,105 +115,313 @@ export default function HousekeepingPage() {
 }
 
 /* ========== UPCOMING CLEANINGS TAB ========== */
-function UpcomingCleaningsTab({ records, housekeepers, unitMap, propMap, onRefresh }) {
-  const [saving, setSaving] = useState({});
+function UpcomingCleaningsTab({ records, housekeepers, maintenancePersonnel, unitMap, propMap, onRefresh }) {
+  const [editModal, setEditModal] = useState(false);
+  const [selectedRecord, setSelectedRecord] = useState(null);
+  const [editForm, setEditForm] = useState({});
+  const [saving, setSaving] = useState(false);
+  const [useCustomMaint, setUseCustomMaint] = useState(false);
 
-  const handleFieldChange = async (id, field, value) => {
-    const rec = records.find(r => r.id === id);
-    if (!rec) return;
-    setSaving(s => ({ ...s, [id]: true }));
-    try {
-      await updateCleaningRecord(id, {
-        check_in_time: rec.check_in_time || '',
-        check_out_time: rec.check_out_time || '',
-        cleaning_time: rec.cleaning_time || '',
-        assigned_cleaner_id: rec.assigned_cleaner_id || null,
-        assigned_cleaner_name: rec.assigned_cleaner_name || '',
-        confirmed: rec.confirmed || false,
-        notes: rec.notes || '',
-        [field]: value,
-        ...(field === 'assigned_cleaner_id' ? { assigned_cleaner_name: housekeepers.find(h => h.id === value)?.name || '' } : {}),
-      });
-      onRefresh();
-    } catch { toast.error('Failed to update'); }
-    finally { setSaving(s => ({ ...s, [id]: false })); }
+  const openEdit = (r) => {
+    setSelectedRecord(r);
+    setEditForm({
+      check_out_time: r.check_out_time || '',
+      check_in_time: r.check_in_time || '',
+      cleaning_time: r.cleaning_time || '',
+      assigned_cleaner_id: r.assigned_cleaner_id || null,
+      assigned_cleaner_name: r.assigned_cleaner_name || '',
+      confirmed: r.confirmed || false,
+      notes: r.notes || '',
+      assigned_maintenance_id: r.assigned_maintenance_id || null,
+      assigned_maintenance_name: r.assigned_maintenance_name || '',
+      maintenance_note: r.maintenance_note || '',
+    });
+    setUseCustomMaint(!r.assigned_maintenance_id && !!r.assigned_maintenance_name);
+    setEditModal(true);
   };
+
+  const handleMaintSelect = (val) => {
+    if (val === '_none') {
+      setEditForm(f => ({ ...f, assigned_maintenance_id: null, assigned_maintenance_name: '' }));
+      setUseCustomMaint(false);
+    } else if (val === '_custom') {
+      setEditForm(f => ({ ...f, assigned_maintenance_id: null, assigned_maintenance_name: '' }));
+      setUseCustomMaint(true);
+    } else {
+      const p = maintenancePersonnel.find(p => p.id === val);
+      setEditForm(f => ({ ...f, assigned_maintenance_id: val, assigned_maintenance_name: p?.name || '' }));
+      setUseCustomMaint(false);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!selectedRecord) return;
+    setSaving(true);
+    try {
+      const payload = { ...editForm };
+      if (payload.assigned_cleaner_id) {
+        payload.assigned_cleaner_name = housekeepers.find(h => h.id === payload.assigned_cleaner_id)?.name || '';
+      } else {
+        payload.assigned_cleaner_id = null;
+        payload.assigned_cleaner_name = '';
+      }
+      await updateCleaningRecord(selectedRecord.id, payload);
+      setEditModal(false);
+      onRefresh();
+      toast.success('Updated');
+    } catch {
+      toast.error('Failed to update');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const modalUnit = selectedRecord ? unitMap[selectedRecord.unit_id] : null;
+  const modalProp = selectedRecord ? propMap[selectedRecord.property_id] : null;
+  const hasMaintAssigned = editForm.assigned_maintenance_id || editForm.assigned_maintenance_name;
 
   return (
     <div>
-      <p className="text-xs text-muted-foreground mb-3">Showing checkouts in the next 60 days. Times and assignments are editable inline.</p>
-      <div className="border rounded-lg overflow-x-auto" data-testid="upcoming-cleanings-table">
-        <Table>
-          <TableHeader>
-            <TableRow className="bg-muted/50">
-              <TableHead className="text-[10px] font-semibold uppercase min-w-[90px]">Unit</TableHead>
-              <TableHead className="text-[10px] font-semibold uppercase min-w-[90px]">Check Out</TableHead>
-              <TableHead className="text-[10px] font-semibold uppercase min-w-[80px]">Out Time</TableHead>
-              <TableHead className="text-[10px] font-semibold uppercase min-w-[100px]">Next Check In</TableHead>
-              <TableHead className="text-[10px] font-semibold uppercase min-w-[80px]">In Time</TableHead>
-              <TableHead className="text-[10px] font-semibold uppercase min-w-[80px]">Clean Time</TableHead>
-              <TableHead className="text-[10px] font-semibold uppercase min-w-[130px]">Assigned Cleaner</TableHead>
-              <TableHead className="text-[10px] font-semibold uppercase min-w-[60px]">Done</TableHead>
-              <TableHead className="text-[10px] font-semibold uppercase min-w-[120px]">Notes</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {records.length === 0 ? (
-              <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground text-sm">No upcoming cleanings</TableCell></TableRow>
-            ) : records.map(r => {
-              const unit = unitMap[r.unit_id];
-              const prop = propMap[r.property_id];
-              return (
-                <TableRow key={r.id} className={`${r.confirmed ? 'bg-emerald-50/50' : ''}`} data-testid="cleaning-record-row">
-                  <TableCell className="text-xs font-medium">
-                    {prop?.name ? <span className="text-muted-foreground">{prop.name} </span> : null}
-                    U{unit?.unit_number || '?'}
-                    <br /><span className="text-[10px] text-muted-foreground">{r.tenant_name}</span>
-                  </TableCell>
-                  <TableCell className="text-xs tabular-nums font-medium">{r.check_out_date}</TableCell>
-                  <TableCell>
-                    <Input type="time" defaultValue={r.check_out_time || ''} className="h-7 text-xs w-20 px-1"
-                      onBlur={e => { if (e.target.value !== (r.check_out_time || '')) handleFieldChange(r.id, 'check_out_time', e.target.value); }} />
-                  </TableCell>
-                  <TableCell className="text-xs tabular-nums">
-                    {r.next_check_in_date ? (
-                      <div>
-                        <span className="font-medium text-emerald-700">{r.next_check_in_date}</span>
-                        <br /><span className="text-[10px] text-muted-foreground">{r.next_check_in_tenant_name}</span>
+      <p className="text-xs text-muted-foreground mb-4">
+        Upcoming checkouts in the next 60 days. Click any card to edit details.
+      </p>
+
+      {records.length === 0 ? (
+        <div className="text-center py-12 text-muted-foreground text-sm border rounded-xl bg-muted/20">
+          No upcoming cleanings
+        </div>
+      ) : (
+        <div className="space-y-2" data-testid="upcoming-cleanings-list">
+          {records.map((r, idx) => {
+            const u = unitMap[r.unit_id];
+            const p = propMap[r.property_id];
+            const altBg = idx % 2 === 0 ? 'bg-card' : 'bg-muted/20';
+            const hasMaint = !!(r.assigned_maintenance_name);
+
+            return (
+              <div
+                key={r.id}
+                className={`group border rounded-xl px-4 py-3.5 cursor-pointer hover:shadow-md transition-shadow ${altBg} ${r.confirmed ? 'border-emerald-200' : ''}`}
+                onClick={() => openEdit(r)}
+                data-testid="cleaning-card"
+              >
+                <div className="flex items-start gap-4">
+                  {/* Left: Unit + Guest */}
+                  <div className="w-14 flex-shrink-0">
+                    <p className="font-heading font-bold text-xl leading-none tabular-nums">
+                      {u?.unit_number || '?'}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5 leading-tight">{r.tenant_name}</p>
+                    {p && (
+                      <p className="text-[10px] text-muted-foreground/60 mt-0.5 leading-tight">{p.name}</p>
+                    )}
+                  </div>
+
+                  {/* Middle: Dates + details */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-sm">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Out</span>
+                        <span className="font-medium">{formatShortDate(r.check_out_date)}</span>
+                        {r.check_out_time && (
+                          <span className="text-muted-foreground text-xs">{r.check_out_time}</span>
+                        )}
                       </div>
-                    ) : <span className="text-muted-foreground italic">None</span>}
-                  </TableCell>
-                  <TableCell>
-                    <Input type="time" defaultValue={r.check_in_time || ''} className="h-7 text-xs w-20 px-1"
-                      onBlur={e => { if (e.target.value !== (r.check_in_time || '')) handleFieldChange(r.id, 'check_in_time', e.target.value); }} />
-                  </TableCell>
-                  <TableCell>
-                    <Input type="time" defaultValue={r.cleaning_time || ''} className="h-7 text-xs w-20 px-1"
-                      onBlur={e => { if (e.target.value !== (r.cleaning_time || '')) handleFieldChange(r.id, 'cleaning_time', e.target.value); }} />
-                  </TableCell>
-                  <TableCell>
-                    <Select value={r.assigned_cleaner_id || '_none'} onValueChange={v => handleFieldChange(r.id, 'assigned_cleaner_id', v === '_none' ? null : v)}>
-                      <SelectTrigger className="h-7 text-xs w-28 px-1"><SelectValue placeholder="Assign" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="_none">Unassigned</SelectItem>
-                        {housekeepers.map(h => <SelectItem key={h.id} value={h.id}>{h.name}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <Checkbox checked={r.confirmed || false} onCheckedChange={v => handleFieldChange(r.id, 'confirmed', v)}
-                      className="h-4 w-4" data-testid="cleaning-confirmed-checkbox" />
-                  </TableCell>
-                  <TableCell>
-                    <Input defaultValue={r.notes || ''} className="h-7 text-xs w-28 px-1" placeholder="Notes"
-                      onBlur={e => { if (e.target.value !== (r.notes || '')) handleFieldChange(r.id, 'notes', e.target.value); }} />
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
-      </div>
+
+                      {r.next_check_in_date && (
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">In</span>
+                          <span className="font-medium">{formatShortDate(r.next_check_in_date)}</span>
+                          {r.check_in_time && (
+                            <span className="text-muted-foreground text-xs">{r.check_in_time}</span>
+                          )}
+                        </div>
+                      )}
+
+                      {r.cleaning_time && (
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Clean</span>
+                          <span>{r.cleaning_time}</span>
+                        </div>
+                      )}
+
+                      {r.assigned_cleaner_name && (
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Cleaner</span>
+                          <span>{r.assigned_cleaner_name}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {hasMaint && (
+                      <div className="mt-1.5 inline-flex items-center gap-1.5 text-xs text-amber-700 bg-amber-50 border border-amber-100 px-2.5 py-1 rounded-md">
+                        <Wrench className="h-3 w-3 flex-shrink-0" />
+                        <span className="font-medium">{r.assigned_maintenance_name}</span>
+                        {r.maintenance_note && (
+                          <span className="text-amber-600">— {r.maintenance_note}</span>
+                        )}
+                      </div>
+                    )}
+
+                    {r.notes && (
+                      <p className="text-sm text-muted-foreground mt-1.5 line-clamp-2">{r.notes}</p>
+                    )}
+                  </div>
+
+                  {/* Right: Status badge */}
+                  <div className="flex-shrink-0" onClick={e => e.stopPropagation()}>
+                    <span className={`text-xs px-2 py-0.5 rounded-full border ${
+                      r.confirmed
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        : 'bg-gray-50 text-gray-500 border-gray-200'
+                    }`}>
+                      {r.confirmed ? 'Done' : 'Pending'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Edit Modal */}
+      <Dialog open={editModal} onOpenChange={setEditModal}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {modalUnit ? `Unit ${modalUnit.unit_number}` : 'Cleaning Details'}
+              {modalProp && (
+                <span className="text-sm font-normal text-muted-foreground ml-2">— {modalProp.name}</span>
+              )}
+            </DialogTitle>
+            <DialogDescription>
+              {selectedRecord?.tenant_name}
+              {selectedRecord?.check_out_date && ` · Checkout: ${formatShortDate(selectedRecord.check_out_date)}`}
+              {selectedRecord?.next_check_in_date && ` → Check-in: ${formatShortDate(selectedRecord.next_check_in_date)}`}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-3 py-2">
+            <div className="grid grid-cols-3 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Checkout Time</Label>
+                <Input
+                  type="time"
+                  value={editForm.check_out_time || ''}
+                  onChange={e => setEditForm(f => ({ ...f, check_out_time: e.target.value }))}
+                  className="text-sm"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Check-in Time</Label>
+                <Input
+                  type="time"
+                  value={editForm.check_in_time || ''}
+                  onChange={e => setEditForm(f => ({ ...f, check_in_time: e.target.value }))}
+                  className="text-sm"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Cleaning Time</Label>
+                <Input
+                  type="time"
+                  value={editForm.cleaning_time || ''}
+                  onChange={e => setEditForm(f => ({ ...f, cleaning_time: e.target.value }))}
+                  className="text-sm"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <Label>Assigned Cleaner</Label>
+              <Select
+                value={editForm.assigned_cleaner_id || '_none'}
+                onValueChange={v => setEditForm(f => ({ ...f, assigned_cleaner_id: v === '_none' ? null : v }))}
+              >
+                <SelectTrigger data-testid="hk-edit-cleaner-select">
+                  <SelectValue placeholder="Unassigned" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="_none">Unassigned</SelectItem>
+                  {housekeepers.map(h => (
+                    <SelectItem key={h.id} value={h.id}>{h.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Assign Maintenance Person</Label>
+              <Select
+                value={useCustomMaint ? '_custom' : (editForm.assigned_maintenance_id || '_none')}
+                onValueChange={handleMaintSelect}
+              >
+                <SelectTrigger data-testid="hk-edit-maintenance-select">
+                  <SelectValue placeholder="None" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="_none">None</SelectItem>
+                  {maintenancePersonnel.map(p => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.name}{p.role ? ` — ${p.role}` : ''}
+                    </SelectItem>
+                  ))}
+                  <SelectItem value="_custom">+ Custom person...</SelectItem>
+                </SelectContent>
+              </Select>
+              {useCustomMaint && (
+                <Input
+                  className="mt-1 text-sm"
+                  value={editForm.assigned_maintenance_name || ''}
+                  placeholder="Enter maintenance person name"
+                  onChange={e => setEditForm(f => ({ ...f, assigned_maintenance_name: e.target.value }))}
+                  data-testid="hk-custom-maint-input"
+                />
+              )}
+            </div>
+
+            {hasMaintAssigned && (
+              <div className="space-y-1">
+                <Label>Maintenance Note</Label>
+                <Input
+                  value={editForm.maintenance_note || ''}
+                  onChange={e => setEditForm(f => ({ ...f, maintenance_note: e.target.value }))}
+                  placeholder="e.g. Check kitchen faucet"
+                  data-testid="hk-maint-note-input"
+                />
+              </div>
+            )}
+
+            <div className="space-y-1">
+              <Label>Notes</Label>
+              <Textarea
+                value={editForm.notes || ''}
+                onChange={e => setEditForm(f => ({ ...f, notes: e.target.value }))}
+                rows={3}
+                placeholder="Cleaning notes..."
+              />
+            </div>
+
+            <div className="flex items-center gap-2 pt-1">
+              <Checkbox
+                id="hk-confirmed"
+                checked={editForm.confirmed || false}
+                onCheckedChange={v => setEditForm(f => ({ ...f, confirmed: v }))}
+                data-testid="cleaning-confirmed-checkbox"
+              />
+              <Label htmlFor="hk-confirmed" className="cursor-pointer">Mark as Done</Label>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditModal(false)}>Cancel</Button>
+            <Button onClick={handleSave} disabled={saving} data-testid="hk-edit-save-btn">
+              {saving ? 'Saving...' : 'Save'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -188,14 +432,17 @@ const emptyHkForm = { name: '', contact: '', availability: '', preference: '', p
 function HousekeepersTab({ housekeepers, showArchived, setShowArchived, onRefresh }) {
   const [dialog, setDialog] = useState(false);
   const [editing, setEditing] = useState(null);
-  const [form, setForm] = useState(emptyHkForm);
+  const [form, setForm] = useState({ ...emptyHkForm });
   const [saving, setSaving] = useState(false);
 
   const openCreate = () => { setEditing(null); setForm({ ...emptyHkForm }); setDialog(true); };
   const openEdit = (h) => {
     setEditing(h);
-    setForm({ name: h.name, contact: h.contact || '', availability: h.availability || '',
-      preference: h.preference || '', pay: h.pay || '', notes: h.notes || '', is_archived: h.is_archived || false });
+    setForm({
+      name: h.name, contact: h.contact || '', availability: h.availability || '',
+      preference: h.preference || '', pay: h.pay || '', notes: h.notes || '',
+      is_archived: h.is_archived || false
+    });
     setDialog(true);
   };
 
@@ -205,14 +452,21 @@ function HousekeepersTab({ housekeepers, showArchived, setShowArchived, onRefres
     try {
       if (editing) { await updateHousekeeper(editing.id, form); toast.success('Updated'); }
       else { await createHousekeeper(form); toast.success('Created'); }
-      setDialog(false); onRefresh();
-    } catch (e) { toast.error(e.response?.data?.detail || 'Failed'); }
-    finally { setSaving(false); }
+      setDialog(false);
+      onRefresh();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Failed');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleArchive = async (h) => {
-    try { await updateHousekeeper(h.id, { ...h, is_archived: !h.is_archived }); toast.success(h.is_archived ? 'Restored' : 'Archived'); onRefresh(); }
-    catch { toast.error('Failed'); }
+    try {
+      await updateHousekeeper(h.id, { ...h, is_archived: !h.is_archived });
+      toast.success(h.is_archived ? 'Restored' : 'Archived');
+      onRefresh();
+    } catch { toast.error('Failed'); }
   };
 
   const handleDelete = async (id) => {
@@ -226,72 +480,48 @@ function HousekeepersTab({ housekeepers, showArchived, setShowArchived, onRefres
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <Button size="sm" variant={showArchived ? 'secondary' : 'outline'} className="text-xs h-7" onClick={() => setShowArchived(!showArchived)}>
-            <Archive className="h-3 w-3 mr-1" />{showArchived ? 'Hide' : 'Show'} Archived
-          </Button>
-        </div>
-        <Button onClick={openCreate} data-testid="hk-add-btn"><Plus className="h-4 w-4 mr-1" />Add Housekeeper</Button>
+      <div className="flex items-center justify-between mb-4">
+        <Button
+          size="sm"
+          variant={showArchived ? 'secondary' : 'outline'}
+          className="text-xs h-8"
+          onClick={() => setShowArchived(!showArchived)}
+        >
+          <Archive className="h-3 w-3 mr-1" />{showArchived ? 'Hide' : 'Show'} Archived
+        </Button>
+        <Button onClick={openCreate} data-testid="hk-add-btn">
+          <Plus className="h-4 w-4 mr-1" />Add Housekeeper
+        </Button>
       </div>
 
-      <div className="border rounded-lg overflow-hidden" data-testid="housekeepers-table">
-        <Table>
-          <TableHeader>
-            <TableRow className="bg-muted/50">
-              <TableHead className="text-[10px] font-semibold uppercase">Name</TableHead>
-              <TableHead className="text-[10px] font-semibold uppercase">Contact</TableHead>
-              <TableHead className="text-[10px] font-semibold uppercase">Availability</TableHead>
-              <TableHead className="text-[10px] font-semibold uppercase">Preference</TableHead>
-              <TableHead className="text-[10px] font-semibold uppercase">Pay</TableHead>
-              <TableHead className="text-[10px] font-semibold uppercase">Notes</TableHead>
-              <TableHead className="text-[10px] font-semibold uppercase w-24">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {active.length === 0 && !showArchived ? (
-              <TableRow><TableCell colSpan={7} className="text-center py-6 text-muted-foreground text-sm">No housekeepers added</TableCell></TableRow>
-            ) : null}
-            {active.map(h => (
-              <TableRow key={h.id} className="hover:bg-muted/30" data-testid="housekeeper-row">
-                <TableCell className="text-xs font-medium">{h.name}</TableCell>
-                <TableCell className="text-xs">{h.contact || '-'}</TableCell>
-                <TableCell className="text-xs">{h.availability || '-'}</TableCell>
-                <TableCell className="text-xs">{h.preference || '-'}</TableCell>
-                <TableCell className="text-xs">{h.pay || '-'}</TableCell>
-                <TableCell className="text-xs max-w-[150px] truncate">{h.notes || '-'}</TableCell>
-                <TableCell>
-                  <div className="flex gap-0.5">
-                    <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => openEdit(h)}><Pencil className="h-3 w-3" /></Button>
-                    <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => handleArchive(h)}><Archive className="h-3 w-3" /></Button>
-                    <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-destructive" onClick={() => handleDelete(h.id)}><Trash2 className="h-3 w-3" /></Button>
-                  </div>
-                </TableCell>
-              </TableRow>
+      {active.length === 0 && !showArchived && (
+        <div className="text-center py-12 text-muted-foreground text-sm border rounded-xl bg-muted/20">
+          No housekeepers added yet
+        </div>
+      )}
+
+      <div className="space-y-2" data-testid="housekeepers-list">
+        {active.map((h, idx) => (
+          <HousekeeperCard
+            key={h.id} housekeeper={h} idx={idx}
+            onEdit={() => openEdit(h)}
+            onArchive={() => handleArchive(h)}
+            onDelete={() => handleDelete(h.id)}
+          />
+        ))}
+        {showArchived && archived.length > 0 && (
+          <>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground pt-2 pb-1 px-1">Archived</p>
+            {archived.map((h, idx) => (
+              <HousekeeperCard
+                key={h.id} housekeeper={h} idx={idx} isArchived
+                onEdit={() => openEdit(h)}
+                onArchive={() => handleArchive(h)}
+                onDelete={() => handleDelete(h.id)}
+              />
             ))}
-            {showArchived && archived.length > 0 && (
-              <>
-                <TableRow><TableCell colSpan={7} className="text-[10px] font-semibold uppercase bg-muted/30 py-1 px-3">Archived</TableCell></TableRow>
-                {archived.map(h => (
-                  <TableRow key={h.id} className="bg-stone-50/50 opacity-70" data-testid="housekeeper-archived-row">
-                    <TableCell className="text-xs">{h.name}</TableCell>
-                    <TableCell className="text-xs">{h.contact || '-'}</TableCell>
-                    <TableCell className="text-xs">{h.availability || '-'}</TableCell>
-                    <TableCell className="text-xs">{h.preference || '-'}</TableCell>
-                    <TableCell className="text-xs">{h.pay || '-'}</TableCell>
-                    <TableCell className="text-xs">{h.notes || '-'}</TableCell>
-                    <TableCell>
-                      <div className="flex gap-0.5">
-                        <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => handleArchive(h)} title="Restore"><Archive className="h-3 w-3" /></Button>
-                        <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-destructive" onClick={() => handleDelete(h.id)}><Trash2 className="h-3 w-3" /></Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </>
-            )}
-          </TableBody>
-        </Table>
+          </>
+        )}
       </div>
 
       <Dialog open={dialog} onOpenChange={setDialog}>
@@ -302,19 +532,39 @@ function HousekeepersTab({ housekeepers, showArchived, setShowArchived, onRefres
           </DialogHeader>
           <div className="grid gap-3 py-3">
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1"><Label>Name *</Label><Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} data-testid="hk-name-input" /></div>
-              <div className="space-y-1"><Label>Contact</Label><Input value={form.contact} onChange={e => setForm({ ...form, contact: e.target.value })} /></div>
+              <div className="space-y-1">
+                <Label>Name *</Label>
+                <Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} data-testid="hk-name-input" />
+              </div>
+              <div className="space-y-1">
+                <Label>Contact</Label>
+                <Input value={form.contact} onChange={e => setForm({ ...form, contact: e.target.value })} />
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1"><Label>Availability</Label><Input value={form.availability} onChange={e => setForm({ ...form, availability: e.target.value })} placeholder="e.g. Mon-Fri" /></div>
-              <div className="space-y-1"><Label>Preference</Label><Input value={form.preference} onChange={e => setForm({ ...form, preference: e.target.value })} /></div>
+              <div className="space-y-1">
+                <Label>Availability</Label>
+                <Input value={form.availability} onChange={e => setForm({ ...form, availability: e.target.value })} placeholder="e.g. Mon-Fri" />
+              </div>
+              <div className="space-y-1">
+                <Label>Preference</Label>
+                <Input value={form.preference} onChange={e => setForm({ ...form, preference: e.target.value })} />
+              </div>
             </div>
-            <div className="space-y-1"><Label>Pay</Label><Input value={form.pay} onChange={e => setForm({ ...form, pay: e.target.value })} placeholder="e.g. $100/cleaning" /></div>
-            <div className="space-y-1"><Label>Notes</Label><Textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} rows={2} /></div>
+            <div className="space-y-1">
+              <Label>Pay</Label>
+              <Input value={form.pay} onChange={e => setForm({ ...form, pay: e.target.value })} placeholder="e.g. $100/cleaning" />
+            </div>
+            <div className="space-y-1">
+              <Label>Notes</Label>
+              <Textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} rows={2} />
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialog(false)}>Cancel</Button>
-            <Button onClick={handleSave} disabled={saving} data-testid="hk-save-btn">{saving ? 'Saving...' : editing ? 'Update' : 'Add'}</Button>
+            <Button onClick={handleSave} disabled={saving} data-testid="hk-save-btn">
+              {saving ? 'Saving...' : editing ? 'Update' : 'Add'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -322,20 +572,60 @@ function HousekeepersTab({ housekeepers, showArchived, setShowArchived, onRefres
   );
 }
 
+function HousekeeperCard({ housekeeper: h, idx, isArchived, onEdit, onArchive, onDelete }) {
+  return (
+    <div
+      className={`group border rounded-xl px-4 py-3.5 ${idx % 2 === 0 ? 'bg-card' : 'bg-muted/20'} ${isArchived ? 'opacity-60' : ''} hover:shadow-sm transition-shadow`}
+      data-testid="housekeeper-row"
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex-1 min-w-0">
+          <p className="font-medium text-sm">{h.name}</p>
+          <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-1">
+            {h.contact && <span className="text-xs text-muted-foreground">{h.contact}</span>}
+            {h.availability && <span className="text-xs text-muted-foreground">Avail: {h.availability}</span>}
+            {h.pay && <span className="text-xs text-muted-foreground">Pay: {h.pay}</span>}
+            {h.preference && <span className="text-xs text-muted-foreground">Pref: {h.preference}</span>}
+          </div>
+          {h.notes && <p className="text-xs text-muted-foreground mt-1">{h.notes}</p>}
+        </div>
+        <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={onEdit}>
+            <Pencil className="h-3.5 w-3.5" />
+          </Button>
+          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={onArchive}>
+            <Archive className="h-3.5 w-3.5" />
+          </Button>
+          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive hover:text-destructive" onClick={onDelete}>
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ========== HOUSEKEEPING LEADS TAB ========== */
-const emptyLeadForm = { name: '', contact: '', notes: '', call_time: '', interview_pay: '', trial: '', additional_notes: '', is_archived: false };
+const emptyLeadForm = {
+  name: '', contact: '', notes: '', call_time: '',
+  interview_pay: '', trial: '', additional_notes: '', is_archived: false
+};
 
 function HousekeepingLeadsTab({ leads, showArchived, setShowArchived, onRefresh }) {
   const [dialog, setDialog] = useState(false);
   const [editing, setEditing] = useState(null);
-  const [form, setForm] = useState(emptyLeadForm);
+  const [form, setForm] = useState({ ...emptyLeadForm });
   const [saving, setSaving] = useState(false);
 
   const openCreate = () => { setEditing(null); setForm({ ...emptyLeadForm }); setDialog(true); };
   const openEdit = (l) => {
     setEditing(l);
-    setForm({ name: l.name, contact: l.contact || '', notes: l.notes || '', call_time: l.call_time || '',
-      interview_pay: l.interview_pay || '', trial: l.trial || '', additional_notes: l.additional_notes || '', is_archived: l.is_archived || false });
+    setForm({
+      name: l.name, contact: l.contact || '', notes: l.notes || '',
+      call_time: l.call_time || '', interview_pay: l.interview_pay || '',
+      trial: l.trial || '', additional_notes: l.additional_notes || '',
+      is_archived: l.is_archived || false
+    });
     setDialog(true);
   };
 
@@ -345,14 +635,21 @@ function HousekeepingLeadsTab({ leads, showArchived, setShowArchived, onRefresh 
     try {
       if (editing) { await updateHousekeepingLead(editing.id, form); toast.success('Updated'); }
       else { await createHousekeepingLead(form); toast.success('Created'); }
-      setDialog(false); onRefresh();
-    } catch (e) { toast.error(e.response?.data?.detail || 'Failed'); }
-    finally { setSaving(false); }
+      setDialog(false);
+      onRefresh();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Failed');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleArchive = async (l) => {
-    try { await updateHousekeepingLead(l.id, { ...l, is_archived: !l.is_archived }); toast.success(l.is_archived ? 'Restored' : 'Archived'); onRefresh(); }
-    catch { toast.error('Failed'); }
+    try {
+      await updateHousekeepingLead(l.id, { ...l, is_archived: !l.is_archived });
+      toast.success(l.is_archived ? 'Restored' : 'Archived');
+      onRefresh();
+    } catch { toast.error('Failed'); }
   };
 
   const handleDelete = async (id) => {
@@ -366,72 +663,48 @@ function HousekeepingLeadsTab({ leads, showArchived, setShowArchived, onRefresh 
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <Button size="sm" variant={showArchived ? 'secondary' : 'outline'} className="text-xs h-7" onClick={() => setShowArchived(!showArchived)}>
-            <Archive className="h-3 w-3 mr-1" />{showArchived ? 'Hide' : 'Show'} Archived
-          </Button>
-        </div>
-        <Button onClick={openCreate} data-testid="hk-lead-add-btn"><Plus className="h-4 w-4 mr-1" />Add Lead</Button>
+      <div className="flex items-center justify-between mb-4">
+        <Button
+          size="sm"
+          variant={showArchived ? 'secondary' : 'outline'}
+          className="text-xs h-8"
+          onClick={() => setShowArchived(!showArchived)}
+        >
+          <Archive className="h-3 w-3 mr-1" />{showArchived ? 'Hide' : 'Show'} Archived
+        </Button>
+        <Button onClick={openCreate} data-testid="hk-lead-add-btn">
+          <Plus className="h-4 w-4 mr-1" />Add Lead
+        </Button>
       </div>
 
-      <div className="border rounded-lg overflow-hidden" data-testid="hk-leads-table">
-        <Table>
-          <TableHeader>
-            <TableRow className="bg-muted/50">
-              <TableHead className="text-[10px] font-semibold uppercase">Name</TableHead>
-              <TableHead className="text-[10px] font-semibold uppercase">Contact</TableHead>
-              <TableHead className="text-[10px] font-semibold uppercase">Call Time</TableHead>
-              <TableHead className="text-[10px] font-semibold uppercase">Interview Pay</TableHead>
-              <TableHead className="text-[10px] font-semibold uppercase">Trial</TableHead>
-              <TableHead className="text-[10px] font-semibold uppercase">Notes</TableHead>
-              <TableHead className="text-[10px] font-semibold uppercase w-24">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {active.length === 0 && !showArchived ? (
-              <TableRow><TableCell colSpan={7} className="text-center py-6 text-muted-foreground text-sm">No housekeeping leads</TableCell></TableRow>
-            ) : null}
-            {active.map(l => (
-              <TableRow key={l.id} className="hover:bg-muted/30" data-testid="hk-lead-row">
-                <TableCell className="text-xs font-medium">{l.name}</TableCell>
-                <TableCell className="text-xs">{l.contact || '-'}</TableCell>
-                <TableCell className="text-xs">{l.call_time || '-'}</TableCell>
-                <TableCell className="text-xs">{l.interview_pay || '-'}</TableCell>
-                <TableCell className="text-xs">{l.trial || '-'}</TableCell>
-                <TableCell className="text-xs max-w-[150px] truncate">{l.notes || '-'}</TableCell>
-                <TableCell>
-                  <div className="flex gap-0.5">
-                    <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => openEdit(l)}><Pencil className="h-3 w-3" /></Button>
-                    <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => handleArchive(l)}><Archive className="h-3 w-3" /></Button>
-                    <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-destructive" onClick={() => handleDelete(l.id)}><Trash2 className="h-3 w-3" /></Button>
-                  </div>
-                </TableCell>
-              </TableRow>
+      {active.length === 0 && !showArchived && (
+        <div className="text-center py-12 text-muted-foreground text-sm border rounded-xl bg-muted/20">
+          No housekeeping leads added
+        </div>
+      )}
+
+      <div className="space-y-2" data-testid="hk-leads-list">
+        {active.map((l, idx) => (
+          <LeadCard
+            key={l.id} lead={l} idx={idx}
+            onEdit={() => openEdit(l)}
+            onArchive={() => handleArchive(l)}
+            onDelete={() => handleDelete(l.id)}
+          />
+        ))}
+        {showArchived && archived.length > 0 && (
+          <>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground pt-2 pb-1 px-1">Archived</p>
+            {archived.map((l, idx) => (
+              <LeadCard
+                key={l.id} lead={l} idx={idx} isArchived
+                onEdit={() => openEdit(l)}
+                onArchive={() => handleArchive(l)}
+                onDelete={() => handleDelete(l.id)}
+              />
             ))}
-            {showArchived && archived.length > 0 && (
-              <>
-                <TableRow><TableCell colSpan={7} className="text-[10px] font-semibold uppercase bg-muted/30 py-1 px-3">Archived</TableCell></TableRow>
-                {archived.map(l => (
-                  <TableRow key={l.id} className="bg-stone-50/50 opacity-70" data-testid="hk-lead-archived-row">
-                    <TableCell className="text-xs">{l.name}</TableCell>
-                    <TableCell className="text-xs">{l.contact || '-'}</TableCell>
-                    <TableCell className="text-xs">{l.call_time || '-'}</TableCell>
-                    <TableCell className="text-xs">{l.interview_pay || '-'}</TableCell>
-                    <TableCell className="text-xs">{l.trial || '-'}</TableCell>
-                    <TableCell className="text-xs">{l.notes || '-'}</TableCell>
-                    <TableCell>
-                      <div className="flex gap-0.5">
-                        <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => handleArchive(l)}><Archive className="h-3 w-3" /></Button>
-                        <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-destructive" onClick={() => handleDelete(l.id)}><Trash2 className="h-3 w-3" /></Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </>
-            )}
-          </TableBody>
-        </Table>
+          </>
+        )}
       </div>
 
       <Dialog open={dialog} onOpenChange={setDialog}>
@@ -442,23 +715,79 @@ function HousekeepingLeadsTab({ leads, showArchived, setShowArchived, onRefresh 
           </DialogHeader>
           <div className="grid gap-3 py-3">
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1"><Label>Name *</Label><Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} data-testid="hk-lead-name-input" /></div>
-              <div className="space-y-1"><Label>Contact</Label><Input value={form.contact} onChange={e => setForm({ ...form, contact: e.target.value })} /></div>
+              <div className="space-y-1">
+                <Label>Name *</Label>
+                <Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} data-testid="hk-lead-name-input" />
+              </div>
+              <div className="space-y-1">
+                <Label>Contact</Label>
+                <Input value={form.contact} onChange={e => setForm({ ...form, contact: e.target.value })} />
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1"><Label>Call Time</Label><Input value={form.call_time} onChange={e => setForm({ ...form, call_time: e.target.value })} placeholder="e.g. 2pm" /></div>
-              <div className="space-y-1"><Label>Interview Pay</Label><Input value={form.interview_pay} onChange={e => setForm({ ...form, interview_pay: e.target.value })} /></div>
+              <div className="space-y-1">
+                <Label>Call Time</Label>
+                <Input value={form.call_time} onChange={e => setForm({ ...form, call_time: e.target.value })} placeholder="e.g. 2pm" />
+              </div>
+              <div className="space-y-1">
+                <Label>Interview Pay</Label>
+                <Input value={form.interview_pay} onChange={e => setForm({ ...form, interview_pay: e.target.value })} />
+              </div>
             </div>
-            <div className="space-y-1"><Label>Trial</Label><Input value={form.trial} onChange={e => setForm({ ...form, trial: e.target.value })} placeholder="e.g. Trial cleaning scheduled 3/15" /></div>
-            <div className="space-y-1"><Label>Notes</Label><Textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} rows={2} /></div>
-            <div className="space-y-1"><Label>Additional Notes</Label><Textarea value={form.additional_notes} onChange={e => setForm({ ...form, additional_notes: e.target.value })} rows={2} /></div>
+            <div className="space-y-1">
+              <Label>Trial</Label>
+              <Input value={form.trial} onChange={e => setForm({ ...form, trial: e.target.value })} placeholder="e.g. Trial cleaning scheduled 3/15" />
+            </div>
+            <div className="space-y-1">
+              <Label>Notes</Label>
+              <Textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} rows={2} />
+            </div>
+            <div className="space-y-1">
+              <Label>Additional Notes</Label>
+              <Textarea value={form.additional_notes} onChange={e => setForm({ ...form, additional_notes: e.target.value })} rows={2} />
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialog(false)}>Cancel</Button>
-            <Button onClick={handleSave} disabled={saving} data-testid="hk-lead-save-btn">{saving ? 'Saving...' : editing ? 'Update' : 'Add'}</Button>
+            <Button onClick={handleSave} disabled={saving} data-testid="hk-lead-save-btn">
+              {saving ? 'Saving...' : editing ? 'Update' : 'Add'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+function LeadCard({ lead: l, idx, isArchived, onEdit, onArchive, onDelete }) {
+  return (
+    <div
+      className={`group border rounded-xl px-4 py-3.5 ${idx % 2 === 0 ? 'bg-card' : 'bg-muted/20'} ${isArchived ? 'opacity-60' : ''} hover:shadow-sm transition-shadow`}
+      data-testid="hk-lead-row"
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex-1 min-w-0">
+          <p className="font-medium text-sm">{l.name}</p>
+          <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-1">
+            {l.contact && <span className="text-xs text-muted-foreground">{l.contact}</span>}
+            {l.call_time && <span className="text-xs text-muted-foreground">Call: {l.call_time}</span>}
+            {l.interview_pay && <span className="text-xs text-muted-foreground">Pay: {l.interview_pay}</span>}
+            {l.trial && <span className="text-xs text-muted-foreground">Trial: {l.trial}</span>}
+          </div>
+          {l.notes && <p className="text-xs text-muted-foreground mt-1">{l.notes}</p>}
+        </div>
+        <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={onEdit}>
+            <Pencil className="h-3.5 w-3.5" />
+          </Button>
+          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={onArchive}>
+            <Archive className="h-3.5 w-3.5" />
+          </Button>
+          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive hover:text-destructive" onClick={onDelete}>
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }

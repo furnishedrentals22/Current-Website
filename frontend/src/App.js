@@ -3,7 +3,7 @@ import '@/App.css';
 import { BrowserRouter, Routes, Route, NavLink, useLocation } from 'react-router-dom';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { Building2, Users, DollarSign, BarChart3, UserSearch, Calendar, Bell, FileText, StickyNote,
-  ChevronLeft, ChevronRight, ChevronDown, Menu, Info, Car, KeyRound, DoorOpen, Megaphone, Home, Settings, ArrowLeftRight, Brush, Wallet, ClipboardList } from 'lucide-react';
+  ChevronLeft, ChevronRight, ChevronDown, Menu, Info, Car, KeyRound, DoorOpen, Megaphone, Home, Settings, ArrowLeftRight, Brush, Wallet, ClipboardList, Wrench } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
@@ -27,6 +27,7 @@ import LoginInfoPage from '@/pages/LoginInfoPage';
 import MarketingPage from '@/pages/MarketingPage';
 import MoveInOutPage from '@/pages/MoveInOutPage';
 import HousekeepingPage from '@/pages/HousekeepingPage';
+import MaintenancePage from '@/pages/MaintenancePage';
 import DepositsPage from '@/pages/DepositsPage';
 import RentTrackingPage from '@/pages/RentTrackingPage';
 
@@ -78,6 +79,7 @@ const NAV_ITEMS = [
     children: [
       { path: '/ops/move-in-out', label: 'Move In / Out', icon: ArrowLeftRight, testId: 'sidebar-nav-move-in-out' },
       { path: '/ops/housekeeping', label: 'Housekeeping', icon: Brush, testId: 'sidebar-nav-housekeeping' },
+      { path: '/ops/maintenance', label: 'Maintenance', icon: Wrench, testId: 'sidebar-nav-maintenance' },
     ]
   },
   { path: '/notifications', label: 'Notifications', icon: Bell, testId: 'sidebar-nav-notifications' },
@@ -303,6 +305,7 @@ function App() {
             <Route path="/info/marketing" element={<MarketingPage />} />
             <Route path="/ops/move-in-out" element={<MoveInOutPage />} />
             <Route path="/ops/housekeeping" element={<HousekeepingPage />} />
+            <Route path="/ops/maintenance" element={<MaintenancePage />} />
             <Route path="/notifications" element={<NotificationsPage />} />
             <Route path="/features" element={<FeaturesPage />} />
           </Routes>

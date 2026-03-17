@@ -160,4 +160,16 @@ export const updateRentPayment = (tenantId, data, year, month) => api.put(`/rent
 // Notification Checklist
 export const updateNotificationChecklist = (id, key, checked) => api.put(`/notifications/${id}/checklist?key=${key}&checked=${checked}`).then(r => r.data);
 
+// Maintenance Personnel
+export const getMaintenancePersonnel = (params = {}) => api.get('/maintenance-personnel', { params }).then(r => r.data);
+export const createMaintenancePersonnel = (data) => api.post('/maintenance-personnel', data).then(r => r.data);
+export const updateMaintenancePersonnel = (id, data) => api.put(`/maintenance-personnel/${id}`, data).then(r => r.data);
+export const deleteMaintenancePersonnel = (id) => api.delete(`/maintenance-personnel/${id}`).then(r => r.data);
+
+// Maintenance Requests
+export const getMaintenanceRequests = (params = {}) => api.get('/maintenance-requests', { params }).then(r => r.data);
+export const createMaintenanceRequest = (data) => api.post('/maintenance-requests', data).then(r => r.data);
+export const updateMaintenanceRequest = (id, data) => api.put(`/maintenance-requests/${id}`, data).then(r => r.data);
+export const deleteMaintenanceRequest = (id) => api.delete(`/maintenance-requests/${id}`).then(r => r.data);
+
 export default api;
