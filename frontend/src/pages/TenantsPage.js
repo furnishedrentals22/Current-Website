@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { getTenants, createTenant, updateTenant, deleteTenant, confirmMoveout, getPendingMoveouts, getProperties, getUnits } from '@/lib/api';
+import { getTenants, createTenant, updateTenant, deleteTenant, confirmMoveout, getPendingMoveouts, getProperties, getUnits, getMarlinsDecals } from '@/lib/api';
 import { useNotifications } from '@/App';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -25,6 +25,7 @@ export default function TenantsPage() {
   const [allUnits, setAllUnits] = useState([]);
   const [loading, setLoading] = useState(true);
   const [pendingMoveouts, setPendingMoveouts] = useState([]);
+  const [marlinsDecals, setMarlinsDecals] = useState([]);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState(null);
@@ -49,11 +50,12 @@ export default function TenantsPage() {
 
   const fetchData = useCallback(async () => {
     try {
-      const [t, p, u, pm] = await Promise.all([getTenants(), getProperties(), getUnits(), getPendingMoveouts()]);
+      const [t, p, u, pm, decals] = await Promise.all([getTenants(), getProperties(), getUnits(), getPendingMoveouts(), getMarlinsDecals()]);
       setTenants(t);
       setProperties(p);
       setAllUnits(u);
       setPendingMoveouts(pm);
+      setMarlinsDecals(decals);
     } catch {
       toast.error('Failed to load data');
     } finally {
@@ -147,7 +149,7 @@ export default function TenantsPage() {
       deposit_return_date: tenant.deposit_return_date || '',
       deposit_return_amount: tenant.deposit_return_amount || '',
       deposit_return_method: tenant.deposit_return_method || '',
-      marlins_decal: tenant.marlins_decal || false
+      marlins_decal_id: tenant.marlins_decal_id || null
     });
     setDialogOpen(true);
   };
@@ -622,6 +624,7 @@ export default function TenantsPage() {
         propMap={propMap}
         unitMap={unitMap}
         onEdit={openEdit}
+        marlinsDecals={marlinsDecals}
       />
 
       <TenantFormDialog
@@ -635,6 +638,7 @@ export default function TenantsPage() {
         sortedProperties={sortedProperties}
         filteredUnits={filteredUnits}
         fetchData={fetchData}
+        marlinsDecals={marlinsDecals}
       />
 
       <TenantDeleteDialog

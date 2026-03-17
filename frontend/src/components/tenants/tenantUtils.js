@@ -69,5 +69,5 @@ export const emptyForm = {
   payment_method: '', rent_due_date: '',
   moveout_confirmed: false, moveout_confirmed_date: null,
   deposit_return_date: '', deposit_return_amount: '', deposit_return_method: '',
-  marlins_decal: false
+  marlins_decal_id: null
 };

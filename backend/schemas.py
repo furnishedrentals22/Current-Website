@@ -55,7 +55,13 @@ class TenantCreate(BaseModel):
     deposit_return_amount: Optional[float] = None
     deposit_return_method: Optional[str] = ""
     misc_charges: List[Dict[str, Any]] = []
-    marlins_decal: bool = False
+    marlins_decal_id: Optional[str] = None
+
+
+class MarlinsDecalCreate(BaseModel):
+    property_id: str
+    decal_number: str
+    notes: Optional[str] = ""
 
 
 class MiscChargeCreate(BaseModel):

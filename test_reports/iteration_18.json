@@ -1,0 +1,72 @@
+{
+  "summary": "Batch 5 E2E testing: Vacancy bug fix (bounded gap when future tenant outside 90-day window) + Marlins Decal redesign (decal number dropdown instead of checkbox). All 17 backend tests passed and all frontend feature flows verified.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "TenantsPage - Current & Future tab",
+        "issues": [
+          "HTML hydration warnings in console: '<span> cannot be child of <tr/thead/tbody/table>'. These appear to come from the development visual editor overlay (x-file-name, x-ve-dynamic attributes on map-rendered table elements). Non-blocking and not production code errors."
+        ]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_batch5_decals_vacancy.py",
+    "/app/test_reports/pytest/batch5_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "core_logic.py find_upcoming_vacancies: fix is correctly implemented - for the 'after last tenant' case, `future_tenants_all = [t for t in tenants if t['move_in'] > last_out]` checks ALL tenants (not just window-relevant ones), so a future tenant beyond 90 days is found and the gap becomes bounded.",
+    "marlins_decals.py: Clean implementation. DELETE correctly un-assigns tenants via update_many before deleting the decal.",
+    "TenantFormDialog.js: isAssignedToOther check correctly compares d.assigned_tenant.id !== editing?.id (using optional chaining). This handles both create (editing=null) and edit (editing=tenant) cases.",
+    "Test Marlins Prop (69b99d5c2dc4f925a4cffb39) had no units in DB - backend tests created their own units dynamically. Unit 101 created for UI testing and cleaned up after."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_batch5_decals_vacancy.py"
+  ],
+  "success_rate": {
+    "backend": "100% (17/17 tests passed)",
+    "frontend": "100% (all feature flows verified)"
+  },
+  "seed_data_creation": "Created unit 101 for Test Marlins Prop (69b99d5c2dc4f925a4cffb39) for UI testing. Cleaned up after tests. TEST_UI_Marlins_Tenant created and cleaned up. Test decals (TEST-DEL-D etc.) created and cleaned up.",
+  "passed_tests": [
+    "Backend: Vacancy endpoint GET /api/vacancy returns 200",
+    "Backend: upcoming_vacancies key present and is a list",
+    "Backend: Vacancy bounded gap - tenant A leaves within 90d, tenant B starts after 90d shows 'Vacant X to Y' NOT 'Vacant from X forward'",
+    "Backend: Vacancy 'forward' message for unit with no future tenant",
+    "Backend: GET /api/marlins-decals returns 200 and list",
+    "Backend: GET /api/marlins-decals?property_id filters correctly",
+    "Backend: D-001 pre-seeded for property 69b99d5c2dc4f925a4cffb39",
+    "Backend: All decals have assigned_tenant field (possibly null)",
+    "Backend: POST /api/marlins-decals creates decal and returns with assigned_tenant=null",
+    "Backend: Created decal appears in subsequent GET",
+    "Backend: DELETE /api/marlins-decals/{id} returns {message: 'Decal deleted'}",
+    "Backend: DELETE nonexistent decal returns 404",
+    "Backend: DELETE decal clears marlins_decal_id on assigned tenant",
+    "Backend: Tenant created with marlins_decal_id saves and persists",
+    "Backend: PUT tenant can update marlins_decal_id to value and to null",
+    "Backend: GET /api/marlins-decals assigned_tenant enrichment shows tenant name and unit_id",
+    "Frontend: Properties page loads with Decal Assignments section (blue shield icon) for Marlins properties",
+    "Frontend: Clicking Decal Assignments expands and shows input + Add button",
+    "Frontend: D-001 shows as 'Available' in decals list",
+    "Frontend: Tenant create dialog - no decal dropdown before property selection",
+    "Frontend: Tenant create dialog - Marlins Decal Assignment dropdown appears after selecting Test Marlins Prop",
+    "Frontend: D-001 shows as '— Available' in decal dropdown",
+    "Frontend: Selecting D-001 and saving tenant works",
+    "Frontend: D-001 shows tenant name + Unit 101 in Properties Decal Assignments section",
+    "Frontend: TenantDetailDialog shows 'Marlins Decal: D-001' badge",
+    "Frontend: Edit tenant dialog shows D-001 pre-selected as '— Currently yours'",
+    "Frontend: Selecting 'No decal assigned' and saving clears decal",
+    "Frontend: D-001 returns to 'Available' after clearing tenant assignment",
+    "Frontend: Delete decal from Properties page removes it + shows 'Decal deleted' toast"
+  ],
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Batch 5 fully tested. (1) Vacancy bug fix: find_upcoming_vacancies correctly shows bounded gap 'Vacant X to Y' when future tenant is outside 90-day window. (2) Marlins Decals: full CRUD + tenant assignment lifecycle tested and working. Test Marlins Prop (69b99d5c2dc4f925a4cffb39) has D-001 available. No units remain on this property (unit 101 was cleaned up). Backend test file: /app/backend/tests/test_batch5_decals_vacancy.py (17 tests, all pass)."
+}

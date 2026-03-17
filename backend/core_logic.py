@@ -411,17 +411,32 @@ def find_upcoming_vacancies(
                 vacancy_start = max(last_move_out, from_date)
             else:
                 vacancy_start = max(unit.get('availability_start_date', from_date), from_date)
-            
+
             if vacancy_start < end_date:
-                vacancies.append({
-                    'property_name': unit.get('property_name', ''),
-                    'property_id': unit.get('property_id', ''),
-                    'unit_number': unit.get('unit_number', ''),
-                    'unit_id': unit.get('unit_id', ''),
-                    'vacancy_start': vacancy_start,
-                    'has_future_tenant': False,
-                    'message': f"Vacant from {vacancy_start.isoformat()} forward"
-                })
+                # Check for any future tenant (including beyond the window)
+                future_tenants_all = [t for t in tenants if t['move_in'] > vacancy_start]
+                if future_tenants_all:
+                    next_move_in = min(t['move_in'] for t in future_tenants_all)
+                    vacancies.append({
+                        'property_name': unit.get('property_name', ''),
+                        'property_id': unit.get('property_id', ''),
+                        'unit_number': unit.get('unit_number', ''),
+                        'unit_id': unit.get('unit_id', ''),
+                        'vacancy_start': vacancy_start,
+                        'has_future_tenant': True,
+                        'vacancy_end': next_move_in,
+                        'message': f"Vacant {vacancy_start.isoformat()} to {next_move_in.isoformat()}"
+                    })
+                else:
+                    vacancies.append({
+                        'property_name': unit.get('property_name', ''),
+                        'property_id': unit.get('property_id', ''),
+                        'unit_number': unit.get('unit_number', ''),
+                        'unit_id': unit.get('unit_id', ''),
+                        'vacancy_start': vacancy_start,
+                        'has_future_tenant': False,
+                        'message': f"Vacant from {vacancy_start.isoformat()} forward"
+                    })
         else:
             # Check gaps between consecutive tenants and after last tenant
             for i, tenant in enumerate(relevant_tenants):
@@ -458,17 +473,31 @@ def find_upcoming_vacancies(
                             'message': f"Vacant {gap_start.isoformat()} to {gap_end.isoformat()}"
                         })
                 else:
-                    # After last tenant
+                    # After last tenant — check for any future tenant (even beyond the window)
                     last_out = tenant['move_out']
                     if last_out < end_date:
-                        vacancies.append({
-                            'property_name': unit.get('property_name', ''),
-                            'property_id': unit.get('property_id', ''),
-                            'unit_number': unit.get('unit_number', ''),
-                            'unit_id': unit.get('unit_id', ''),
-                            'vacancy_start': last_out,
-                            'has_future_tenant': False,
-                            'message': f"Vacant from {last_out.isoformat()} forward"
-                        })
+                        future_tenants_all = [t for t in tenants if t['move_in'] > last_out]
+                        if future_tenants_all:
+                            next_move_in = min(t['move_in'] for t in future_tenants_all)
+                            vacancies.append({
+                                'property_name': unit.get('property_name', ''),
+                                'property_id': unit.get('property_id', ''),
+                                'unit_number': unit.get('unit_number', ''),
+                                'unit_id': unit.get('unit_id', ''),
+                                'vacancy_start': last_out,
+                                'has_future_tenant': True,
+                                'vacancy_end': next_move_in,
+                                'message': f"Vacant {last_out.isoformat()} to {next_move_in.isoformat()}"
+                            })
+                        else:
+                            vacancies.append({
+                                'property_name': unit.get('property_name', ''),
+                                'property_id': unit.get('property_id', ''),
+                                'unit_number': unit.get('unit_number', ''),
+                                'unit_id': unit.get('unit_id', ''),
+                                'vacancy_start': last_out,
+                                'has_future_tenant': False,
+                                'message': f"Vacant from {last_out.isoformat()} forward"
+                            })
     
     return vacancies

@@ -4,8 +4,12 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { CheckCircle2 } from 'lucide-react';
 
-export function TenantDetailDialog({ tenant, onClose, propMap, unitMap, onEdit }) {
+export function TenantDetailDialog({ tenant, onClose, propMap, unitMap, onEdit, marlinsDecals = [] }) {
   if (!tenant) return null;
+
+  const assignedDecal = tenant.marlins_decal_id
+    ? marlinsDecals.find(d => d.id === tenant.marlins_decal_id)
+    : null;
 
   return (
     <Dialog open={!!tenant} onOpenChange={onClose}>
@@ -157,11 +161,13 @@ export function TenantDetailDialog({ tenant, onClose, propMap, unitMap, onEdit }
             </>
           )}
 
-          {tenant.marlins_decal && (
+          {(tenant.marlins_decal_id || tenant.marlins_decal) && (
             <>
               <Separator />
               <div className="flex items-center gap-2">
-                <Badge className="text-xs bg-blue-50 text-blue-700 border border-blue-200">Marlins Decal Assigned</Badge>
+                <Badge className="text-xs bg-blue-50 text-blue-700 border border-blue-200">
+                  {assignedDecal ? `Marlins Decal: ${assignedDecal.decal_number}` : 'Marlins Decal Assigned'}
+                </Badge>
               </div>
             </>
           )}

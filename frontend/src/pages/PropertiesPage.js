@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { getProperties, createProperty, updateProperty, deleteProperty, getUnits, createUnit, updateUnit, deleteUnit } from '@/lib/api';
+import { useState, useEffect, useMemo } from 'react';
+import { getProperties, createProperty, updateProperty, deleteProperty, getUnits, createUnit, updateUnit, deleteUnit, getMarlinsDecals, createMarlinsDecal, deleteMarlinsDecal } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { Building2, Plus, Pencil, Trash2, X, ChevronDown, ChevronRight, Home, MapPin, User, Phone, Mail, PawPrint, Car, Info } from 'lucide-react';
+import { Building2, Plus, Pencil, Trash2, X, ChevronDown, ChevronRight, Home, MapPin, User, Phone, Mail, PawPrint, Car, Info, Shield } from 'lucide-react';
 import { toast } from 'sonner';
 
 const UNIT_SIZES = ['0/1', '1/1', '2/1', '2/2', '3/1', '3/2', '3/3', 'other'];
@@ -31,6 +31,7 @@ const emptyUnitForm = {
 export default function PropertiesPage() {
   const [properties, setProperties] = useState([]);
   const [unitsByProperty, setUnitsByProperty] = useState({});
+  const [decals, setDecals] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // Property dialog
@@ -49,11 +50,14 @@ export default function PropertiesPage() {
   // Expanded states
   const [expandedDetails, setExpandedDetails] = useState({});
   const [expandedUnits, setExpandedUnits] = useState({});
+  const [expandedDecals, setExpandedDecals] = useState({});
+  const [newDecalInput, setNewDecalInput] = useState({});
 
   const fetchData = async () => {
     try {
-      const [props, units] = await Promise.all([getProperties(), getUnits()]);
+      const [props, units, decalsData] = await Promise.all([getProperties(), getUnits(), getMarlinsDecals()]);
       setProperties(props);
+      setDecals(decalsData);
       const grouped = {};
       units.forEach(u => {
         if (!grouped[u.property_id]) grouped[u.property_id] = [];
@@ -69,10 +73,33 @@ export default function PropertiesPage() {
 
   useEffect(() => { fetchData(); }, []);
 
+  // Build flat unit map for decal assignment display
+  const unitMap = useMemo(() => {
+    const m = {};
+    Object.values(unitsByProperty).forEach(arr => arr.forEach(u => { m[u.id] = u; }));
+    return m;
+  }, [unitsByProperty]);
+
   const toggleDetails = (id) => setExpandedDetails(prev => ({ ...prev, [id]: !prev[id] }));
   const toggleUnits = (id) => setExpandedUnits(prev => ({ ...prev, [id]: !prev[id] }));
+  const toggleDecals = (id) => setExpandedDecals(prev => ({ ...prev, [id]: !prev[id] }));
 
-  // ---- Property CRUD ----
+  const addDecal = async (propId) => {
+    const num = (newDecalInput[propId] || '').trim();
+    if (!num) return;
+    try {
+      await createMarlinsDecal({ property_id: propId, decal_number: num });
+      setNewDecalInput(prev => ({ ...prev, [propId]: '' }));
+      fetchData();
+      toast.success('Decal added');
+    } catch { toast.error('Failed to add decal'); }
+  };
+
+  const handleDeleteDecal = async (decalId) => {
+    if (!window.confirm('Delete this decal? Any tenant assignments will be cleared.')) return;
+    try { await deleteMarlinsDecal(decalId); fetchData(); toast.success('Decal deleted'); }
+    catch { toast.error('Failed to delete decal'); }
+  };
   const openCreateProp = () => {
     setEditingProp(null);
     setPropForm(emptyPropertyForm);
@@ -253,6 +280,8 @@ export default function PropertiesPage() {
             const units = unitsByProperty[prop.id] || [];
             const isDetailsOpen = expandedDetails[prop.id];
             const isUnitsOpen = expandedUnits[prop.id];
+            const isDecalsOpen = expandedDecals[prop.id];
+            const propDecals = decals.filter(d => d.property_id === prop.id);
 
             return (
               <Card key={prop.id} className="overflow-hidden border-l-4 border-l-primary/30 shadow-sm" data-testid="properties-table-row">
@@ -470,13 +499,81 @@ export default function PropertiesPage() {
                     )}
                   </div>
                 )}
+
+                {/* Decal Assignments Section — only for Marlins Decal properties */}
+                {prop.marlins_decal_property && (
+                  <div className="border-t">
+                    <button
+                      className="w-full px-5 py-3 flex items-center justify-between bg-blue-50/60 hover:bg-blue-50 transition-colors"
+                      onClick={() => toggleDecals(prop.id)}
+                      data-testid={`decals-expand-${prop.id}`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <Shield className="h-4 w-4 text-blue-600" />
+                        <h3 className="text-sm font-semibold text-blue-800">Decal Assignments</h3>
+                        <span className="text-xs text-blue-600">({propDecals.length} decals)</span>
+                      </div>
+                      <ChevronRight className={`h-4 w-4 text-blue-600 transition-transform ${isDecalsOpen ? 'rotate-90' : ''}`} />
+                    </button>
+
+                    {isDecalsOpen && (
+                      <div className="px-5 py-4 space-y-3 bg-blue-50/20" data-testid={`decals-section-${prop.id}`}>
+                        <div className="flex gap-2">
+                          <Input
+                            placeholder="Decal number or ID..."
+                            value={newDecalInput[prop.id] || ''}
+                            onChange={e => setNewDecalInput(prev => ({ ...prev, [prop.id]: e.target.value }))}
+                            onKeyDown={e => e.key === 'Enter' && addDecal(prop.id)}
+                            className="flex-1 h-8 text-sm"
+                            data-testid={`decal-input-${prop.id}`}
+                          />
+                          <Button size="sm" className="h-8" onClick={() => addDecal(prop.id)} data-testid={`decal-add-btn-${prop.id}`}>
+                            <Plus className="h-3 w-3 mr-1" />Add
+                          </Button>
+                        </div>
+
+                        {propDecals.length === 0 ? (
+                          <p className="text-sm text-muted-foreground">No decals added yet. Enter a decal number above.</p>
+                        ) : (
+                          <div className="space-y-1.5">
+                            {propDecals.map(d => (
+                              <div key={d.id} className="flex items-center justify-between px-3 py-2 bg-white rounded-lg border text-sm" data-testid="decal-row">
+                                <div className="flex items-center gap-3">
+                                  <span className="font-mono font-semibold text-blue-800">{d.decal_number}</span>
+                                  {d.assigned_tenant ? (
+                                    <span className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                                      {d.assigned_tenant.name}
+                                      {unitMap[d.assigned_tenant.unit_id] && (
+                                        <span className="text-emerald-600 ml-1">
+                                          · Unit {unitMap[d.assigned_tenant.unit_id].unit_number}
+                                        </span>
+                                      )}
+                                    </span>
+                                  ) : (
+                                    <span className="text-xs text-muted-foreground">Available</span>
+                                  )}
+                                </div>
+                                <Button
+                                  variant="ghost" size="sm" className="h-6 w-6 p-0 text-destructive hover:text-destructive"
+                                  onClick={() => handleDeleteDecal(d.id)}
+                                  data-testid={`decal-delete-${d.id}`}
+                                >
+                                  <X className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
               </Card>
             );
           })}
         </div>
       )}
 
-      {/* Property Create/Edit Dialog */}
       <Dialog open={propDialogOpen} onOpenChange={setPropDialogOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>

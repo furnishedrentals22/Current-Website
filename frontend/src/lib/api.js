@@ -172,4 +172,9 @@ export const createMaintenanceRequest = (data) => api.post('/maintenance-request
 export const updateMaintenanceRequest = (id, data) => api.put(`/maintenance-requests/${id}`, data).then(r => r.data);
 export const deleteMaintenanceRequest = (id) => api.delete(`/maintenance-requests/${id}`).then(r => r.data);
 
+// Marlins Decals
+export const getMarlinsDecals = (params = {}) => api.get('/marlins-decals', { params }).then(r => r.data);
+export const createMarlinsDecal = (data) => api.post('/marlins-decals', data).then(r => r.data);
+export const deleteMarlinsDecal = (id) => api.delete(`/marlins-decals/${id}`).then(r => r.data);
+
 export default api;

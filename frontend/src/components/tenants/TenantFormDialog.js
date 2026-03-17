@@ -13,7 +13,7 @@ import { sortUnitsNumerically } from './tenantUtils';
 
 export function TenantFormDialog({
   open, onOpenChange, editing, form, setForm, handleSave, saving,
-  sortedProperties, filteredUnits, fetchData
+  sortedProperties, filteredUnits, fetchData, marlinsDecals = []
 }) {
   const nights = (() => {
     if (form.move_in_date && form.move_out_date) {
@@ -28,6 +28,7 @@ export function TenantFormDialog({
 
   const selectedProperty = sortedProperties.find(p => p.id === form.property_id);
   const isMarlinsProp = !!selectedProperty?.marlins_decal_property;
+  const propertyDecals = marlinsDecals.filter(d => d.property_id === form.property_id);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -209,16 +210,36 @@ export function TenantFormDialog({
           )}
 
           {isMarlinsProp && (
-            <div className="flex items-center gap-3 p-3 rounded-lg border bg-blue-50 border-blue-200">
-              <Checkbox
-                id="marlins-decal"
-                checked={form.marlins_decal || false}
-                onCheckedChange={v => setForm({ ...form, marlins_decal: !!v })}
-                data-testid="tenant-marlins-decal-checkbox"
-              />
-              <Label htmlFor="marlins-decal" className="cursor-pointer text-blue-800 font-medium">
-                Assign Marlins Decal to Tenant
-              </Label>
+            <div className="space-y-2 p-3 rounded-lg border bg-blue-50 border-blue-200">
+              <Label className="text-blue-800 font-medium text-sm">Marlins Decal Assignment</Label>
+              <Select
+                value={form.marlins_decal_id || '_none'}
+                onValueChange={v => setForm({ ...form, marlins_decal_id: v === '_none' ? null : v })}
+              >
+                <SelectTrigger data-testid="tenant-marlins-decal-select" className="bg-white">
+                  <SelectValue placeholder="No decal assigned" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="_none">No decal assigned</SelectItem>
+                  {propertyDecals.map(d => {
+                    const isAssignedToOther = d.assigned_tenant && d.assigned_tenant.id !== editing?.id;
+                    return (
+                      <SelectItem key={d.id} value={d.id} disabled={isAssignedToOther}>
+                        {d.decal_number}
+                        {isAssignedToOther
+                          ? ` (Assigned: ${d.assigned_tenant.name})`
+                          : d.assigned_tenant ? ' — Currently yours' : ' — Available'
+                        }
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+              {propertyDecals.length === 0 && (
+                <p className="text-xs text-blue-600 mt-1">
+                  No decals configured for this property yet. Add them from the Properties page.
+                </p>
+              )}
             </div>
           )}
         </div>
