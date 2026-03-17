@@ -119,6 +119,13 @@ components/
 - Fixed pre-existing `CollapsibleContent asChild` console warning in VacancyPage
 - 100% test pass rate (21/21 backend + all frontend flows)
 
+### Phase 9: Vacancy Bug Fix + Marlins Decal System (Feb 2026)
+- **Vacancy bug fix**: Unit with tenant leaving 4/1 and future tenant starting 6/21 (outside 90-day window) now correctly shows "Vacant 4/1 to 6/21" instead of "Vacant from 4/1 forward". Fixed `find_upcoming_vacancies` to check all tenants (not just window-relevant ones) for bounded gap calculation.
+- **Marlins Decal inventory system**: Each Marlins Decal property now manages a list of specific decal numbers. New backend router `marlins_decals.py` with GET/POST/DELETE. Decals shown in Properties page "Decal Assignments" expandable section.
+- **Tenant decal assignment**: Tenant form shows dropdown of available decals (not a checkbox). Decals assigned to other tenants are marked disabled. Clearing assignment returns decal to "Available". DELETE decal auto-clears tenant assignment.
+- **Decal Assignment view**: Properties page shows which tenant + unit holds each decal.
+- 100% test pass rate (17/17 backend + all frontend flows)
+
 ---
 
 ### P3 (Low / Backlog)
