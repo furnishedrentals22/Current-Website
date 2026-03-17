@@ -24,29 +24,32 @@ Built with React (frontend) + FastAPI (backend) + MongoDB.
 
 ### Backend (`/app/backend/`)
 ```
-main.py            # Thin entry point (~30 lines)
+server.py          # Thin entry point
 database.py        # MongoDB connection setup
-models.py          # All Pydantic models
+schemas.py         # All Pydantic schemas (including MaintenancePersonnelCreate, MaintenanceRequestCreate)
+helpers.py         # Utilities (serialize_doc, parse_date)
 requirements.txt
 routers/
-  admin.py, budgeting.py, calendar.py, info.py, leads.py,
-  notifications.py, operations.py, parking.py, properties.py, tenants.py
+  admin.py, budgeting.py, calendar_router.py, info.py, leads.py,
+  notifications.py, operations.py, parking.py, properties.py, tenants.py,
+  maintenance.py    # NEW — maintenance requests + personnel CRUD
 ```
 
 ### Frontend (`/app/frontend/src/`)
 ```
-App.js             # Router + ErrorBoundary wrapping
-lib/api.js         # All API calls (axios)
+App.js             # Router + ErrorBoundary + Maintenance route added
+lib/api.js         # All API calls (axios) — maintenance API added
 pages/
-  CalendarPage.js     # 160 lines (decomposed from 661)
-  IncomePage.js       # 60 lines (decomposed from 204)
-  DepositsPage.js     # 340 lines (decomposed)
-  ParkingPage.js      # 260 lines (decomposed from 574)
-  NotificationsPage.js # 334 lines (decomposed from 717)
-  TenantsPage.js      # Decomposed
-  VacancyPage.js      # Fixed useCallback warning
-  + PropertiesPage, UnitsPage, LeadsPage, RentTrackingPage,
-    HousekeepingPage, MoveInOutPage, NotesPage, etc.
+  CalendarPage.js       # Decomposed from 661 lines
+  IncomePage.js         # Decomposed from 204 lines
+  DepositsPage.js       # Decomposed
+  ParkingPage.js        # Decomposed
+  NotificationsPage.js  # Decomposed
+  TenantsPage.js        # Decomposed
+  VacancyPage.js        # Fixed useCallback warning
+  HousekeepingPage.js   # REDESIGNED — card-based, click-to-edit modal, maintenance integration
+  MaintenancePage.js    # NEW — full maintenance requests + personnel management
+  + PropertiesPage, UnitsPage, LeadsPage, RentTrackingPage, MoveInOutPage, NotesPage, etc.
 components/
   ErrorBoundary.js    # NEW - React error boundary
   TenantDetailModal.js
@@ -93,9 +96,27 @@ components/
 - React hook warnings fixed in IncomePage and VacancyPage (useCallback)
 - All 32 frontend tests passed (100% success rate)
 
----
+### Phase 7: Maintenance Page + Housekeeping Redesign (Mar 17, 2026)
+- **New Maintenance page** under Operations (`/ops/maintenance`):
+  - Tab 1: Upcoming Maintenance Requests — card grid, click-to-edit modal, archive section (grouped by month)
+  - Tab 2: Maintenance Personnel — card list with full CRUD + archive
+  - New MongoDB collections: `maintenance_requests`, `maintenance_personnel`
+  - New backend router: `maintenance.py` with 8 endpoints
+  - Status colors: gray/yellow/red/green (4 swatches)
+  - Assigned personnel: multi-select from list + custom manual entry
+  - Completed requests auto-move to archive section (collapsed by default)
+- **Housekeeping page redesigned** (all 3 tabs → card-based layout):
+  - Unit numbers without "U" prefix
+  - Dates formatted as `Tue, 3/17`
+  - Times only shown when they exist
+  - Click-to-edit modal (replaces inline table editing)
+  - Maintenance person assignment field in cleaning modal
+  - Amber maintenance indicator on card when assigned
+  - Alternating card backgrounds
+  - Housekeepers + Leads tabs also converted to card layout
+- 100% test pass rate (24/24 backend, all frontend flows)
 
-## Prioritized Backlog
+---
 
 ### P3 (Low / Backlog)
 - Add pagination for large tenant/lead lists
