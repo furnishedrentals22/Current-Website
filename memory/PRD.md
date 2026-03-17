@@ -1,137 +1,56 @@
-# Furnished Rentals - Product Requirements Document
+# Furnished Rentals - Property Management App
 
-## Overview
-A comprehensive property management web application for managing furnished rental properties.
-Built with React (frontend) + FastAPI (backend) + MongoDB.
+## Original Problem Statement
+A comprehensive property management tool for furnished rentals, covering properties, tenants, calendar, budgeting, operations (housekeeping, maintenance, move in/out), and more.
 
-## Core Requirements
+## Stack
+- **Frontend**: React + Shadcn/UI + Tailwind CSS
+- **Backend**: FastAPI + MongoDB
+- **No Authentication**: Open access
 
-### Navigation Structure
-- **Properties** > Properties subpage + Units subpage
-- **Tenants** > Tenants subpage + Leads subpage
-- **Calendar** > Calendar subpage + Vacancy subpage
-- **Budgeting** > Income + Deposits + Rent Tracking
-- **Notes**, **Info**, **Operations**, **Notifications**, **Features**
+## Completed Features
 
-### Key User Personas
-- Property manager (primary)
-- Landlord (secondary)
-- Housekeeping coordinator
+### Core
+- Properties CRUD, Units CRUD, Tenants CRUD, Leads management
+- Calendar, Vacancy tracking (90-day window, sorted by building numeric ID)
+- Income tracking, Deposits, Rent Tracking
+- Notes, Notifications, Door Codes, Login Info, Marketing, Parking
+- Move In/Out management
+- Features page
 
----
+### Housekeeping (Operations)
+- **Upcoming Cleanings tab**: Spreadsheet-style table (Unit, Check-out, Check-in, Cleaning Time, Cleaner, Maintenance, Notes, Status) with row-click edit modal
+- **Current Housekeepers tab**: CRUD with archive support
+- **Housekeeping Leads tab**: CRUD with archive support
+- Maintenance person assignment integration
 
-## Architecture
+### Maintenance (Operations)
+- Full maintenance request CRUD
 
-### Backend (`/app/backend/`)
-```
-server.py          # Thin entry point
-database.py        # MongoDB connection setup
-schemas.py         # All Pydantic schemas (including MaintenancePersonnelCreate, MaintenanceRequestCreate)
-helpers.py         # Utilities (serialize_doc, parse_date)
-requirements.txt
-routers/
-  admin.py, budgeting.py, calendar_router.py, info.py, leads.py,
-  notifications.py, operations.py, parking.py, properties.py, tenants.py,
-  maintenance.py    # NEW — maintenance requests + personnel CRUD
-```
+### Marlins Decal Inventory System
+- `marlins_decals` collection with per-property inventory
+- Assign specific decal from inventory to a tenant via dropdown
+- Display decal assignments on property details page
 
-### Frontend (`/app/frontend/src/`)
-```
-App.js             # Router + ErrorBoundary + Maintenance route added
-lib/api.js         # All API calls (axios) — maintenance API added
-pages/
-  CalendarPage.js       # Decomposed from 661 lines
-  IncomePage.js         # Decomposed from 204 lines
-  DepositsPage.js       # Decomposed
-  ParkingPage.js        # Decomposed
-  NotificationsPage.js  # Decomposed
-  TenantsPage.js        # Decomposed
-  VacancyPage.js        # Fixed useCallback warning
-  HousekeepingPage.js   # REDESIGNED — card-based, click-to-edit modal, maintenance integration
-  MaintenancePage.js    # NEW — full maintenance requests + personnel management
-  + PropertiesPage, UnitsPage, LeadsPage, RentTrackingPage, MoveInOutPage, NotesPage, etc.
-components/
-  ErrorBoundary.js    # NEW - React error boundary
-  TenantDetailModal.js
-  calendar/           # NEW - 7 components
-    calendarConstants.js, TimelineHeader.js, BookingBar.js,
-    LeadOverlay.js, UnitRow.js, PropertyGroup.js, TodayMarker.js
-  income/             # NEW - 2 components
-    IncomeKPICards.js, IncomeMonthRow.js
-  tenants/            # 5 components
-  deposits/           # 2 components
-  parking/            # 5 components
-  notifications/      # 5 components
-  ui/                 # shadcn/ui components
-```
+### Tenant Enhancements
+- Parking option for Airbnb tenants
 
----
+### Bug Fixes
+- Vacancy logic: properly accounts for future tenants beyond 90-day view
+- Marlins Decal: changed from simple toggle to full inventory selection
 
-## What's Been Implemented
+## Key DB Collections
+- `properties`, `units`, `tenants`, `leads`
+- `cleaning_records`, `housekeepers`, `housekeeping_leads`
+- `maintenance_requests`, `maintenance_personnel`
+- `marlins_decals`
+- `notifications`, `notes`, `income_records`, `deposits`, `rent_tracking`
 
-### Phase 1: Original Feature Batch
-- Navigation restructure, app renamed to "Furnished Rentals"
-- Deposits page (3 tabs), Rent Tracking page, Tenant enhancements
-- Move-out checklist, UI improvements, bug fixes
+## Key API Endpoints
+- `/api/marlins_decals/` (GET, POST), `/api/marlins_decals/{id}` (PUT, DELETE)
+- `/api/maintenance/` (GET, POST), `/api/maintenance/{id}` (PUT, DELETE)
+- `/api/calendar/vacancy` (GET)
+- `/api/cleaning-records/`, `/api/housekeepers/`, `/api/housekeeping-leads/`
 
-### Phase 2: Follow-up Features
-- Deposits edit, Calendar timeline, Vacancy sorting, Parking enhancements
-
-### Phase 3: Bug Fix
-- Income page Monthly Average calculation corrected
-
-### Phase 4: Backend Refactoring
-- server.py split into 12 focused modules (routers, models, database)
-
-### Phase 5: Frontend Refactoring (Mar 12, 2026)
-- TenantsPage decomposed into 5 components
-- DepositsPage uses 2 extracted dialog components
-- ParkingPage (574->260 lines) uses 5 extracted components
-- NotificationsPage (717->334 lines) uses 5 extracted components
-
-### Phase 6: Further Frontend Refactoring + Error Boundary (Mar 12, 2026)
-- CalendarPage (661->160 lines) decomposed into 7 components
-- IncomePage (204->60 lines) decomposed into 2 components
-- ErrorBoundary added wrapping all routes in App.js
-- React hook warnings fixed in IncomePage and VacancyPage (useCallback)
-- All 32 frontend tests passed (100% success rate)
-
-### Phase 7: Maintenance Page + Housekeeping Redesign (Mar 17, 2026)
-- **New Maintenance page** under Operations (`/ops/maintenance`):
-  - Tab 1: Upcoming Maintenance Requests — card grid, click-to-edit modal, archive section (grouped by month)
-  - Tab 2: Maintenance Personnel — card list with full CRUD + archive
-  - New MongoDB collections: `maintenance_requests`, `maintenance_personnel`
-  - New backend router: `maintenance.py` with 8 endpoints
-  - Status colors: gray/yellow/red/green (4 swatches)
-  - Assigned personnel: multi-select from list + custom manual entry
-  - Completed requests auto-move to archive section (collapsed by default)
-- **Housekeeping page redesigned** (all 3 tabs → card-based layout):
-  - Unit numbers without "U" prefix, dates as `Tue, 3/17`, no bubble UI
-  - Click-to-edit modal, maintenance person assignment, amber indicator
-  - Housekeepers + Leads tabs also converted to card layout
-- 100% test pass rate (24/24 backend, all frontend flows)
-
-### Phase 8: Vacancy/Tenant/Property Feature Updates (Feb 2026)
-- **Vacancy page**: By Building tab sorts by `building_id` ascending (numeric, nulls last); upcoming vacancies = 90-day rolling window
-- **Tenant creation**: Airbnb tenant type now has Parking Info field (identical to long-term)
-- **Property**: `marlins_decal_property` toggle in create/edit; badge in detail view
-- **Tenant-Property integration**: `marlins_decal` checkbox on tenant form when selected property has the flag; shown in tenant detail dialog
-- Fixed pre-existing `CollapsibleContent asChild` console warning in VacancyPage
-- 100% test pass rate (21/21 backend + all frontend flows)
-
-### Phase 9: Vacancy Bug Fix + Marlins Decal System (Feb 2026)
-- **Vacancy bug fix**: Unit with tenant leaving 4/1 and future tenant starting 6/21 (outside 90-day window) now correctly shows "Vacant 4/1 to 6/21" instead of "Vacant from 4/1 forward". Fixed `find_upcoming_vacancies` to check all tenants (not just window-relevant ones) for bounded gap calculation.
-- **Marlins Decal inventory system**: Each Marlins Decal property now manages a list of specific decal numbers. New backend router `marlins_decals.py` with GET/POST/DELETE. Decals shown in Properties page "Decal Assignments" expandable section.
-- **Tenant decal assignment**: Tenant form shows dropdown of available decals (not a checkbox). Decals assigned to other tenants are marked disabled. Clearing assignment returns decal to "Available". DELETE decal auto-clears tenant assignment.
-- **Decal Assignment view**: Properties page shows which tenant + unit holds each decal.
-- 100% test pass rate (17/17 backend + all frontend flows)
-
----
-
-### P3 (Low / Backlog)
-- Add pagination for large tenant/lead lists
-- Export to CSV/PDF for income reports
-- Mobile-responsive design improvements
-- Add search/filter across all list pages
-- Unit tests for frontend components
-- Minor Radix UI cosmetic warning (data-state on Fragment) - library issue
+## Backlog
+- No pending tasks. Awaiting user direction.
