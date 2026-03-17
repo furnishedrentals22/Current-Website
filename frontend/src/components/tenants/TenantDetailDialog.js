@@ -148,6 +148,21 @@ export function TenantDetailDialog({ tenant, onClose, propMap, unitMap, onEdit }
                   <p className="text-sm text-muted-foreground">{tenant.notes}</p>
                 </div>
               )}
+              {(tenant.parking || tenant.has_parking) && (
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Parking</p>
+                  <p className="text-sm">{tenant.parking || (tenant.has_parking ? 'Has parking spot' : '-')}</p>
+                </div>
+              )}
+            </>
+          )}
+
+          {tenant.marlins_decal && (
+            <>
+              <Separator />
+              <div className="flex items-center gap-2">
+                <Badge className="text-xs bg-blue-50 text-blue-700 border border-blue-200">Marlins Decal Assigned</Badge>
+              </div>
             </>
           )}
 

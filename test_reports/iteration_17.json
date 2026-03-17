@@ -1,0 +1,87 @@
+{
+  "summary": "Full E2E testing of Feature Batch 4: Vacancy 90-day window, Property marlins_decal_property toggle, Tenant marlins_decal + Airbnb parking. All 21 backend tests passed and all frontend feature flows verified.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "GET /api/properties (list)",
+        "issue": "Old MongoDB documents (created before feature) don't have marlins_decal_property field. New properties have it. Frontend handles with || false. Expected behavior, no action needed."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "VacancyPage - By Building tab",
+        "issues": [
+          "Console warnings: 'Invalid prop data-state supplied to React.Fragment' - caused by Collapsible asChild used with <> (React.Fragment) in VacancyPage.js lines 217-247. Non-blocking warning but should be fixed by removing asChild from CollapsibleContent or wrapping children in a real HTML element."
+        ]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_new_features_batch4.py",
+    "/app/test_reports/pytest/batch4_results.xml"
+  ],
+  "action_items": [
+    "Minor: Fix VacancyPage.js - CollapsibleContent asChild with React.Fragment causes console warnings. Remove asChild from CollapsibleContent or wrap with <tbody> instead of <>"
+  ],
+  "critical_code_review_comments": [
+    "VacancyPage.js: <CollapsibleContent asChild><></> passes data-state to React.Fragment which generates console warnings. Change asChild pattern or use a wrapping element.",
+    "Old MongoDB documents don't have marlins_decal_property field - frontend handles gracefully with || false. Could add a MongoDB migration to backfill, but not critical.",
+    "No missing data-testid attributes found for new feature elements.",
+    "find_upcoming_vacancies correctly uses days_ahead=90 (not months_ahead=3) - confirmed in code and backend test."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_new_features_batch4.py"
+  ],
+  "success_rate": {
+    "backend": "100% (21/21 tests passed)",
+    "frontend": "100% (all feature flows verified)"
+  },
+  "seed_data_creation": "Backend tests created and cleaned up TEST_Marlins_Decal_Property, TEST_No_Marlins_Property and associated units/tenants. All cleaned up after tests.",
+  "passed_tests": [
+    "Backend: GET /api/vacancy returns 200",
+    "Backend: upcoming_vacancies key present and is a list",
+    "Backend: All upcoming vacancies within 90-day window (not 3 months)",
+    "Backend: by_building sorted by building_id ascending (nulls last)",
+    "Backend: Vacancy response has by_building, by_unit_size, upcoming_vacancies keys",
+    "Backend: Property created with marlins_decal_property=True saves correctly",
+    "Backend: GET property returns marlins_decal_property=True (data persisted)",
+    "Backend: Property created with marlins_decal_property=False saves correctly",
+    "Backend: PUT property can toggle marlins_decal_property to True (verified with GET)",
+    "Backend: Properties list includes marlins_decal_property for newly created properties",
+    "Backend: Long-term tenant marlins_decal=True saved and returned",
+    "Backend: GET tenant preserves marlins_decal=True",
+    "Backend: Airbnb tenant parking info (parking + has_parking) saved correctly",
+    "Backend: Airbnb tenant marlins_decal=True saved correctly",
+    "Backend: PUT tenant can toggle marlins_decal to False (verified with GET)",
+    "Backend: Tenant list includes marlins_decal field",
+    "Backend: GET /api/calendar returns 200",
+    "Backend: /api/calendar has properties array",
+    "Backend: GET /api/calendar/timeline returns 200",
+    "Backend: Calendar timeline buildings sorted by building_id ascending",
+    "Backend: Existing 'Test Marlins Prop' has marlins_decal_property=True",
+    "Frontend: Property create dialog has 'Marlins Decal Property' toggle (data-testid=property-marlins-decal-toggle)",
+    "Frontend: 'Marlins Decal Property' badge shown in property details for marlins_decal_property=true property",
+    "Frontend: Vacancy page loads with title 'Vacancy'",
+    "Frontend: Vacancy 'By Building' tab shows buildings",
+    "Frontend: Upcoming Vacancies tab shows actual vacancies within 90-day window",
+    "Frontend: Tenant Airbnb mode shows 'Parking Info' field (data-testid=tenant-parking-airbnb)",
+    "Frontend: Tenant Airbnb mode shows 'Has parking spot' checkbox",
+    "Frontend: Tenant Long-term mode shows 'Parking Info' label",
+    "Frontend: Tenant Long-term mode shows 'Has parking spot' checkbox",
+    "Frontend: Marlins Decal checkbox hidden before selecting a property",
+    "Frontend: Marlins Decal checkbox hidden for non-Marlins property (1144)",
+    "Frontend: 'Assign Marlins Decal to Tenant' checkbox appears after selecting 'Test Marlins Prop'",
+    "Frontend: 'Assign Marlins Decal to Tenant' checkbox is clickable and toggles correctly",
+    "Frontend: Tenant detail dialog shows Parking info for long-term tenant",
+    "Frontend: Tenant edit dialog opens and shows Parking Info pre-filled",
+    "Frontend: Property edit dialog pre-fills Marlins Decal toggle as 'Yes' for existing marlins_decal_property=true property"
+  ],
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Feature Batch 4 fully tested and working: (1) Vacancy page uses 90-day window - verified in backend tests and UI. (2) Property marlins_decal_property toggle in create/edit dialog, badge in details view. (3) Tenant Airbnb parking field and Marlins Decal checkbox conditional on property flag. All 21 backend tests pass. Minor issue: VacancyPage Collapsible asChild with React.Fragment causes console warnings (non-blocking). Pre-existing 'Test Marlins Prop' (id: 69b99d5c2dc4f925a4cffb39) is in the DB with marlins_decal_property=true."
+}

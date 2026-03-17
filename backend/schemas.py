@@ -14,6 +14,7 @@ class PropertyCreate(BaseModel):
     building_amenities: List[str] = []
     additional_notes: Optional[str] = ""
     building_id: Optional[int] = None
+    marlins_decal_property: bool = False
 
 
 class UnitCreate(BaseModel):
@@ -54,6 +55,7 @@ class TenantCreate(BaseModel):
     deposit_return_amount: Optional[float] = None
     deposit_return_method: Optional[str] = ""
     misc_charges: List[Dict[str, Any]] = []
+    marlins_decal: bool = False
 
 
 class MiscChargeCreate(BaseModel):

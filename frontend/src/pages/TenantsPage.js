@@ -146,7 +146,8 @@ export default function TenantsPage() {
       moveout_confirmed_date: tenant.moveout_confirmed_date || null,
       deposit_return_date: tenant.deposit_return_date || '',
       deposit_return_amount: tenant.deposit_return_amount || '',
-      deposit_return_method: tenant.deposit_return_method || ''
+      deposit_return_method: tenant.deposit_return_method || '',
+      marlins_decal: tenant.marlins_decal || false
     });
     setDialogOpen(true);
   };

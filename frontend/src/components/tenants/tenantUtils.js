@@ -68,5 +68,6 @@ export const emptyForm = {
   pets: '', parking: '', has_parking: false, notes: '', total_rent: '',
   payment_method: '', rent_due_date: '',
   moveout_confirmed: false, moveout_confirmed_date: null,
-  deposit_return_date: '', deposit_return_amount: '', deposit_return_method: ''
+  deposit_return_date: '', deposit_return_amount: '', deposit_return_method: '',
+  marlins_decal: false
 };

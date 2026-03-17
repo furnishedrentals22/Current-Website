@@ -26,6 +26,9 @@ export function TenantFormDialog({
   })();
   const perNight = form.total_rent && nights > 0 ? (parseFloat(form.total_rent) / nights).toFixed(2) : 0;
 
+  const selectedProperty = sortedProperties.find(p => p.id === form.property_id);
+  const isMarlinsProp = !!selectedProperty?.marlins_decal_property;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -194,7 +197,29 @@ export function TenantFormDialog({
                 <Label>Notes</Label>
                 <Textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} placeholder="Add any notes about this Airbnb/VRBO stay..." data-testid="tenant-airbnb-notes" />
               </div>
+              <div className="space-y-2">
+                <Label>Parking Info</Label>
+                <Input value={form.parking} onChange={e => setForm({ ...form, parking: e.target.value })} placeholder="e.g. Spot #12, Street" data-testid="tenant-parking-airbnb" />
+                <div className="flex items-center gap-2 mt-1">
+                  <Checkbox checked={form.has_parking || false} onCheckedChange={(v) => setForm({ ...form, has_parking: !!v })} data-testid="tenant-has-parking-checkbox" />
+                  <Label className="text-xs cursor-pointer">Has parking spot</Label>
+                </div>
+              </div>
             </>
+          )}
+
+          {isMarlinsProp && (
+            <div className="flex items-center gap-3 p-3 rounded-lg border bg-blue-50 border-blue-200">
+              <Checkbox
+                id="marlins-decal"
+                checked={form.marlins_decal || false}
+                onCheckedChange={v => setForm({ ...form, marlins_decal: !!v })}
+                data-testid="tenant-marlins-decal-checkbox"
+              />
+              <Label htmlFor="marlins-decal" className="cursor-pointer text-blue-800 font-medium">
+                Assign Marlins Decal to Tenant
+              </Label>
+            </div>
           )}
         </div>
         <DialogFooter>

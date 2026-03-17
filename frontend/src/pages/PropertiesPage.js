@@ -19,7 +19,8 @@ const UNIT_SIZES = ['0/1', '1/1', '2/1', '2/2', '3/1', '3/2', '3/3', 'other'];
 const emptyPropertyForm = {
   name: '', address: '', owner_manager_name: '', owner_manager_phone: '',
   owner_manager_email: '', available_parking: '', pets_permitted: false,
-  pet_notes: '', building_amenities: [], additional_notes: '', building_id: ''
+  pet_notes: '', building_amenities: [], additional_notes: '', building_id: '',
+  marlins_decal_property: false
 };
 
 const emptyUnitForm = {
@@ -91,7 +92,8 @@ export default function PropertiesPage() {
       pet_notes: prop.pet_notes || '',
       building_amenities: prop.building_amenities || [],
       additional_notes: prop.additional_notes || '',
-      building_id: prop.building_id != null ? prop.building_id : ''
+      building_id: prop.building_id != null ? prop.building_id : '',
+      marlins_decal_property: prop.marlins_decal_property || false
     });
     setAmenityInput('');
     setPropDialogOpen(true);
@@ -364,6 +366,14 @@ export default function PropertiesPage() {
                           )}
                         </div>
                       </div>
+                      {prop.marlins_decal_property && (
+                        <div className="space-y-1">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Marlins Decal</p>
+                          <Badge className="text-xs bg-blue-50 text-blue-700 border border-blue-200">
+                            Marlins Decal Property
+                          </Badge>
+                        </div>
+                      )}
                       {prop.building_amenities && prop.building_amenities.length > 0 && (
                         <div className="space-y-1 md:col-span-2 lg:col-span-1">
                           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Amenities</p>
@@ -501,7 +511,7 @@ export default function PropertiesPage() {
                 <Input type="email" value={propForm.owner_manager_email} onChange={e => setPropForm({...propForm, owner_manager_email: e.target.value})} />
               </div>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label>Available Parking</Label>
                 <Input value={propForm.available_parking} onChange={e => setPropForm({...propForm, available_parking: e.target.value})} placeholder="e.g. 2 spots, street parking" />
@@ -511,6 +521,13 @@ export default function PropertiesPage() {
                 <div className="flex items-center gap-3 pt-2">
                   <Switch checked={propForm.pets_permitted} onCheckedChange={v => setPropForm({...propForm, pets_permitted: v})} data-testid="property-pets-toggle" />
                   <span className="text-sm">{propForm.pets_permitted ? 'Yes' : 'No'}</span>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Marlins Decal Property</Label>
+                <div className="flex items-center gap-3 pt-2">
+                  <Switch checked={propForm.marlins_decal_property} onCheckedChange={v => setPropForm({...propForm, marlins_decal_property: v})} data-testid="property-marlins-decal-toggle" />
+                  <span className="text-sm">{propForm.marlins_decal_property ? 'Yes' : 'No'}</span>
                 </div>
               </div>
             </div>

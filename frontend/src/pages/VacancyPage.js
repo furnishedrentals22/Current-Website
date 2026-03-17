@@ -302,7 +302,7 @@ export default function VacancyPage() {
             {data.upcoming_vacancies.length === 0 ? (
               <Card className="border-dashed">
                 <CardContent className="flex flex-col items-center justify-center py-12">
-                  <p className="text-sm text-muted-foreground">No upcoming vacancies in the next 3 months</p>
+                  <p className="text-sm text-muted-foreground">No upcoming vacancies in the next 90 days</p>
                 </CardContent>
               </Card>
             ) : (

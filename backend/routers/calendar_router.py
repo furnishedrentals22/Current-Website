@@ -267,6 +267,7 @@ async def get_vacancy(year: int = Query(default=None)):
             if prop_id not in by_building:
                 by_building[prop_id] = {
                     'property_name': prop_name, 'property_id': prop_id,
+                    'building_id': prop.get('building_id'),
                     'months': {m: {'total_days': 0, 'vacant_days': 0, 'units': []} for m in range(1, 13)}
                 }
             by_building[prop_id]['months'][month]['total_days'] += vacancy['total_days']
@@ -299,8 +300,17 @@ async def get_vacancy(year: int = Query(default=None)):
         building_list.append({
             'property_name': bdata['property_name'],
             'property_id': bdata['property_id'],
+            'building_id': bdata.get('building_id'),
             'months': months_list
         })
+
+    # Sort by_building by building_id ascending (numeric), nulls last
+    def building_sort_key(b):
+        bid = b.get('building_id')
+        if bid is None:
+            return (1, 0, b.get('property_name', ''))
+        return (0, int(bid), b.get('property_name', ''))
+    building_list.sort(key=building_sort_key)
 
     size_list = []
     for size_key, sdata in by_unit_size.items():
@@ -330,7 +340,7 @@ async def get_vacancy(year: int = Query(default=None)):
             'tenants': tenants_by_unit.get(uid, [])
         })
 
-    upcoming = find_upcoming_vacancies(units_for_upcoming, today, months_ahead=3)
+    upcoming = find_upcoming_vacancies(units_for_upcoming, today, days_ahead=90)
     for v in upcoming:
         v['vacancy_start'] = v['vacancy_start'].isoformat()
         if 'vacancy_end' in v:

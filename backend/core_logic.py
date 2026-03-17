@@ -365,25 +365,25 @@ def calculate_unit_vacancy_for_month(
 def find_upcoming_vacancies(
     units: List[Dict],
     from_date: date,
-    months_ahead: int = 3
+    months_ahead: int = 3,
+    days_ahead: Optional[int] = None
 ) -> List[Dict]:
     """
-    Find upcoming vacancies in the next N months.
-    
-    units: list of dicts with:
-        - 'unit_id', 'unit_number', 'property_name', 'property_id'
-        - 'tenants': list of dicts with 'move_in', 'move_out' sorted by move_in
-        - 'availability_start_date', 'close_date'
-    
-    Returns list of upcoming vacancy entries.
+    Find upcoming vacancies.
+
+    If days_ahead is provided, uses a rolling day-based window from from_date.
+    Otherwise uses months_ahead calendar months.
     """
     # Calculate the end boundary
-    end_date = date(from_date.year, from_date.month, 1)
-    for _ in range(months_ahead):
-        if end_date.month == 12:
-            end_date = date(end_date.year + 1, 1, 1)
-        else:
-            end_date = date(end_date.year, end_date.month + 1, 1)
+    if days_ahead is not None:
+        end_date = from_date + timedelta(days=days_ahead)
+    else:
+        end_date = date(from_date.year, from_date.month, 1)
+        for _ in range(months_ahead):
+            if end_date.month == 12:
+                end_date = date(end_date.year + 1, 1, 1)
+            else:
+                end_date = date(end_date.year, end_date.month + 1, 1)
     
     vacancies = []
     
