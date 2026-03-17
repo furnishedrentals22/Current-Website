@@ -180,108 +180,91 @@ function UpcomingCleaningsTab({ records, housekeepers, maintenancePersonnel, uni
   const modalProp = selectedRecord ? propMap[selectedRecord.property_id] : null;
   const hasMaintAssigned = editForm.assigned_maintenance_id || editForm.assigned_maintenance_name;
 
+  const anyMaint = records.some(r => r.assigned_maintenance_name);
+
   return (
     <div>
-      <p className="text-xs text-muted-foreground mb-4">
-        Upcoming checkouts in the next 60 days. Click any card to edit details.
+      <p className="text-xs text-muted-foreground mb-3">
+        Upcoming checkouts in the next 60 days. Click any row to edit details.
       </p>
 
       {records.length === 0 ? (
-        <div className="text-center py-12 text-muted-foreground text-sm border rounded-xl bg-muted/20">
+        <div className="text-center py-12 text-muted-foreground text-sm border rounded bg-muted/20">
           No upcoming cleanings
         </div>
       ) : (
-        <div className="space-y-2" data-testid="upcoming-cleanings-list">
-          {records.map((r, idx) => {
-            const u = unitMap[r.unit_id];
-            const p = propMap[r.property_id];
-            const altBg = idx % 2 === 0 ? 'bg-card' : 'bg-muted/20';
-            const hasMaint = !!(r.assigned_maintenance_name);
+        <div className="rounded border border-border/60 overflow-hidden bg-white" data-testid="upcoming-cleanings-list">
+          <table className="w-full text-sm" data-testid="upcoming-cleanings-table">
+            <thead>
+              <tr className="bg-[#f5f0eb] text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground border-b border-border/50">
+                <th className="px-3 py-2.5">Unit</th>
+                <th className="px-3 py-2.5">Check-out</th>
+                <th className="px-3 py-2.5">Check-in</th>
+                <th className="px-3 py-2.5">Cleaning Time</th>
+                <th className="px-3 py-2.5">Cleaner</th>
+                {anyMaint && <th className="px-3 py-2.5">Maintenance</th>}
+                <th className="px-3 py-2.5">Notes</th>
+                <th className="px-3 py-2.5 text-right">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {records.map((r, idx) => {
+                const u = unitMap[r.unit_id];
+                const rowBg = idx % 2 === 0 ? 'bg-white' : 'bg-[#fafaf7]';
 
-            return (
-              <div
-                key={r.id}
-                className={`group border rounded-xl px-4 py-3.5 cursor-pointer hover:shadow-md transition-shadow ${altBg} ${r.confirmed ? 'border-emerald-200' : ''}`}
-                onClick={() => openEdit(r)}
-                data-testid="cleaning-card"
-              >
-                <div className="flex items-start gap-4">
-                  {/* Left: Unit + Guest */}
-                  <div className="w-14 flex-shrink-0">
-                    <p className="font-heading font-bold text-xl leading-none tabular-nums">
-                      {u?.unit_number || '?'}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-0.5 leading-tight">{r.tenant_name}</p>
-                    {p && (
-                      <p className="text-[10px] text-muted-foreground/60 mt-0.5 leading-tight">{p.name}</p>
+                return (
+                  <tr
+                    key={r.id}
+                    className={`${rowBg} cursor-pointer hover:bg-[#f0ece6] transition-colors border-b border-border/30 last:border-b-0`}
+                    onClick={() => openEdit(r)}
+                    data-testid="cleaning-row"
+                  >
+                    <td className="px-3 py-2.5 whitespace-nowrap">
+                      <span className="font-semibold tabular-nums">{u?.unit_number || '?'}</span>
+                      <span className="text-muted-foreground ml-1.5 text-xs">{r.tenant_name || ''}</span>
+                    </td>
+                    <td className="px-3 py-2.5 whitespace-nowrap">
+                      {formatShortDate(r.check_out_date)}
+                      {r.check_out_time && <span className="text-muted-foreground ml-1">{r.check_out_time}</span>}
+                    </td>
+                    <td className="px-3 py-2.5 whitespace-nowrap">
+                      {r.next_check_in_date ? formatShortDate(r.next_check_in_date) : '—'}
+                      {r.check_in_time && <span className="text-muted-foreground ml-1">{r.check_in_time}</span>}
+                    </td>
+                    <td className="px-3 py-2.5 whitespace-nowrap">
+                      {r.cleaning_time || '—'}
+                    </td>
+                    <td className="px-3 py-2.5 whitespace-nowrap">
+                      {r.assigned_cleaner_name || '—'}
+                    </td>
+                    {anyMaint && (
+                      <td className="px-3 py-2.5 whitespace-nowrap">
+                        {r.assigned_maintenance_name ? (
+                          <span className="inline-flex items-center gap-1 text-amber-700">
+                            <Wrench className="h-3 w-3" />
+                            {r.assigned_maintenance_name}
+                            {r.maintenance_note && <span className="text-amber-500 text-xs">— {r.maintenance_note}</span>}
+                          </span>
+                        ) : '—'}
+                      </td>
                     )}
-                  </div>
-
-                  {/* Middle: Dates + details */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-sm">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Out</span>
-                        <span className="font-medium">{formatShortDate(r.check_out_date)}</span>
-                        {r.check_out_time && (
-                          <span className="text-muted-foreground text-xs">{r.check_out_time}</span>
-                        )}
-                      </div>
-
-                      {r.next_check_in_date && (
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">In</span>
-                          <span className="font-medium">{formatShortDate(r.next_check_in_date)}</span>
-                          {r.check_in_time && (
-                            <span className="text-muted-foreground text-xs">{r.check_in_time}</span>
-                          )}
-                        </div>
-                      )}
-
-                      {r.cleaning_time && (
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Clean</span>
-                          <span>{r.cleaning_time}</span>
-                        </div>
-                      )}
-
-                      {r.assigned_cleaner_name && (
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Cleaner</span>
-                          <span>{r.assigned_cleaner_name}</span>
-                        </div>
-                      )}
-                    </div>
-
-                    {hasMaint && (
-                      <div className="mt-1.5 inline-flex items-center gap-1.5 text-xs text-amber-700 bg-amber-50 border border-amber-100 px-2.5 py-1 rounded-md">
-                        <Wrench className="h-3 w-3 flex-shrink-0" />
-                        <span className="font-medium">{r.assigned_maintenance_name}</span>
-                        {r.maintenance_note && (
-                          <span className="text-amber-600">— {r.maintenance_note}</span>
-                        )}
-                      </div>
-                    )}
-
-                    {r.notes && (
-                      <p className="text-sm text-muted-foreground mt-1.5 line-clamp-2">{r.notes}</p>
-                    )}
-                  </div>
-
-                  {/* Right: Status badge */}
-                  <div className="flex-shrink-0" onClick={e => e.stopPropagation()}>
-                    <span className={`text-xs px-2 py-0.5 rounded-full border ${
-                      r.confirmed
-                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                        : 'bg-gray-50 text-gray-500 border-gray-200'
-                    }`}>
-                      {r.confirmed ? 'Done' : 'Pending'}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+                    <td className="px-3 py-2.5 max-w-[200px] truncate text-muted-foreground">
+                      {r.notes || '—'}
+                    </td>
+                    <td className="px-3 py-2.5 text-right whitespace-nowrap">
+                      <span className={`text-xs px-2 py-0.5 rounded border ${
+                        r.confirmed
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                          : 'bg-gray-50 text-gray-500 border-gray-200'
+                      }`} data-testid="cleaning-status-badge">
+                        {r.confirmed ? 'Done' : 'Pending'}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       )}
 
