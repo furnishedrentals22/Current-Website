@@ -54,3 +54,9 @@ A comprehensive property management tool for furnished rentals, covering propert
 
 ## Backlog
 - No pending tasks. Awaiting user direction.
+
+## Recent Changes (2026-03-19)
+- **Manual Cleanings Feature**: Added ability to create standalone cleaning entries not tied to reservations
+  - Backend: `manual_cleanings` collection with full CRUD at `/api/manual-cleanings`
+  - Frontend: "Add Manual Cleaning" button, unit dropdown, reddish rows with "Manual" label, trash icon for quick delete
+  - Fully editable after creation, chronologically sorted with regular cleanings
