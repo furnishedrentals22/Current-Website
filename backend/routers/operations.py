@@ -4,7 +4,7 @@ from bson import ObjectId
 
 from database import db
 from helpers import serialize_doc, parse_date
-from schemas import HousekeeperCreate, HousekeepingLeadCreate, CleaningRecordUpdate
+from schemas import HousekeeperCreate, HousekeepingLeadCreate, CleaningRecordUpdate, ManualCleaningCreate
 
 router = APIRouter()
 
@@ -202,3 +202,44 @@ async def update_cleaning_record(record_id: str, data: CleaningRecordUpdate):
 
     doc = await db.cleaning_records.find_one({"_id": ObjectId(record_id)})
     return serialize_doc(doc)
+
+
+
+# ============================================================
+# MANUAL CLEANINGS
+# ============================================================
+
+@router.get("/manual-cleanings")
+async def list_manual_cleanings():
+    docs = await db.manual_cleanings.find().sort("check_out_date", 1).to_list(5000)
+    return [serialize_doc(d) for d in docs]
+
+
+@router.post("/manual-cleanings")
+async def create_manual_cleaning(data: ManualCleaningCreate):
+    doc = data.model_dump()
+    doc["is_manual"] = True
+    doc["created_at"] = datetime.now(timezone.utc).isoformat()
+    doc["updated_at"] = datetime.now(timezone.utc).isoformat()
+    result = await db.manual_cleanings.insert_one(doc)
+    doc["_id"] = result.inserted_id
+    return serialize_doc(doc)
+
+
+@router.put("/manual-cleanings/{mc_id}")
+async def update_manual_cleaning(mc_id: str, data: ManualCleaningCreate):
+    update_doc = data.model_dump()
+    update_doc["updated_at"] = datetime.now(timezone.utc).isoformat()
+    result = await db.manual_cleanings.update_one({"_id": ObjectId(mc_id)}, {"$set": update_doc})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Manual cleaning not found")
+    doc = await db.manual_cleanings.find_one({"_id": ObjectId(mc_id)})
+    return serialize_doc(doc)
+
+
+@router.delete("/manual-cleanings/{mc_id}")
+async def delete_manual_cleaning(mc_id: str):
+    result = await db.manual_cleanings.delete_one({"_id": ObjectId(mc_id)})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Manual cleaning not found")
+    return {"message": "Manual cleaning deleted"}

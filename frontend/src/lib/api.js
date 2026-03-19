@@ -141,6 +141,12 @@ export const deleteHousekeepingLead = (id) => api.delete(`/housekeeping-leads/${
 export const getCleaningRecords = (params = {}) => api.get('/cleaning-records', { params }).then(r => r.data);
 export const updateCleaningRecord = (id, data) => api.put(`/cleaning-records/${id}`, data).then(r => r.data);
 
+// Manual Cleanings
+export const getManualCleanings = () => api.get('/manual-cleanings').then(r => r.data);
+export const createManualCleaning = (data) => api.post('/manual-cleanings', data).then(r => r.data);
+export const updateManualCleaning = (id, data) => api.put(`/manual-cleanings/${id}`, data).then(r => r.data);
+export const deleteManualCleaning = (id) => api.delete(`/manual-cleanings/${id}`).then(r => r.data);
+
 // Deposits
 export const getCurrentDeposits = () => api.get('/deposits/current').then(r => r.data);
 export const getPastDeposits = () => api.get('/deposits/past').then(r => r.data);

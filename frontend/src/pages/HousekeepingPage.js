@@ -3,7 +3,8 @@ import {
   getCleaningRecords, updateCleaningRecord,
   getHousekeepers, createHousekeeper, updateHousekeeper, deleteHousekeeper,
   getHousekeepingLeads, createHousekeepingLead, updateHousekeepingLead, deleteHousekeepingLead,
-  getProperties, getUnits, getMaintenancePersonnel
+  getProperties, getUnits, getMaintenancePersonnel,
+  getManualCleanings, createManualCleaning, updateManualCleaning, deleteManualCleaning
 } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -25,6 +26,7 @@ const formatShortDate = (dateStr) => {
 
 export default function HousekeepingPage() {
   const [records, setRecords] = useState([]);
+  const [manualCleanings, setManualCleanings] = useState([]);
   const [housekeepers, setHousekeepers] = useState([]);
   const [leads, setLeads] = useState([]);
   const [properties, setProperties] = useState([]);
@@ -35,8 +37,9 @@ export default function HousekeepingPage() {
 
   const fetchData = useCallback(async () => {
     try {
-      const [r, hk, hl, p, u, mp] = await Promise.all([
+      const [r, mc, hk, hl, p, u, mp] = await Promise.all([
         getCleaningRecords(),
+        getManualCleanings(),
         getHousekeepers({ include_archived: showArchived }),
         getHousekeepingLeads({ include_archived: showArchived }),
         getProperties(),
@@ -44,6 +47,7 @@ export default function HousekeepingPage() {
         getMaintenancePersonnel()
       ]);
       setRecords(r);
+      setManualCleanings(mc);
       setHousekeepers(hk);
       setLeads(hl);
       setProperties(p);
@@ -84,10 +88,12 @@ export default function HousekeepingPage() {
         <TabsContent value="upcoming" className="mt-4">
           <UpcomingCleaningsTab
             records={records}
+            manualCleanings={manualCleanings}
             housekeepers={housekeepers.filter(h => !h.is_archived)}
             maintenancePersonnel={maintenancePersonnel}
             unitMap={unitMap}
             propMap={propMap}
+            units={units}
             onRefresh={fetchData}
           />
         </TabsContent>
@@ -115,16 +121,40 @@ export default function HousekeepingPage() {
 }
 
 /* ========== UPCOMING CLEANINGS TAB ========== */
-function UpcomingCleaningsTab({ records, housekeepers, maintenancePersonnel, unitMap, propMap, onRefresh }) {
+function UpcomingCleaningsTab({ records, manualCleanings, housekeepers, maintenancePersonnel, unitMap, propMap, units, onRefresh }) {
   const [editModal, setEditModal] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [editForm, setEditForm] = useState({});
   const [saving, setSaving] = useState(false);
   const [useCustomMaint, setUseCustomMaint] = useState(false);
+  const [isEditingManual, setIsEditingManual] = useState(false);
+
+  // Manual create modal state
+  const [createModal, setCreateModal] = useState(false);
+  const [createForm, setCreateForm] = useState({
+    unit_id: '', tenant_name: '', check_out_date: '', next_check_in_date: '',
+    check_out_time: '', check_in_time: '', cleaning_time: '',
+    assigned_cleaner_id: null, assigned_cleaner_name: '',
+    assigned_maintenance_id: null, assigned_maintenance_name: '',
+    maintenance_note: '', notes: '', confirmed: false,
+  });
+  const [createUseCustomMaint, setCreateUseCustomMaint] = useState(false);
+  const [creating, setCreating] = useState(false);
+
+  // Merge regular + manual cleanings, sorted chronologically
+  const mergedRecords = [
+    ...records.map(r => ({ ...r, _isManual: false })),
+    ...manualCleanings.map(mc => ({ ...mc, _isManual: true, check_out_date: mc.check_out_date || '' })),
+  ].sort((a, b) => (a.check_out_date || '').localeCompare(b.check_out_date || ''));
 
   const openEdit = (r) => {
     setSelectedRecord(r);
+    setIsEditingManual(!!r._isManual);
     setEditForm({
+      unit_id: r.unit_id || '',
+      tenant_name: r.tenant_name || '',
+      check_out_date: r.check_out_date || '',
+      next_check_in_date: r.next_check_in_date || '',
       check_out_time: r.check_out_time || '',
       check_in_time: r.check_in_time || '',
       cleaning_time: r.cleaning_time || '',
@@ -165,7 +195,14 @@ function UpcomingCleaningsTab({ records, housekeepers, maintenancePersonnel, uni
         payload.assigned_cleaner_id = null;
         payload.assigned_cleaner_name = '';
       }
-      await updateCleaningRecord(selectedRecord.id, payload);
+      // Build unit_label for manual cleanings
+      if (isEditingManual) {
+        const u = unitMap[payload.unit_id];
+        payload.unit_label = u ? u.unit_number : '';
+        await updateManualCleaning(selectedRecord.id, payload);
+      } else {
+        await updateCleaningRecord(selectedRecord.id, payload);
+      }
       setEditModal(false);
       onRefresh();
       toast.success('Updated');
@@ -176,19 +213,85 @@ function UpcomingCleaningsTab({ records, housekeepers, maintenancePersonnel, uni
     }
   };
 
+  // Create manual cleaning handlers
+  const handleCreateMaintSelect = (val) => {
+    if (val === '_none') {
+      setCreateForm(f => ({ ...f, assigned_maintenance_id: null, assigned_maintenance_name: '' }));
+      setCreateUseCustomMaint(false);
+    } else if (val === '_custom') {
+      setCreateForm(f => ({ ...f, assigned_maintenance_id: null, assigned_maintenance_name: '' }));
+      setCreateUseCustomMaint(true);
+    } else {
+      const p = maintenancePersonnel.find(p => p.id === val);
+      setCreateForm(f => ({ ...f, assigned_maintenance_id: val, assigned_maintenance_name: p?.name || '' }));
+      setCreateUseCustomMaint(false);
+    }
+  };
+
+  const handleCreate = async () => {
+    if (!createForm.unit_id) { toast.error('Please select a unit'); return; }
+    if (!createForm.check_out_date) { toast.error('Please select a date'); return; }
+    setCreating(true);
+    try {
+      const payload = { ...createForm };
+      if (payload.assigned_cleaner_id) {
+        payload.assigned_cleaner_name = housekeepers.find(h => h.id === payload.assigned_cleaner_id)?.name || '';
+      } else {
+        payload.assigned_cleaner_id = null;
+        payload.assigned_cleaner_name = '';
+      }
+      const u = unitMap[payload.unit_id];
+      payload.unit_label = u ? u.unit_number : '';
+      await createManualCleaning(payload);
+      setCreateModal(false);
+      setCreateForm({
+        unit_id: '', tenant_name: '', check_out_date: '', next_check_in_date: '',
+        check_out_time: '', check_in_time: '', cleaning_time: '',
+        assigned_cleaner_id: null, assigned_cleaner_name: '',
+        assigned_maintenance_id: null, assigned_maintenance_name: '',
+        maintenance_note: '', notes: '', confirmed: false,
+      });
+      setCreateUseCustomMaint(false);
+      onRefresh();
+      toast.success('Manual cleaning created');
+    } catch {
+      toast.error('Failed to create');
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const handleDeleteManual = async (e, id) => {
+    e.stopPropagation();
+    if (!window.confirm('Delete this manual cleaning?')) return;
+    try {
+      await deleteManualCleaning(id);
+      onRefresh();
+      toast.success('Deleted');
+    } catch {
+      toast.error('Failed to delete');
+    }
+  };
+
   const modalUnit = selectedRecord ? unitMap[selectedRecord.unit_id] : null;
   const modalProp = selectedRecord ? propMap[selectedRecord.property_id] : null;
   const hasMaintAssigned = editForm.assigned_maintenance_id || editForm.assigned_maintenance_name;
+  const createHasMaintAssigned = createForm.assigned_maintenance_id || createForm.assigned_maintenance_name;
 
-  const anyMaint = records.some(r => r.assigned_maintenance_name);
+  const anyMaint = mergedRecords.some(r => r.assigned_maintenance_name);
 
   return (
     <div>
-      <p className="text-xs text-muted-foreground mb-3">
-        Upcoming checkouts in the next 60 days. Click any row to edit details.
-      </p>
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-xs text-muted-foreground">
+          Upcoming checkouts in the next 60 days. Click any row to edit details.
+        </p>
+        <Button size="sm" onClick={() => setCreateModal(true)} data-testid="add-manual-cleaning-btn">
+          <Plus className="h-4 w-4 mr-1" />Add Manual Cleaning
+        </Button>
+      </div>
 
-      {records.length === 0 ? (
+      {mergedRecords.length === 0 ? (
         <div className="text-center py-12 text-muted-foreground text-sm border rounded bg-muted/20">
           No upcoming cleanings
         </div>
@@ -208,20 +311,26 @@ function UpcomingCleaningsTab({ records, housekeepers, maintenancePersonnel, uni
               </tr>
             </thead>
             <tbody>
-              {records.map((r, idx) => {
+              {mergedRecords.map((r, idx) => {
                 const u = unitMap[r.unit_id];
-                const rowBg = idx % 2 === 0 ? 'bg-white' : 'bg-[#fafaf7]';
+                const isManual = r._isManual;
+                const rowBg = isManual
+                  ? 'bg-red-50'
+                  : idx % 2 === 0 ? 'bg-white' : 'bg-[#fafaf7]';
 
                 return (
                   <tr
                     key={r.id}
                     className={`${rowBg} cursor-pointer hover:bg-[#f0ece6] transition-colors border-b border-border/30 last:border-b-0`}
                     onClick={() => openEdit(r)}
-                    data-testid="cleaning-row"
+                    data-testid={isManual ? 'manual-cleaning-row' : 'cleaning-row'}
                   >
                     <td className="px-3 py-2.5 whitespace-nowrap">
-                      <span className="font-semibold tabular-nums">{u?.unit_number || '?'}</span>
+                      <span className="font-semibold tabular-nums">{u?.unit_number || r.unit_label || '?'}</span>
                       <span className="text-muted-foreground ml-1.5 text-xs">{r.tenant_name || ''}</span>
+                      {isManual && (
+                        <span className="ml-1.5 text-[10px] font-semibold uppercase tracking-wide text-red-600 bg-red-100 border border-red-200 px-1.5 py-0.5 rounded" data-testid="manual-label">Manual</span>
+                      )}
                     </td>
                     <td className="px-3 py-2.5 whitespace-nowrap">
                       {formatShortDate(r.check_out_date)}
@@ -252,13 +361,25 @@ function UpcomingCleaningsTab({ records, housekeepers, maintenancePersonnel, uni
                       {r.notes || '—'}
                     </td>
                     <td className="px-3 py-2.5 text-right whitespace-nowrap">
-                      <span className={`text-xs px-2 py-0.5 rounded border ${
-                        r.confirmed
-                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                          : 'bg-gray-50 text-gray-500 border-gray-200'
-                      }`} data-testid="cleaning-status-badge">
-                        {r.confirmed ? 'Done' : 'Pending'}
-                      </span>
+                      <div className="inline-flex items-center gap-1.5">
+                        <span className={`text-xs px-2 py-0.5 rounded border ${
+                          r.confirmed
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            : 'bg-gray-50 text-gray-500 border-gray-200'
+                        }`} data-testid="cleaning-status-badge">
+                          {r.confirmed ? 'Done' : 'Pending'}
+                        </span>
+                        {isManual && (
+                          <button
+                            onClick={(e) => handleDeleteManual(e, r.id)}
+                            className="p-1 rounded hover:bg-red-100 text-red-400 hover:text-red-600 transition-colors"
+                            data-testid="delete-manual-cleaning-btn"
+                            title="Delete manual cleaning"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );
@@ -268,14 +389,17 @@ function UpcomingCleaningsTab({ records, housekeepers, maintenancePersonnel, uni
         </div>
       )}
 
-      {/* Edit Modal */}
+      {/* Edit Modal (shared for regular and manual) */}
       <Dialog open={editModal} onOpenChange={setEditModal}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              {modalUnit ? `Unit ${modalUnit.unit_number}` : 'Cleaning Details'}
-              {modalProp && (
+              {isEditingManual ? 'Edit Manual Cleaning' : (modalUnit ? `Unit ${modalUnit.unit_number}` : 'Cleaning Details')}
+              {!isEditingManual && modalProp && (
                 <span className="text-sm font-normal text-muted-foreground ml-2">— {modalProp.name}</span>
+              )}
+              {isEditingManual && (
+                <span className="ml-2 text-xs font-normal text-red-600 bg-red-50 border border-red-200 px-2 py-0.5 rounded">Manual</span>
               )}
             </DialogTitle>
             <DialogDescription>
@@ -286,45 +410,58 @@ function UpcomingCleaningsTab({ records, housekeepers, maintenancePersonnel, uni
           </DialogHeader>
 
           <div className="grid gap-3 py-2">
+            {isEditingManual && (
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Unit</Label>
+                    <Select value={editForm.unit_id || '_none'} onValueChange={v => setEditForm(f => ({ ...f, unit_id: v === '_none' ? '' : v }))}>
+                      <SelectTrigger data-testid="hk-edit-unit-select"><SelectValue placeholder="Select unit" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="_none">Select unit</SelectItem>
+                        {units.map(u => (
+                          <SelectItem key={u.id} value={u.id}>{u.unit_number}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Label / Guest Name</Label>
+                    <Input value={editForm.tenant_name || ''} onChange={e => setEditForm(f => ({ ...f, tenant_name: e.target.value }))} placeholder="e.g. Deep clean" className="text-sm" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Date (Check-out)</Label>
+                    <Input type="date" value={editForm.check_out_date || ''} onChange={e => setEditForm(f => ({ ...f, check_out_date: e.target.value }))} className="text-sm" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Check-in Date</Label>
+                    <Input type="date" value={editForm.next_check_in_date || ''} onChange={e => setEditForm(f => ({ ...f, next_check_in_date: e.target.value }))} className="text-sm" />
+                  </div>
+                </div>
+              </>
+            )}
+
             <div className="grid grid-cols-3 gap-3">
               <div className="space-y-1">
                 <Label className="text-xs">Checkout Time</Label>
-                <Input
-                  type="time"
-                  value={editForm.check_out_time || ''}
-                  onChange={e => setEditForm(f => ({ ...f, check_out_time: e.target.value }))}
-                  className="text-sm"
-                />
+                <Input type="time" value={editForm.check_out_time || ''} onChange={e => setEditForm(f => ({ ...f, check_out_time: e.target.value }))} className="text-sm" />
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">Check-in Time</Label>
-                <Input
-                  type="time"
-                  value={editForm.check_in_time || ''}
-                  onChange={e => setEditForm(f => ({ ...f, check_in_time: e.target.value }))}
-                  className="text-sm"
-                />
+                <Input type="time" value={editForm.check_in_time || ''} onChange={e => setEditForm(f => ({ ...f, check_in_time: e.target.value }))} className="text-sm" />
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">Cleaning Time</Label>
-                <Input
-                  type="time"
-                  value={editForm.cleaning_time || ''}
-                  onChange={e => setEditForm(f => ({ ...f, cleaning_time: e.target.value }))}
-                  className="text-sm"
-                />
+                <Input type="time" value={editForm.cleaning_time || ''} onChange={e => setEditForm(f => ({ ...f, cleaning_time: e.target.value }))} className="text-sm" />
               </div>
             </div>
 
             <div className="space-y-1">
               <Label>Assigned Cleaner</Label>
-              <Select
-                value={editForm.assigned_cleaner_id || '_none'}
-                onValueChange={v => setEditForm(f => ({ ...f, assigned_cleaner_id: v === '_none' ? null : v }))}
-              >
-                <SelectTrigger data-testid="hk-edit-cleaner-select">
-                  <SelectValue placeholder="Unassigned" />
-                </SelectTrigger>
+              <Select value={editForm.assigned_cleaner_id || '_none'} onValueChange={v => setEditForm(f => ({ ...f, assigned_cleaner_id: v === '_none' ? null : v }))}>
+                <SelectTrigger data-testid="hk-edit-cleaner-select"><SelectValue placeholder="Unassigned" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="_none">Unassigned</SelectItem>
                   {housekeepers.map(h => (
@@ -336,63 +473,35 @@ function UpcomingCleaningsTab({ records, housekeepers, maintenancePersonnel, uni
 
             <div className="space-y-1.5">
               <Label>Assign Maintenance Person</Label>
-              <Select
-                value={useCustomMaint ? '_custom' : (editForm.assigned_maintenance_id || '_none')}
-                onValueChange={handleMaintSelect}
-              >
-                <SelectTrigger data-testid="hk-edit-maintenance-select">
-                  <SelectValue placeholder="None" />
-                </SelectTrigger>
+              <Select value={useCustomMaint ? '_custom' : (editForm.assigned_maintenance_id || '_none')} onValueChange={handleMaintSelect}>
+                <SelectTrigger data-testid="hk-edit-maintenance-select"><SelectValue placeholder="None" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="_none">None</SelectItem>
                   {maintenancePersonnel.map(p => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.name}{p.role ? ` — ${p.role}` : ''}
-                    </SelectItem>
+                    <SelectItem key={p.id} value={p.id}>{p.name}{p.role ? ` — ${p.role}` : ''}</SelectItem>
                   ))}
                   <SelectItem value="_custom">+ Custom person...</SelectItem>
                 </SelectContent>
               </Select>
               {useCustomMaint && (
-                <Input
-                  className="mt-1 text-sm"
-                  value={editForm.assigned_maintenance_name || ''}
-                  placeholder="Enter maintenance person name"
-                  onChange={e => setEditForm(f => ({ ...f, assigned_maintenance_name: e.target.value }))}
-                  data-testid="hk-custom-maint-input"
-                />
+                <Input className="mt-1 text-sm" value={editForm.assigned_maintenance_name || ''} placeholder="Enter maintenance person name" onChange={e => setEditForm(f => ({ ...f, assigned_maintenance_name: e.target.value }))} data-testid="hk-custom-maint-input" />
               )}
             </div>
 
             {hasMaintAssigned && (
               <div className="space-y-1">
                 <Label>Maintenance Note</Label>
-                <Input
-                  value={editForm.maintenance_note || ''}
-                  onChange={e => setEditForm(f => ({ ...f, maintenance_note: e.target.value }))}
-                  placeholder="e.g. Check kitchen faucet"
-                  data-testid="hk-maint-note-input"
-                />
+                <Input value={editForm.maintenance_note || ''} onChange={e => setEditForm(f => ({ ...f, maintenance_note: e.target.value }))} placeholder="e.g. Check kitchen faucet" data-testid="hk-maint-note-input" />
               </div>
             )}
 
             <div className="space-y-1">
               <Label>Notes</Label>
-              <Textarea
-                value={editForm.notes || ''}
-                onChange={e => setEditForm(f => ({ ...f, notes: e.target.value }))}
-                rows={3}
-                placeholder="Cleaning notes..."
-              />
+              <Textarea value={editForm.notes || ''} onChange={e => setEditForm(f => ({ ...f, notes: e.target.value }))} rows={3} placeholder="Cleaning notes..." />
             </div>
 
             <div className="flex items-center gap-2 pt-1">
-              <Checkbox
-                id="hk-confirmed"
-                checked={editForm.confirmed || false}
-                onCheckedChange={v => setEditForm(f => ({ ...f, confirmed: v }))}
-                data-testid="cleaning-confirmed-checkbox"
-              />
+              <Checkbox id="hk-confirmed" checked={editForm.confirmed || false} onCheckedChange={v => setEditForm(f => ({ ...f, confirmed: v }))} data-testid="cleaning-confirmed-checkbox" />
               <Label htmlFor="hk-confirmed" className="cursor-pointer">Mark as Done</Label>
             </div>
           </div>
@@ -401,6 +510,115 @@ function UpcomingCleaningsTab({ records, housekeepers, maintenancePersonnel, uni
             <Button variant="outline" onClick={() => setEditModal(false)}>Cancel</Button>
             <Button onClick={handleSave} disabled={saving} data-testid="hk-edit-save-btn">
               {saving ? 'Saving...' : 'Save'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Manual Cleaning Modal */}
+      <Dialog open={createModal} onOpenChange={setCreateModal}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              Add Manual Cleaning
+              <span className="ml-2 text-xs font-normal text-red-600 bg-red-50 border border-red-200 px-2 py-0.5 rounded">Manual</span>
+            </DialogTitle>
+            <DialogDescription>Create a standalone cleaning entry not tied to any reservation.</DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-3 py-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Unit *</Label>
+                <Select value={createForm.unit_id || '_none'} onValueChange={v => setCreateForm(f => ({ ...f, unit_id: v === '_none' ? '' : v }))}>
+                  <SelectTrigger data-testid="mc-unit-select"><SelectValue placeholder="Select unit" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="_none">Select unit</SelectItem>
+                    {units.map(u => (
+                      <SelectItem key={u.id} value={u.id}>{u.unit_number}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Label / Guest Name</Label>
+                <Input value={createForm.tenant_name} onChange={e => setCreateForm(f => ({ ...f, tenant_name: e.target.value }))} placeholder="e.g. Deep clean" className="text-sm" data-testid="mc-tenant-name-input" />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Date (Check-out) *</Label>
+                <Input type="date" value={createForm.check_out_date} onChange={e => setCreateForm(f => ({ ...f, check_out_date: e.target.value }))} className="text-sm" data-testid="mc-checkout-date-input" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Check-in Date</Label>
+                <Input type="date" value={createForm.next_check_in_date} onChange={e => setCreateForm(f => ({ ...f, next_check_in_date: e.target.value }))} className="text-sm" data-testid="mc-checkin-date-input" />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Checkout Time</Label>
+                <Input type="time" value={createForm.check_out_time} onChange={e => setCreateForm(f => ({ ...f, check_out_time: e.target.value }))} className="text-sm" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Check-in Time</Label>
+                <Input type="time" value={createForm.check_in_time} onChange={e => setCreateForm(f => ({ ...f, check_in_time: e.target.value }))} className="text-sm" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Cleaning Time</Label>
+                <Input type="time" value={createForm.cleaning_time} onChange={e => setCreateForm(f => ({ ...f, cleaning_time: e.target.value }))} className="text-sm" />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <Label>Assigned Cleaner</Label>
+              <Select value={createForm.assigned_cleaner_id || '_none'} onValueChange={v => setCreateForm(f => ({ ...f, assigned_cleaner_id: v === '_none' ? null : v }))}>
+                <SelectTrigger data-testid="mc-cleaner-select"><SelectValue placeholder="Unassigned" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="_none">Unassigned</SelectItem>
+                  {housekeepers.map(h => (
+                    <SelectItem key={h.id} value={h.id}>{h.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Assign Maintenance Person</Label>
+              <Select value={createUseCustomMaint ? '_custom' : (createForm.assigned_maintenance_id || '_none')} onValueChange={handleCreateMaintSelect}>
+                <SelectTrigger data-testid="mc-maintenance-select"><SelectValue placeholder="None" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="_none">None</SelectItem>
+                  {maintenancePersonnel.map(p => (
+                    <SelectItem key={p.id} value={p.id}>{p.name}{p.role ? ` — ${p.role}` : ''}</SelectItem>
+                  ))}
+                  <SelectItem value="_custom">+ Custom person...</SelectItem>
+                </SelectContent>
+              </Select>
+              {createUseCustomMaint && (
+                <Input className="mt-1 text-sm" value={createForm.assigned_maintenance_name || ''} placeholder="Enter maintenance person name" onChange={e => setCreateForm(f => ({ ...f, assigned_maintenance_name: e.target.value }))} />
+              )}
+            </div>
+
+            {createHasMaintAssigned && (
+              <div className="space-y-1">
+                <Label>Maintenance Note</Label>
+                <Input value={createForm.maintenance_note || ''} onChange={e => setCreateForm(f => ({ ...f, maintenance_note: e.target.value }))} placeholder="e.g. Check kitchen faucet" />
+              </div>
+            )}
+
+            <div className="space-y-1">
+              <Label>Notes</Label>
+              <Textarea value={createForm.notes} onChange={e => setCreateForm(f => ({ ...f, notes: e.target.value }))} rows={3} placeholder="Cleaning notes..." data-testid="mc-notes-input" />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreateModal(false)}>Cancel</Button>
+            <Button onClick={handleCreate} disabled={creating} data-testid="mc-create-btn">
+              {creating ? 'Creating...' : 'Add Cleaning'}
             </Button>
           </DialogFooter>
         </DialogContent>

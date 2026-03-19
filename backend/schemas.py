@@ -266,6 +266,24 @@ class CleaningRecordUpdate(BaseModel):
     maintenance_note: Optional[str] = ""
 
 
+class ManualCleaningCreate(BaseModel):
+    unit_id: str
+    unit_label: Optional[str] = ""
+    tenant_name: Optional[str] = ""
+    check_out_date: Optional[str] = ""
+    next_check_in_date: Optional[str] = ""
+    check_out_time: Optional[str] = ""
+    check_in_time: Optional[str] = ""
+    cleaning_time: Optional[str] = ""
+    assigned_cleaner_id: Optional[str] = None
+    assigned_cleaner_name: Optional[str] = ""
+    assigned_maintenance_id: Optional[str] = None
+    assigned_maintenance_name: Optional[str] = ""
+    maintenance_note: Optional[str] = ""
+    notes: Optional[str] = ""
+    confirmed: bool = False
+
+
 class MaintenancePersonnelCreate(BaseModel):
     name: str
     contact: Optional[str] = ""
