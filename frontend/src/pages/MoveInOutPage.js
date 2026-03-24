@@ -172,7 +172,7 @@ function MoveTable({ items, type, onNotify }) {
             </TableCell></TableRow>
           ) : items.map(t => (
             <TableRow key={`${type}-${t.id}`} className="hover:bg-muted/30" data-testid={`${type}-row`}>
-              <TableCell className="text-xs font-medium">{t.property_name} / U{t.unit_number}</TableCell>
+              <TableCell className="text-xs font-medium">{t.property_name} Apt {t.unit_number}</TableCell>
               <TableCell className="text-xs">{t.name}</TableCell>
               <TableCell className={`text-xs tabular-nums ${isIn ? 'font-medium text-emerald-700' : ''}`}>{formatMoveDate(t.move_in_date)}</TableCell>
               <TableCell className={`text-xs tabular-nums ${!isIn ? 'font-medium text-orange-700' : ''}`}>{formatMoveDate(t.move_out_date)}</TableCell>

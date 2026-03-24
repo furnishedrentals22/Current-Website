@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { getCalendarTimeline, getProperties } from '@/lib/api';
 import { TenantDetailModal } from '@/components/TenantDetailModal';
+import { LeadDetailModal } from '@/components/calendar/LeadDetailModal';
 import { TimelineHeader } from '@/components/calendar/TimelineHeader';
 import { PropertyGroup } from '@/components/calendar/PropertyGroup';
 import { TodayMarker } from '@/components/calendar/TodayMarker';
@@ -19,6 +20,7 @@ export default function CalendarPage() {
   const [properties, setProperties] = useState([]);
   const [selectedProperty, setSelectedProperty] = useState('all');
   const [tenantDetailId, setTenantDetailId] = useState(null);
+  const [leadDetailId, setLeadDetailId] = useState(null);
   const scrollRef = useRef(null);
 
   useEffect(() => { getProperties().then(setProperties).catch(() => {}); }, []);
@@ -147,7 +149,7 @@ export default function CalendarPage() {
             <TimelineHeader months={months} rangeStart={rangeStart} totalWidth={totalWidth} />
             {data.properties.map((property) => (
               <PropertyGroup key={property.property_id} property={property} rangeStart={rangeStart} rangeEnd={rangeEnd}
-                months={months} totalWidth={totalWidth} onTenantClick={(tid) => setTenantDetailId(tid)} />
+                months={months} totalWidth={totalWidth} onTenantClick={(tid) => setTenantDetailId(tid)} onLeadClick={(lid) => setLeadDetailId(lid)} />
             ))}
             <TodayMarker today={today} rangeStart={rangeStart} totalHeight={totalHeight} />
           </div>
@@ -155,6 +157,7 @@ export default function CalendarPage() {
       )}
 
       <TenantDetailModal tenantId={tenantDetailId} open={!!tenantDetailId} onClose={() => setTenantDetailId(null)} />
+      <LeadDetailModal leadId={leadDetailId} open={!!leadDetailId} onClose={() => setLeadDetailId(null)} />
     </div>
   );
 }

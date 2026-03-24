@@ -3,7 +3,7 @@ import { BookingBar } from './BookingBar';
 import { LeadOverlay } from './LeadOverlay';
 import { dateToX, ROW_HEIGHT, LEFT_COL_WIDTH, COLORS } from './calendarConstants';
 
-export function UnitRow({ unit, rangeStart, rangeEnd, months, totalWidth, onTenantClick }) {
+export function UnitRow({ unit, rangeStart, rangeEnd, months, totalWidth, onTenantClick, onLeadClick }) {
   return (
     <div className="flex" style={{ height: ROW_HEIGHT }} data-testid="calendar-timeline-unit-row">
       <div className="sticky left-0 z-10 flex items-center gap-2 px-4 border-r border-b bg-card"
@@ -16,7 +16,7 @@ export function UnitRow({ unit, rangeStart, rangeEnd, months, totalWidth, onTena
           <div key={i} className="absolute top-0 h-full border-r" style={{ left: dateToX(month, rangeStart), borderColor: COLORS.monthBorder }} />
         ))}
         {unit.leads.map((lead) => (
-          <LeadOverlay key={lead.lead_id} lead={lead} bookings={unit.bookings} rangeStart={rangeStart} rangeEnd={rangeEnd} onLeadClick={() => {}} />
+          <LeadOverlay key={lead.lead_id} lead={lead} bookings={unit.bookings} rangeStart={rangeStart} rangeEnd={rangeEnd} onLeadClick={onLeadClick} />
         ))}
         {unit.bookings.map((booking) => (
           <BookingBar key={booking.tenant_id} booking={booking} rangeStart={rangeStart} rangeEnd={rangeEnd} onTenantClick={onTenantClick} />

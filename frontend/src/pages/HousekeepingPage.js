@@ -326,7 +326,12 @@ function UpcomingCleaningsTab({ records, manualCleanings, housekeepers, maintena
                     data-testid={isManual ? 'manual-cleaning-row' : 'cleaning-row'}
                   >
                     <td className="px-3 py-2.5 whitespace-nowrap">
-                      <span className="font-semibold tabular-nums">{u?.unit_number || r.unit_label || '?'}</span>
+                      {(() => {
+                        const prop = propMap[u?.property_id];
+                        const propName = prop?.name || '';
+                        const unitNum = u?.unit_number || r.unit_label || '?';
+                        return <span className="font-semibold tabular-nums">{propName ? `${propName} Apt ${unitNum}` : unitNum}</span>;
+                      })()}
                       <span className="text-muted-foreground ml-1.5 text-xs">{r.tenant_name || ''}</span>
                       {isManual && (
                         <span className="ml-1.5 text-[10px] font-semibold uppercase tracking-wide text-red-600 bg-red-100 border border-red-200 px-1.5 py-0.5 rounded" data-testid="manual-label">Manual</span>

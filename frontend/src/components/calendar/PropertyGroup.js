@@ -2,7 +2,7 @@ import { Badge } from '@/components/ui/badge';
 import { UnitRow } from './UnitRow';
 import { dateToX, LEFT_COL_WIDTH, PROPERTY_HEADER_HEIGHT, COLORS } from './calendarConstants';
 
-export function PropertyGroup({ property, rangeStart, rangeEnd, months, totalWidth, onTenantClick }) {
+export function PropertyGroup({ property, rangeStart, rangeEnd, months, totalWidth, onTenantClick, onLeadClick }) {
   return (
     <div>
       <div className="flex" style={{ height: PROPERTY_HEADER_HEIGHT }}>
@@ -21,7 +21,7 @@ export function PropertyGroup({ property, rangeStart, rangeEnd, months, totalWid
       </div>
       {property.units.map((unit) => (
         <UnitRow key={unit.unit_id} unit={unit} rangeStart={rangeStart} rangeEnd={rangeEnd}
-          months={months} totalWidth={totalWidth} onTenantClick={onTenantClick} />
+          months={months} totalWidth={totalWidth} onTenantClick={onTenantClick} onLeadClick={onLeadClick} />
       ))}
     </div>
   );
