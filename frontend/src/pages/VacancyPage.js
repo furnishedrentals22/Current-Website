@@ -33,7 +33,7 @@ function UpcomingVacanciesView({ vacancies }) {
       <TableCell className="tabular-nums">{formatVacancyDate(v.vacancy_start)}</TableCell>
       <TableCell>
         {v.has_future_tenant ? (
-          <Badge variant="secondary" className="text-xs">Until {v.vacancy_end}</Badge>
+          <Badge variant="secondary" className="text-xs">Until {formatVacancyDate(v.vacancy_end)}</Badge>
         ) : (
           <Badge className="text-xs bg-amber-50 text-amber-900 border-amber-200"><AlertTriangle className="h-3 w-3 mr-1" />Vacant forward</Badge>
         )}
