@@ -10,6 +10,14 @@ import { BarChart3, ChevronDown, ChevronRight, ChevronLeft, AlertTriangle, Arrow
 import { toast } from 'sonner';
 
 const MONTH_NAMES = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+function formatVacancyDate(dateStr) {
+  if (!dateStr) return '-';
+  const [year, month, day] = dateStr.split('-').map(Number);
+  const d = new Date(year, month - 1, day);
+  const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
+  return `${dayName}, ${month}/${day}`;
+}
 const FULL_MONTH_NAMES = ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 function UpcomingVacanciesView({ vacancies }) {
@@ -22,7 +30,7 @@ function UpcomingVacanciesView({ vacancies }) {
     <TableRow key={idx} className={`hover:bg-muted/40 ${idx % 2 === 0 ? '' : 'bg-muted/10'}`}>
       <TableCell className="font-medium">{v.property_name}</TableCell>
       <TableCell>Unit {v.unit_number}</TableCell>
-      <TableCell className="tabular-nums">{v.vacancy_start}</TableCell>
+      <TableCell className="tabular-nums">{formatVacancyDate(v.vacancy_start)}</TableCell>
       <TableCell>
         {v.has_future_tenant ? (
           <Badge variant="secondary" className="text-xs">Until {v.vacancy_end}</Badge>
