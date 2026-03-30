@@ -36,28 +36,28 @@ export const useNotifications = () => useContext(NotificationContext);
 
 const NAV_ITEMS = [
   {
-    label: 'Properties', icon: Building2, testId: 'sidebar-nav-properties-group', isGroup: true,
+    label: 'Properties', icon: Building2, path: '/', testId: 'sidebar-nav-properties-group', isGroup: true,
     children: [
       { path: '/', label: 'Properties', icon: Building2, testId: 'sidebar-nav-properties' },
       { path: '/units', label: 'Units', icon: Home, testId: 'sidebar-nav-units' },
     ]
   },
   {
-    label: 'Tenants', icon: Users, testId: 'sidebar-nav-tenants-group', isGroup: true,
+    label: 'Tenants', icon: Users, path: '/tenants', testId: 'sidebar-nav-tenants-group', isGroup: true,
     children: [
       { path: '/tenants', label: 'Tenants', icon: Users, testId: 'sidebar-nav-tenants' },
       { path: '/leads', label: 'Leads', icon: UserSearch, testId: 'sidebar-nav-leads' },
     ]
   },
   {
-    label: 'Calendar', icon: Calendar, testId: 'sidebar-nav-calendar-group', isGroup: true,
+    label: 'Calendar', icon: Calendar, path: '/calendar', testId: 'sidebar-nav-calendar-group', isGroup: true,
     children: [
       { path: '/calendar', label: 'Calendar', icon: Calendar, testId: 'sidebar-nav-calendar' },
       { path: '/vacancy', label: 'Vacancy', icon: BarChart3, testId: 'sidebar-nav-vacancies' },
     ]
   },
   {
-    label: 'Budgeting', icon: DollarSign, testId: 'sidebar-nav-budgeting', isGroup: true,
+    label: 'Budgeting', icon: DollarSign, path: '/budgeting/income', testId: 'sidebar-nav-budgeting', isGroup: true,
     children: [
       { path: '/budgeting/income', label: 'Income', icon: DollarSign, testId: 'sidebar-nav-income' },
       { path: '/budgeting/deposits', label: 'Deposits', icon: Wallet, testId: 'sidebar-nav-deposits' },
@@ -66,7 +66,7 @@ const NAV_ITEMS = [
   },
   { path: '/notes', label: 'Notes', icon: StickyNote, testId: 'sidebar-nav-notes' },
   {
-    label: 'Info', icon: Info, testId: 'sidebar-nav-info', isGroup: true,
+    label: 'Info', icon: Info, path: '/info/parking', testId: 'sidebar-nav-info', isGroup: true,
     children: [
       { path: '/info/parking', label: 'Parking', icon: Car, testId: 'sidebar-nav-parking' },
       { path: '/info/login-info', label: 'Login Info', icon: KeyRound, testId: 'sidebar-nav-login-info' },
@@ -75,7 +75,7 @@ const NAV_ITEMS = [
     ]
   },
   {
-    label: 'Operations', icon: Settings, testId: 'sidebar-nav-operations', isGroup: true,
+    label: 'Operations', icon: Settings, path: '/ops/move-in-out', testId: 'sidebar-nav-operations', isGroup: true,
     children: [
       { path: '/ops/move-in-out', label: 'Move In / Out', icon: ArrowLeftRight, testId: 'sidebar-nav-move-in-out' },
       { path: '/ops/housekeeping', label: 'Housekeeping', icon: Brush, testId: 'sidebar-nav-housekeeping' },
@@ -161,18 +161,32 @@ function NavGroup({ item, collapsed, location, onClick }) {
 
   return (
     <div>
-      <button data-testid={item.testId} onClick={() => setOpen(!open)}
-        className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors w-full
-          ${isChildActive ? 'text-accent-foreground' : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'}`}
-      >
-        <item.icon className="h-5 w-5 flex-shrink-0" />
-        <span className="flex-1 text-left">{item.label}</span>
-        <ChevronDown className={`h-4 w-4 transition-transform ${open ? '' : '-rotate-90'}`} />
-      </button>
+      <div className={`flex items-center rounded-lg text-sm font-medium transition-colors
+        ${isChildActive ? 'text-accent-foreground' : 'text-muted-foreground'}`}>
+        <NavLink
+          to={item.path}
+          onClick={onClick}
+          data-testid={item.testId}
+          className={({ isActive: navActive }) =>
+            `flex items-center gap-3 flex-1 min-w-0 px-3 py-2.5 rounded-l-lg transition-colors
+            ${isChildActive ? 'text-accent-foreground' : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'}`
+          }
+        >
+          <item.icon className="h-5 w-5 flex-shrink-0" />
+          <span className="flex-1 text-left truncate">{item.label}</span>
+        </NavLink>
+        <button
+          onClick={(e) => { e.stopPropagation(); setOpen(o => !o); }}
+          className="px-2 py-2.5 rounded-r-lg hover:bg-muted/60 transition-colors"
+          aria-label="Toggle menu"
+        >
+          <ChevronDown className={`h-4 w-4 transition-transform ${open ? '' : '-rotate-90'}`} />
+        </button>
+      </div>
       {open && (
         <div className="ml-4 mt-0.5 space-y-0.5 border-l border-border/50 pl-2">
           {item.children.map(child => {
-            const active = location.pathname.startsWith(child.path);
+            const active = child.path === '/' ? location.pathname === '/' : location.pathname.startsWith(child.path);
             return <NavItem key={child.path} item={child} collapsed={false} isActive={active} onClick={onClick} />;
           })}
         </div>

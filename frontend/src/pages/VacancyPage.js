@@ -20,6 +20,110 @@ function formatVacancyDate(dateStr) {
 }
 const FULL_MONTH_NAMES = ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
+function VacantForwardView({ vacancies }) {
+  const [sortMode, setSortMode] = useState('property');
+  const [expanded, setExpanded] = useState({});
+  const toggle = (key) => setExpanded(p => ({ ...p, [key]: !p[key] }));
+
+  const VFRow = ({ v, idx }) => (
+    <TableRow className={`hover:bg-muted/40 ${idx % 2 === 0 ? '' : 'bg-muted/10'}`}>
+      <TableCell className="font-medium">{v.property_name}</TableCell>
+      <TableCell>Unit {v.unit_number}</TableCell>
+      <TableCell className="tabular-nums font-medium text-amber-700">{formatVacancyDate(v.vacancy_start)}</TableCell>
+      <TableCell><Badge className="text-xs bg-amber-50 text-amber-900 border-amber-200"><AlertTriangle className="h-3 w-3 mr-1" />Vacant forward</Badge></TableCell>
+    </TableRow>
+  );
+
+  const sortedByDate = [...vacancies].sort((a, b) => a.vacancy_start.localeCompare(b.vacancy_start));
+
+  if (sortMode === 'date') {
+    const byMonth = {};
+    sortedByDate.forEach(v => {
+      const d = new Date(v.vacancy_start + 'T00:00:00');
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const label = `${FULL_MONTH_NAMES[d.getMonth() + 1]} ${d.getFullYear()}`;
+      if (!byMonth[key]) byMonth[key] = { label, items: [] };
+      byMonth[key].items.push(v);
+    });
+    return (
+      <div className="space-y-2">
+        <div className="flex gap-2 mb-2">
+          <Button size="sm" variant="outline" onClick={() => setSortMode('property')} className="text-xs gap-1"><ArrowUpDown className="h-3 w-3" /> By Property</Button>
+          <Button size="sm" variant="default" onClick={() => setSortMode('date')} className="text-xs gap-1"><ArrowUpDown className="h-3 w-3" /> By Date</Button>
+        </div>
+        {Object.entries(byMonth).sort((a, b) => a[0].localeCompare(b[0])).map(([monthKey, { label, items }]) => {
+          const isOpen = expanded[monthKey] !== false;
+          return (
+            <Card key={monthKey} className="overflow-hidden">
+              <button className="w-full flex items-center justify-between p-3 hover:bg-muted/30 transition-colors" onClick={() => toggle(monthKey)}>
+                <div className="flex items-center gap-2">
+                  {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                  <span className="text-sm font-semibold">{label}</span>
+                  <Badge variant="secondary" className="text-xs">{items.length}</Badge>
+                </div>
+              </button>
+              {isOpen && (
+                <Table>
+                  <TableHeader><TableRow className="bg-muted/30">
+                    <TableHead className="text-xs font-semibold uppercase tracking-wide">Property</TableHead>
+                    <TableHead className="text-xs font-semibold uppercase tracking-wide">Unit</TableHead>
+                    <TableHead className="text-xs font-semibold uppercase tracking-wide">Vacant Since</TableHead>
+                    <TableHead className="text-xs font-semibold uppercase tracking-wide">Status</TableHead>
+                  </TableRow></TableHeader>
+                  <TableBody>{items.map((v, idx) => <VFRow key={idx} v={v} idx={idx} />)}</TableBody>
+                </Table>
+              )}
+            </Card>
+          );
+        })}
+      </div>
+    );
+  }
+
+  // By property (default)
+  const grouped = {};
+  vacancies.forEach(v => {
+    const key = v.property_name || 'Unknown';
+    if (!grouped[key]) grouped[key] = [];
+    grouped[key].push(v);
+  });
+  Object.values(grouped).forEach(arr => arr.sort((a, b) => (parseInt(a.unit_number) || 999) - (parseInt(b.unit_number) || 999)));
+
+  return (
+    <div className="space-y-2">
+      <div className="flex gap-2 mb-2">
+        <Button size="sm" variant="default" onClick={() => setSortMode('property')} className="text-xs gap-1"><ArrowUpDown className="h-3 w-3" /> By Property</Button>
+        <Button size="sm" variant="outline" onClick={() => setSortMode('date')} className="text-xs gap-1"><ArrowUpDown className="h-3 w-3" /> By Date</Button>
+      </div>
+      {Object.entries(grouped).sort((a, b) => a[0].localeCompare(b[0])).map(([propName, items]) => {
+        const isOpen = expanded[propName] !== false;
+        return (
+          <Card key={propName} className="overflow-hidden">
+            <button className="w-full flex items-center justify-between p-3 hover:bg-muted/30 transition-colors" onClick={() => toggle(propName)}>
+              <div className="flex items-center gap-2">
+                {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                <span className="text-sm font-semibold">{propName}</span>
+                <Badge variant="secondary" className="text-xs">{items.length}</Badge>
+              </div>
+            </button>
+            {isOpen && (
+              <Table>
+                <TableHeader><TableRow className="bg-muted/30">
+                  <TableHead className="text-xs font-semibold uppercase tracking-wide">Property</TableHead>
+                  <TableHead className="text-xs font-semibold uppercase tracking-wide">Unit</TableHead>
+                  <TableHead className="text-xs font-semibold uppercase tracking-wide">Vacant Since</TableHead>
+                  <TableHead className="text-xs font-semibold uppercase tracking-wide">Status</TableHead>
+                </TableRow></TableHeader>
+                <TableBody>{items.map((v, idx) => <VFRow key={idx} v={v} idx={idx} />)}</TableBody>
+              </Table>
+            )}
+          </Card>
+        );
+      })}
+    </div>
+  );
+}
+
 function UpcomingVacanciesView({ vacancies }) {
   const [sortMode, setSortMode] = useState('property');
   const [expanded, setExpanded] = useState({});
@@ -185,12 +289,26 @@ export default function VacancyPage() {
       {loading ? (
         <div className="flex items-center justify-center h-40 text-muted-foreground">Loading...</div>
       ) : data ? (
-        <Tabs defaultValue="building" className="space-y-4">
+        <Tabs defaultValue="vacant_forward" className="space-y-4">
           <TabsList>
+            <TabsTrigger value="vacant_forward">Vacant Forward</TabsTrigger>
             <TabsTrigger value="building">By Building</TabsTrigger>
             <TabsTrigger value="size">By Unit Size</TabsTrigger>
             <TabsTrigger value="upcoming">Upcoming Vacancies</TabsTrigger>
           </TabsList>
+
+          {/* VACANT FORWARD */}
+          <TabsContent value="vacant_forward" className="space-y-4">
+            {data.upcoming_vacancies.filter(v => !v.has_future_tenant).length === 0 ? (
+              <Card className="border-dashed">
+                <CardContent className="flex flex-col items-center justify-center py-12">
+                  <p className="text-sm text-muted-foreground">No units are currently vacant forward</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <VacantForwardView vacancies={data.upcoming_vacancies.filter(v => !v.has_future_tenant)} />
+            )}
+          </TabsContent>
 
           {/* BY BUILDING */}
           <TabsContent value="building" className="space-y-4">
