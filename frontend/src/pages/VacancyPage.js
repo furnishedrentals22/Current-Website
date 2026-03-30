@@ -25,15 +25,38 @@ function VacantForwardView({ units }) {
   const [expanded, setExpanded] = useState({});
   const toggle = (key) => setExpanded(p => ({ ...p, [key]: !p[key] }));
 
-  // Currently vacant on top, then by date ascending
-  const sorted = [...units].sort((a, b) => {
+  const sorted = useMemo(() => [...units].sort((a, b) => {
     if (a.is_currently_vacant && !b.is_currently_vacant) return -1;
     if (!a.is_currently_vacant && b.is_currently_vacant) return 1;
     return a.vacancy_start.localeCompare(b.vacancy_start);
-  });
+  }), [units]);
 
-  const VFRow = ({ v, idx }) => (
-    <TableRow key={idx} className={`hover:bg-muted/40 ${idx % 2 === 0 ? '' : 'bg-muted/10'}`}>
+  const { currentlyVacant, byMonth } = useMemo(() => {
+    const cv = sorted.filter(v => v.is_currently_vacant);
+    const upcoming = sorted.filter(v => !v.is_currently_vacant);
+    const months = {};
+    upcoming.forEach(v => {
+      const d = new Date(v.vacancy_start + 'T00:00:00');
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const label = `${FULL_MONTH_NAMES[d.getMonth() + 1]} ${d.getFullYear()}`;
+      if (!months[key]) months[key] = { label, items: [] };
+      months[key].items.push(v);
+    });
+    return { currentlyVacant: cv, byMonth: months };
+  }, [sorted]);
+
+  const groupedByBuilding = useMemo(() => {
+    const grouped = {};
+    sorted.forEach(v => {
+      const key = v.property_name || 'Unknown';
+      if (!grouped[key]) grouped[key] = [];
+      grouped[key].push(v);
+    });
+    return grouped;
+  }, [sorted]);
+
+  const VFRow = ({ v }) => (
+    <TableRow className="hover:bg-muted/40">
       <TableCell className="font-medium">{v.property_name}</TableCell>
       <TableCell>Unit {v.unit_number}</TableCell>
       <TableCell className="tabular-nums">
@@ -64,24 +87,10 @@ function VacantForwardView({ units }) {
   );
 
   if (sortMode === 'date') {
-    // Group currently vacant separately, then by month
-    const currentlyVacant = sorted.filter(v => v.is_currently_vacant);
-    const upcoming = sorted.filter(v => !v.is_currently_vacant);
-
-    const byMonth = {};
-    upcoming.forEach(v => {
-      const d = new Date(v.vacancy_start + 'T00:00:00');
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      const label = `${FULL_MONTH_NAMES[d.getMonth() + 1]} ${d.getFullYear()}`;
-      if (!byMonth[key]) byMonth[key] = { label, items: [] };
-      byMonth[key].items.push(v);
-    });
-
     return (
       <div className="space-y-2">
         {sortButtons}
 
-        {/* Currently vacant section */}
         {currentlyVacant.length > 0 && (
           <Card className="overflow-hidden border-red-200">
             <button className="w-full flex items-center justify-between p-3 hover:bg-red-50 transition-colors" onClick={() => toggle('__vacant__')}>
@@ -94,13 +103,12 @@ function VacantForwardView({ units }) {
             {expanded['__vacant__'] !== false && (
               <Table>
                 {tableHead}
-                <TableBody>{currentlyVacant.map((v, idx) => <VFRow v={v} idx={idx} key={idx} />)}</TableBody>
+                <TableBody>{currentlyVacant.map(v => <VFRow key={v.unit_id} v={v} />)}</TableBody>
               </Table>
             )}
           </Card>
         )}
 
-        {/* By month */}
         {Object.entries(byMonth).sort((a, b) => a[0].localeCompare(b[0])).map(([monthKey, { label, items }]) => {
           const isOpen = expanded[monthKey] !== false;
           return (
@@ -112,7 +120,7 @@ function VacantForwardView({ units }) {
                   <Badge variant="secondary" className="text-xs">{items.length}</Badge>
                 </div>
               </button>
-              {isOpen && <Table>{tableHead}<TableBody>{items.map((v, idx) => <VFRow v={v} idx={idx} key={idx} />)}</TableBody></Table>}
+              {isOpen && <Table>{tableHead}<TableBody>{items.map(v => <VFRow key={v.unit_id} v={v} />)}</TableBody></Table>}
             </Card>
           );
         })}
@@ -120,18 +128,10 @@ function VacantForwardView({ units }) {
     );
   }
 
-  // By building
-  const grouped = {};
-  sorted.forEach(v => {
-    const key = v.property_name || 'Unknown';
-    if (!grouped[key]) grouped[key] = [];
-    grouped[key].push(v);
-  });
-
   return (
     <div className="space-y-2">
       {sortButtons}
-      {Object.entries(grouped).sort((a, b) => a[0].localeCompare(b[0])).map(([propName, items]) => {
+      {Object.entries(groupedByBuilding).sort((a, b) => a[0].localeCompare(b[0])).map(([propName, items]) => {
         const isOpen = expanded[propName] !== false;
         const hasVacant = items.some(v => v.is_currently_vacant);
         return (
@@ -144,7 +144,7 @@ function VacantForwardView({ units }) {
                 {hasVacant && <Badge variant="destructive" className="text-xs">Vacant Now</Badge>}
               </div>
             </button>
-            {isOpen && <Table>{tableHead}<TableBody>{items.map((v, idx) => <VFRow v={v} idx={idx} key={idx} />)}</TableBody></Table>}
+            {isOpen && <Table>{tableHead}<TableBody>{items.map(v => <VFRow key={v.unit_id} v={v} />)}</TableBody></Table>}
           </Card>
         );
       })}
@@ -211,7 +211,7 @@ function UpcomingVacanciesView({ vacancies }) {
                     <TableHead className="text-xs font-semibold uppercase tracking-wide">Vacancy Starts</TableHead>
                     <TableHead className="text-xs font-semibold uppercase tracking-wide">Status</TableHead>
                   </TableRow></TableHeader>
-                  <TableBody>{items.map((v, idx) => <VacancyRow key={idx} v={v} idx={idx} />)}</TableBody>
+                  <TableBody>{items.map(v => <VacancyRow key={`${v.unit_id}-${v.vacancy_start}`} v={v} idx={0} />)}</TableBody>
                 </Table>
               )}
             </Card>
@@ -257,7 +257,7 @@ function UpcomingVacanciesView({ vacancies }) {
                   <TableHead className="text-xs font-semibold uppercase tracking-wide">Vacancy Starts</TableHead>
                   <TableHead className="text-xs font-semibold uppercase tracking-wide">Status</TableHead>
                 </TableRow></TableHeader>
-                <TableBody>{items.map((v, idx) => <VacancyRow key={idx} v={v} idx={idx} />)}</TableBody>
+                <TableBody>{items.map(v => <VacancyRow key={`${v.unit_id}-${v.vacancy_start}`} v={v} idx={0} />)}</TableBody>
               </Table>
             )}
           </Card>
@@ -278,6 +278,8 @@ function UpcomingVacanciesTab({ allVacancies }) {
       .then(d => setVfUnits(d.vacant_forward || []))
       .catch(() => setVfUnits([]))
       .finally(() => setVfLoading(false));
+    // getVacantForward is a stable module import; runs once on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
@@ -329,11 +331,13 @@ export default function VacancyPage() {
     try {
       const result = await getVacancy(year);
       setData(result);
-    } catch (e) {
+    } catch {
       toast.error('Failed to load vacancy data');
     } finally {
       setLoading(false);
     }
+    // getVacancy is a stable module import; year is the only runtime dependency
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [year]);
 
   useEffect(() => { fetchData(); }, [fetchData]);

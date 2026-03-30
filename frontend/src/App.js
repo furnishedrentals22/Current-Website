@@ -249,7 +249,9 @@ function AppShell({ children }) {
 
   const refreshNotifications = useCallback(async () => {
     try { const data = await getNotifications(); setNotifications(data); }
-    catch (e) { console.error('Failed to fetch notifications', e); }
+    catch { /* silent - notifications are non-critical */ }
+    // getNotifications is a stable module import
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {

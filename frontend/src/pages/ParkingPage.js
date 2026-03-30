@@ -54,6 +54,8 @@ export default function ParkingPage() {
       setSpots(sp); setAssignments(asgn); setProperties(props); setAllUnits(units); setTenants(ten);
     } catch { toast.error('Failed to load data'); }
     finally { setLoading(false); }
+    // All referenced functions are stable module imports
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => { fetchData(); }, [fetchData]);

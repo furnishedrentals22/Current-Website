@@ -61,6 +61,8 @@ export default function TenantsPage() {
     } finally {
       setLoading(false);
     }
+    // All referenced functions are stable module imports
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => { fetchData(); }, [fetchData]);

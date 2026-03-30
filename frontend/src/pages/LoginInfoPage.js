@@ -289,6 +289,8 @@ function AccountCard({ account: acc, level, showPassword, onTogglePassword, onCo
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 text-xs">
             {acc.username && <div><span className="text-muted-foreground">User: </span><span>{acc.username}</span>
               <Button variant="ghost" size="sm" className="h-5 w-5 p-0 ml-1" onClick={() => onCopy(acc.username)}><Copy className="h-3 w-3" /></Button></div>}
+            {/* acc.password is user-stored credential from DB, not a hardcoded secret */}
+            {/* eslint-disable-next-line no-secrets/no-secrets */}
             {acc.password && <div><span className="text-muted-foreground">Pass: </span>
               <span className="font-mono">{showPassword ? acc.password : '********'}</span>
               <Button variant="ghost" size="sm" className="h-5 w-5 p-0 ml-1" onClick={onTogglePassword}>{showPassword ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}</Button>

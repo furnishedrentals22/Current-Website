@@ -40,6 +40,8 @@ export default function RentTrackingPage() {
     } finally {
       setLoading(prev => ({ ...prev, [`${y}-${m}`]: false }));
     }
+    // getRentTracking is a stable module import; y/m are passed as args
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {

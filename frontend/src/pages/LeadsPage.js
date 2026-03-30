@@ -89,8 +89,8 @@ export default function LeadsPage() {
       const units = await getAvailableUnits(form.desired_start_date, form.desired_end_date);
       setAvailableUnits(units);
       setNoUnitsAvailable(form.desired_start_date && form.desired_end_date && units.length === 0);
-    } catch (e) {
-      console.error('Failed to fetch available units');
+    } catch {
+      toast.error('Failed to fetch available units');
     }
   }, [form.desired_start_date, form.desired_end_date]);
 
