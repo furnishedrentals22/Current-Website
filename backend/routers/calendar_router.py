@@ -352,3 +352,61 @@ async def get_vacancy(year: int = Query(default=None)):
         'by_unit_size': size_list,
         'upcoming_vacancies': upcoming
     }
+
+
+@router.get("/vacant-forward")
+async def get_vacant_forward():
+    """Return all units that are or will be vacant with no future tenant."""
+    all_tenants = await db.tenants.find().to_list(5000)
+    all_units = await db.units.find().to_list(5000)
+    all_properties = await db.properties.find().to_list(1000)
+
+    prop_map = {str(p['_id']): p for p in all_properties}
+
+    tenants_by_unit = {}
+    for t in all_tenants:
+        uid = t.get('unit_id', '')
+        if uid not in tenants_by_unit:
+            tenants_by_unit[uid] = []
+        tenants_by_unit[uid].append({
+            'move_in': parse_date(t['move_in_date']),
+            'move_out': parse_date(t['move_out_date']),
+            'name': t.get('name', '')
+        })
+
+    today = date.today()
+    units_data = []
+    for unit in all_units:
+        uid = str(unit['_id'])
+        prop_id = unit.get('property_id', '')
+        prop = prop_map.get(prop_id, {})
+        close_date = parse_date(unit['close_date']) if unit.get('close_date') else None
+        if close_date and close_date <= today:
+            continue
+        units_data.append({
+            'unit_id': uid,
+            'unit_number': unit.get('unit_number', ''),
+            'property_name': prop.get('name', 'Unknown'),
+            'property_id': prop_id,
+            'availability_start_date': parse_date(unit['availability_start_date']),
+            'close_date': close_date,
+            'tenants': tenants_by_unit.get(uid, [])
+        })
+
+    # Use 5-year window to capture all future vacant-forward events
+    all_vacancies = find_upcoming_vacancies(units_data, today, days_ahead=1825)
+    vacant_forward = [v for v in all_vacancies if not v.get('has_future_tenant', True)]
+
+    result = []
+    for v in vacant_forward:
+        vs = v['vacancy_start']
+        result.append({
+            'property_name': v['property_name'],
+            'property_id': v['property_id'],
+            'unit_number': v['unit_number'],
+            'unit_id': v['unit_id'],
+            'vacancy_start': vs.isoformat(),
+            'is_currently_vacant': vs <= today,
+        })
+
+    return {'vacant_forward': result}

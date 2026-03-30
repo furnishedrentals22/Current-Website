@@ -52,6 +52,7 @@ export const deleteNotification = (id) => api.delete(`/notifications/${id}`).the
 // Calculations
 export const getIncome = (year) => api.get('/income', { params: { year } }).then(r => r.data);
 export const getVacancy = (year) => api.get('/vacancy', { params: { year } }).then(r => r.data);
+export const getVacantForward = () => api.get('/vacant-forward').then(r => r.data);
 export const getCalendarData = (year) => api.get('/calendar', { params: { year } }).then(r => r.data);
 
 // Calendar timeline (segment-based)
