@@ -21,7 +21,7 @@ function formatVacancyDate(dateStr) {
 const FULL_MONTH_NAMES = ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 function VacantForwardView({ vacancies }) {
-  const [sortMode, setSortMode] = useState('property');
+  const [sortMode, setSortMode] = useState('date');
   const [expanded, setExpanded] = useState({});
   const toggle = (key) => setExpanded(p => ({ ...p, [key]: !p[key] }));
 
@@ -30,11 +30,25 @@ function VacantForwardView({ vacancies }) {
       <TableCell className="font-medium">{v.property_name}</TableCell>
       <TableCell>Unit {v.unit_number}</TableCell>
       <TableCell className="tabular-nums font-medium text-amber-700">{formatVacancyDate(v.vacancy_start)}</TableCell>
-      <TableCell><Badge className="text-xs bg-amber-50 text-amber-900 border-amber-200"><AlertTriangle className="h-3 w-3 mr-1" />Vacant forward</Badge></TableCell>
     </TableRow>
   );
 
   const sortedByDate = [...vacancies].sort((a, b) => a.vacancy_start.localeCompare(b.vacancy_start));
+
+  const tableHead = (
+    <TableHeader><TableRow className="bg-muted/30">
+      <TableHead className="text-xs font-semibold uppercase tracking-wide">Property</TableHead>
+      <TableHead className="text-xs font-semibold uppercase tracking-wide">Unit</TableHead>
+      <TableHead className="text-xs font-semibold uppercase tracking-wide">Next Vacant Forward</TableHead>
+    </TableRow></TableHeader>
+  );
+
+  const sortButtons = (
+    <div className="flex gap-2 mb-2">
+      <Button size="sm" variant={sortMode === 'date' ? 'default' : 'outline'} onClick={() => setSortMode('date')} className="text-xs gap-1"><ArrowUpDown className="h-3 w-3" /> Next Vacant Forward</Button>
+      <Button size="sm" variant={sortMode === 'property' ? 'default' : 'outline'} onClick={() => setSortMode('property')} className="text-xs gap-1"><ArrowUpDown className="h-3 w-3" /> By Building</Button>
+    </div>
+  );
 
   if (sortMode === 'date') {
     const byMonth = {};
@@ -47,10 +61,7 @@ function VacantForwardView({ vacancies }) {
     });
     return (
       <div className="space-y-2">
-        <div className="flex gap-2 mb-2">
-          <Button size="sm" variant="outline" onClick={() => setSortMode('property')} className="text-xs gap-1"><ArrowUpDown className="h-3 w-3" /> By Property</Button>
-          <Button size="sm" variant="default" onClick={() => setSortMode('date')} className="text-xs gap-1"><ArrowUpDown className="h-3 w-3" /> By Date</Button>
-        </div>
+        {sortButtons}
         {Object.entries(byMonth).sort((a, b) => a[0].localeCompare(b[0])).map(([monthKey, { label, items }]) => {
           const isOpen = expanded[monthKey] !== false;
           return (
@@ -62,17 +73,7 @@ function VacantForwardView({ vacancies }) {
                   <Badge variant="secondary" className="text-xs">{items.length}</Badge>
                 </div>
               </button>
-              {isOpen && (
-                <Table>
-                  <TableHeader><TableRow className="bg-muted/30">
-                    <TableHead className="text-xs font-semibold uppercase tracking-wide">Property</TableHead>
-                    <TableHead className="text-xs font-semibold uppercase tracking-wide">Unit</TableHead>
-                    <TableHead className="text-xs font-semibold uppercase tracking-wide">Vacant Since</TableHead>
-                    <TableHead className="text-xs font-semibold uppercase tracking-wide">Status</TableHead>
-                  </TableRow></TableHeader>
-                  <TableBody>{items.map((v, idx) => <VFRow key={idx} v={v} idx={idx} />)}</TableBody>
-                </Table>
-              )}
+              {isOpen && <Table>{tableHead}<TableBody>{items.map((v, idx) => <VFRow key={idx} v={v} idx={idx} />)}</TableBody></Table>}
             </Card>
           );
         })}
@@ -80,21 +81,18 @@ function VacantForwardView({ vacancies }) {
     );
   }
 
-  // By property (default)
+  // By building (property)
   const grouped = {};
   vacancies.forEach(v => {
     const key = v.property_name || 'Unknown';
     if (!grouped[key]) grouped[key] = [];
     grouped[key].push(v);
   });
-  Object.values(grouped).forEach(arr => arr.sort((a, b) => (parseInt(a.unit_number) || 999) - (parseInt(b.unit_number) || 999)));
+  Object.values(grouped).forEach(arr => arr.sort((a, b) => a.vacancy_start.localeCompare(b.vacancy_start)));
 
   return (
     <div className="space-y-2">
-      <div className="flex gap-2 mb-2">
-        <Button size="sm" variant="default" onClick={() => setSortMode('property')} className="text-xs gap-1"><ArrowUpDown className="h-3 w-3" /> By Property</Button>
-        <Button size="sm" variant="outline" onClick={() => setSortMode('date')} className="text-xs gap-1"><ArrowUpDown className="h-3 w-3" /> By Date</Button>
-      </div>
+      {sortButtons}
       {Object.entries(grouped).sort((a, b) => a[0].localeCompare(b[0])).map(([propName, items]) => {
         const isOpen = expanded[propName] !== false;
         return (
@@ -106,17 +104,7 @@ function VacantForwardView({ vacancies }) {
                 <Badge variant="secondary" className="text-xs">{items.length}</Badge>
               </div>
             </button>
-            {isOpen && (
-              <Table>
-                <TableHeader><TableRow className="bg-muted/30">
-                  <TableHead className="text-xs font-semibold uppercase tracking-wide">Property</TableHead>
-                  <TableHead className="text-xs font-semibold uppercase tracking-wide">Unit</TableHead>
-                  <TableHead className="text-xs font-semibold uppercase tracking-wide">Vacant Since</TableHead>
-                  <TableHead className="text-xs font-semibold uppercase tracking-wide">Status</TableHead>
-                </TableRow></TableHeader>
-                <TableBody>{items.map((v, idx) => <VFRow key={idx} v={v} idx={idx} />)}</TableBody>
-              </Table>
-            )}
+            {isOpen && <Table>{tableHead}<TableBody>{items.map((v, idx) => <VFRow key={idx} v={v} idx={idx} />)}</TableBody></Table>}
           </Card>
         );
       })}
@@ -239,6 +227,56 @@ function UpcomingVacanciesView({ vacancies }) {
   );
 }
 
+function UpcomingVacanciesTab({ allVacancies }) {
+  const [subView, setSubView] = useState('vacant_forward');
+  const vacantForward = allVacancies.filter(v => !v.has_future_tenant);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex gap-2 pb-3 border-b border-border/50">
+        <Button
+          size="sm"
+          variant={subView === 'vacant_forward' ? 'default' : 'outline'}
+          onClick={() => setSubView('vacant_forward')}
+          data-testid="subview-vacant-forward-btn"
+        >
+          Vacant Forward
+        </Button>
+        <Button
+          size="sm"
+          variant={subView === 'all' ? 'default' : 'outline'}
+          onClick={() => setSubView('all')}
+          data-testid="subview-all-vacancies-btn"
+        >
+          All Vacancies
+        </Button>
+      </div>
+
+      {subView === 'vacant_forward' ? (
+        vacantForward.length === 0 ? (
+          <Card className="border-dashed">
+            <CardContent className="flex flex-col items-center justify-center py-12">
+              <p className="text-sm text-muted-foreground">No units are currently vacant forward</p>
+            </CardContent>
+          </Card>
+        ) : (
+          <VacantForwardView vacancies={vacantForward} />
+        )
+      ) : (
+        allVacancies.length === 0 ? (
+          <Card className="border-dashed">
+            <CardContent className="flex flex-col items-center justify-center py-12">
+              <p className="text-sm text-muted-foreground">No upcoming vacancies in the next 90 days</p>
+            </CardContent>
+          </Card>
+        ) : (
+          <UpcomingVacanciesView vacancies={allVacancies} />
+        )
+      )}
+    </div>
+  );
+}
+
 export default function VacancyPage() {
   const [year, setYear] = useState(new Date().getFullYear());
   const [data, setData] = useState(null);
@@ -289,25 +327,16 @@ export default function VacancyPage() {
       {loading ? (
         <div className="flex items-center justify-center h-40 text-muted-foreground">Loading...</div>
       ) : data ? (
-        <Tabs defaultValue="vacant_forward" className="space-y-4">
+        <Tabs defaultValue="upcoming" className="space-y-4">
           <TabsList>
-            <TabsTrigger value="vacant_forward">Vacant Forward</TabsTrigger>
+            <TabsTrigger value="upcoming">Upcoming Vacancies</TabsTrigger>
             <TabsTrigger value="building">By Building</TabsTrigger>
             <TabsTrigger value="size">By Unit Size</TabsTrigger>
-            <TabsTrigger value="upcoming">Upcoming Vacancies</TabsTrigger>
           </TabsList>
 
-          {/* VACANT FORWARD */}
-          <TabsContent value="vacant_forward" className="space-y-4">
-            {data.upcoming_vacancies.filter(v => !v.has_future_tenant).length === 0 ? (
-              <Card className="border-dashed">
-                <CardContent className="flex flex-col items-center justify-center py-12">
-                  <p className="text-sm text-muted-foreground">No units are currently vacant forward</p>
-                </CardContent>
-              </Card>
-            ) : (
-              <VacantForwardView vacancies={data.upcoming_vacancies.filter(v => !v.has_future_tenant)} />
-            )}
+          {/* UPCOMING VACANCIES (Vacant Forward + All) */}
+          <TabsContent value="upcoming" className="space-y-4">
+            <UpcomingVacanciesTab allVacancies={data.upcoming_vacancies} />
           </TabsContent>
 
           {/* BY BUILDING */}
@@ -421,18 +450,7 @@ export default function VacancyPage() {
             )}
           </TabsContent>
 
-          {/* UPCOMING VACANCIES */}
-          <TabsContent value="upcoming" className="space-y-4">
-            {data.upcoming_vacancies.length === 0 ? (
-              <Card className="border-dashed">
-                <CardContent className="flex flex-col items-center justify-center py-12">
-                  <p className="text-sm text-muted-foreground">No upcoming vacancies in the next 90 days</p>
-                </CardContent>
-              </Card>
-            ) : (
-              <UpcomingVacanciesView vacancies={data.upcoming_vacancies} />
-            )}
-          </TabsContent>
+
         </Tabs>
       ) : null}
     </div>
