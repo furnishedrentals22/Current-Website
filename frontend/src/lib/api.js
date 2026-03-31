@@ -182,5 +182,11 @@ export const createMaintenanceRequest = (data) => api.post('/maintenance-request
 export const updateMaintenanceRequest = (id, data) => api.put(`/maintenance-requests/${id}`, data).then(r => r.data);
 export const deleteMaintenanceRequest = (id) => api.delete(`/maintenance-requests/${id}`).then(r => r.data);
 
-// Marlins Decals
+// Public Listings
+export const getPublicListings = () => api.get('/public/listings').then(r => r.data);
+export const getListingAvailability = (unitId) => api.get(`/public/listings/${unitId}/availability`).then(r => r.data);
+export const verifyAppPassword = (password) => api.post('/auth/verify-password', { password }).then(r => r.data);
+export const setListingPricing = (data) => api.post('/public/admin/pricing', data).then(r => r.data);
+export const getAllPricing = () => api.get('/public/admin/pricing').then(r => r.data);
+
 export default api;

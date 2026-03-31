@@ -11,7 +11,7 @@ from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
 from database import client
 
-from routers import properties, tenants, leads, notifications, budgeting, calendar_router, operations, parking, info, admin, maintenance, marlins_decals
+from routers import properties, tenants, leads, notifications, budgeting, calendar_router, operations, parking, info, admin, maintenance, marlins_decals, public
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
@@ -29,6 +29,7 @@ app.include_router(info.router, prefix="/api")
 app.include_router(admin.router, prefix="/api")
 app.include_router(maintenance.router, prefix="/api")
 app.include_router(marlins_decals.router, prefix="/api")
+app.include_router(public.router, prefix="/api")
 
 app.add_middleware(
     CORSMiddleware,

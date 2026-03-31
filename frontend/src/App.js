@@ -30,6 +30,8 @@ import HousekeepingPage from '@/pages/HousekeepingPage';
 import MaintenancePage from '@/pages/MaintenancePage';
 import DepositsPage from '@/pages/DepositsPage';
 import RentTrackingPage from '@/pages/RentTrackingPage';
+import ListingsPage from '@/pages/ListingsPage';
+import { PasswordGate } from '@/components/PasswordGate';
 
 export const NotificationContext = createContext();
 export const useNotifications = () => useContext(NotificationContext);
@@ -294,14 +296,13 @@ function AppShell({ children }) {
           </main>
         </div>
       </div>
-      <Toaster position="bottom-right" />
     </NotificationContext.Provider>
   );
 }
 
-function App() {
+function ProtectedApp() {
   return (
-    <BrowserRouter>
+    <PasswordGate>
       <AppShell>
         <ErrorBoundary>
           <Routes>
@@ -327,6 +328,18 @@ function App() {
           </Routes>
         </ErrorBoundary>
       </AppShell>
+    </PasswordGate>
+  );
+}
+
+function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/listings" element={<ListingsPage />} />
+        <Route path="/*" element={<ProtectedApp />} />
+      </Routes>
+      <Toaster position="bottom-right" />
     </BrowserRouter>
   );
 }

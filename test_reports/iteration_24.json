@@ -1,0 +1,66 @@
+{
+  "summary": "Complete testing of Public Listings Page and Password Gate features. All 12 backend API tests passed. All frontend features verified with Playwright.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_public_listings.py",
+    "/app/test_reports/pytest/public_listings_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Password gate correctly blocks admin app at / and stores auth in sessionStorage",
+    "/listings page is publicly accessible without password as required",
+    "Listings show correct title format (PropertyName - Unit Number)",
+    "Check Availability dialog shows 6 months of calendar with correct color coding",
+    "Calendar shows pricing per month or 'Contact for pricing' when not set",
+    "Admin pricing section at bottom of listings page requires password to unlock",
+    "Pricing can be saved and immediately reflects on listing cards",
+    "All data-testid attributes properly set for testing"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_public_listings.py"
+  ],
+  "success_rate": {
+    "backend": "100% (12/12 tests passed)",
+    "frontend": "100%"
+  },
+  "passed_tests": [
+    "POST /api/auth/verify-password with correct password returns valid=true",
+    "POST /api/auth/verify-password with wrong password returns valid=false",
+    "POST /api/auth/verify-password with empty password returns valid=false",
+    "GET /api/public/listings returns list of active units with correct structure",
+    "Listings include pricing array and current_price field",
+    "GET /api/public/listings/{unit_id}/availability returns 6 months of data",
+    "GET /api/public/listings/{invalid_id}/availability returns 404",
+    "POST /api/public/admin/pricing with correct password saves pricing",
+    "POST /api/public/admin/pricing with wrong password returns 401",
+    "POST /api/public/admin/pricing without unit_id returns 400",
+    "POST /api/public/admin/pricing with empty entries returns 400",
+    "GET /api/public/admin/pricing returns all pricing entries",
+    "/listings page loads without password gate (publicly accessible)",
+    "Listings page shows 3 listing cards for active units",
+    "Each listing card shows title, property name, price/contact for pricing, Check Availability button",
+    "Check Availability button opens dialog with 6 months of calendar",
+    "Calendar shows available (green), occupied (gray), past (light) days",
+    "Calendar shows pricing per month or 'Contact for pricing'",
+    "Password gate blocks access to admin app at /",
+    "Password gate shows error for wrong password",
+    "Password gate grants access with correct password 'emergeontop'",
+    "Admin pricing section on listings page requires password to unlock",
+    "Admin pricing section shows unit dropdown after unlocking",
+    "Selecting a unit shows 12 months of pricing inputs with existing values pre-filled",
+    "Save Pricing button saves pricing to backend",
+    "Saved pricing immediately reflects on listing cards"
+  ],
+  "seed_data_creation": "Set pricing for 1144-Unit7: March 2026 = $2200",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Public listings and password gate features fully tested. Key data-testids: listings-page, listings-header, listings-grid, listing-card, listing-title, listing-price, check-availability-button, availability-dialog, month-calendar, admin-pricing-section, admin-password-input, admin-unlock-button, admin-error, admin-unit-select, pricing-input-{month}-{year}, save-pricing-button, password-gate, password-gate-input, password-gate-submit, password-gate-error. Backend endpoints: /api/auth/verify-password, /api/public/listings, /api/public/listings/{id}/availability, /api/public/admin/pricing. Password for admin access: 'emergeontop'."
+}
