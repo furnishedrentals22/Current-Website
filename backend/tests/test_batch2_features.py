@@ -13,7 +13,7 @@ import requests
 import os
 from datetime import date
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://housekeeping-manual.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://vacancy-tracker-3.preview.emergentagent.com')
 
 
 class TestDepositsEndpoints:

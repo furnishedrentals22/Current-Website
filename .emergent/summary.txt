@@ -1,117 +1,109 @@
 <analysis>**original_problem_statement:**
-The user's first request was to redesign the Upcoming Cleanings tab on the Housekeeping page from a card-based layout to a compact, spreadsheet-style table. This was successfully implemented and verified.
+The user wanted to enhance UI formatting and UX across the app. Requests included converting raw date strings (e.g., 2026-03-24) to a compact format (Tue, 3/24) on the Move In/Out and Vacancy pages, formatting unit names clearly (1144 Apt 7), improving the sidebar navigation (clicking headers opens the page, clicking arrows toggles the dropdown), unifying Vacancy sub-tabs, and adding a detailed modal for Leads on the Calendar page. Later, a code review required several hook and performance fixes.
 
-Following that, the user requested a new feature: the ability to add Manual Cleanings.
-
-**PRODUCT REQUIREMENTS for Manual Cleaning:**
-*   Add a button (Add Manual Cleaning) to the Upcoming Cleanings tab.
-*   The button should open a form/modal, identical to the one for regular cleanings, to enter details. The unit should be selectable from a dropdown.
-*   These manual cleanings should be stored as standalone entries, not tied to existing check-in/check-out reservation data.
-*   They must appear in the main Upcoming Cleanings list, sorted chronologically with other cleanings.
-*   Manual entries must be visually distinct with a light reddish background and a Manual label.
-*   Each manual entry must have a directly accessible delete button (e.g., a trash icon) on the row for quick removal.
-*   Deleting a manual cleaning should only remove that specific entry and not affect any other data.
-*   The entry must be fully editable after creation.
-
-**User's preferred language**: English
+**User's preferred language**: English (Next agent MUST respond in English)
 
 **what currently exists?**
-A full-stack property management application (React, FastAPI, MongoDB). The agent has just successfully implemented and tested a new Manual Cleaning feature on the Housekeeping page. This followed a complete UI redesign of the Upcoming Cleanings tab, which was also completed and tested in this session. The application is in a stable state, with the latest features fully verified.
+A stable full-stack property management application (React, FastAPI, MongoDB). Recently enhanced with refined date formats, split-behavior sidebar navigation, a unified Upcoming Vacancies tab that encompasses Vacant Forward functionality (with a new 5-year scanning backend endpoint), and a new Lead details pop-up modal on the Calendar page. Multiple ESLint and React /hook dependency warnings were also addressed.
 
 **Last working item**:
-- **Last item agent was working**: The agent just completed the full implementation and testing of the Manual Cleaning feature.
-- **Status**: NONE (The task is fully completed and verified by the agent).
+- **Last item agent was working**: Fixing a runtime crash () in  caused by a missing import during refactoring, and removing an invalid eslint comment rule (). 
+- **Status**: NONE (The fix was applied, tested, and the user verified it by saying great).
 - **Agent Testing Done**: Y
-- **Which testing method agent to use?**: NA (Testing is complete).
-- **User Testing Done**: N
+- **Which testing method agent to use?**: NA (Task complete, app is stable)
+- **User Testing Done**: Y
 
 **All Pending/In progress Issue list**:
-- There are no pending issues.
+- There are no pending issues. The application is in a stable state.
 
 **In progress Task List**:
-- There are no tasks in progress.
+- There are no tasks currently in progress.
 
-**Upcoming and Future Tasks**
-- There are no outstanding tasks. The agent should now wait for the user's next request. The previous agent's closing message proposed a potential enhancement: adding date range filters or search/sort capabilities to the cleanings table, which could be a good starting point for the next conversation.
+**Upcoming and Future Tasks**:
+- Refactor  (706 lines),  (625 lines), and  (633 lines) by extracting List, Form, and Filter components. (P1)
+- Refactor  by splitting the 510-line  into smaller subcomponents. (P2)
+- Add date range filters or search/sort capabilities for the Upcoming Cleanings table. (P2)
+- Add a Days Vacant counter on each row showing how long a unit has been or will be vacant. (P2)
 
-**Completed work in this session**
-- **Manual Cleaning Feature (DONE)**:
-    - Added a complete CRUD (Create, Read, Update, Delete) system for manual cleanings, decoupled from the main reservation system.
-    - **Backend**: Implemented new Pydantic models (, ) in  and added dedicated CRUD API endpoints () in . A new  MongoDB collection was created.
-    - **Frontend**: In , added an Add Manual Cleaning button, a modal with a unit dropdown, and logic to fetch, merge, and sort manual cleanings with regular ones. Implemented distinctive styling (reddish background, Manual badge) and a delete button for manual rows.
-    - **Testing**: The feature passed 25/25 automated tests (13 backend, 12 frontend).
-- **Housekeeping Page Redesign (DONE)**:
-    - Replaced the card-based layout in the Upcoming Cleanings tab with a compact, spreadsheet-style table.
-    - **File**: .
-    - **Testing**: The redesign passed 11/11 automated frontend tests.
+**Completed work in this session**:
+- Formatted Dates: Changed date format to  on  and  (DONE).
+- Calendar Lead Details: Created  and wired it to  clicks (DONE).
+- Unit Name Formatting: Updated  and  to display  (DONE).
+- Sidebar Navigation: Group headers now act as s to actual pages, while the chevron acts strictly as a dropdown toggle (DONE).
+- Vacancy Page Overhaul: Merged Vacant Forward into Upcoming Vacancies as the default view. Rebuilt  to show permanently vacant units, sorted by Next Available or By Building. Highlights VACANT in bold red if the unit is already vacant (DONE).
+- Backend Expansion: Added  endpoint extending vacancy logic scanning to 5 years (DONE).
+- Code Quality Fixes: Resolved missing hook dependencies across 5 pages, fixed list array keys, added  for expensive groupings in , and removed rogue  logs (DONE).
 
-**Earlier issues found/mentioned but not fixed**
-- None.
+**Earlier issues found/mentioned but not fixed**:
+- Issue 1: Large component sizes.
+  - Debug checklist: Break down , , , , and backend core logic .
+  - Why to solve this issue and what will be achieved with this? Enhances code maintainability and reduces regression risk for future updates.
+  - Should Test frontend/backend/both after fix: both
+  - Is recurring issue? N
 
-**Known issue recurrence from previous fork**
-- None.
+**Known issue recurrence from previous fork**:
+- Issue recurrence in previous fork: None.
+- Recurrence count: 0
+- Status: RESOLVED
 
-**Code Architecture**
+**Code Architecture**:
 
 
-**Key Technical Concepts**
+**Key Technical Concepts**:
 - **Stack**: FastAPI (Python), React (JavaScript), MongoDB.
-- **Full-Stack Implementation**: The agent demonstrated the ability to implement a feature across the entire stack: creating a new data model (), adding corresponding API endpoints (), creating frontend API service calls (), and building the complete UI and state management logic in the React component ().
-- **Data Merging & Sorting**: The frontend now fetches data from two separate sources (regular cleanings and manual cleanings) and merges them into a single, chronologically sorted array for display in the UI.
-- **Conditional Rendering**: The UI uses conditional logic to apply different styles (background color, Manual badge) and render additional elements (delete button) specifically for manual cleaning rows.
+- **Data fetching & Hooks**: Use of  for heavy sorting/grouping in the frontend. Optimization of hook dependency arrays (, ) to avoid stale closures.
+- **Layout Management**: Navigation splitting via state. Handling nested routing logic vs pure dropdown state toggles.
 
-**key DB schema**
-- **manual_cleanings** (New Collection): . This schema is derived from the Pydantic models created in .
+**key DB schema**:
+- : 
+-  / : Evaluated algorithmically via backend  to determine  and  flags.
 
-**changes in tech stack**
+**changes in tech stack**:
 - None.
 
-**All files of reference**
-- : Modified to add  and  Pydantic models.
-- : Modified to add the  CRUD endpoints.
-- : Modified to add API client functions for manual cleanings.
-- : Substantially modified to incorporate both the table redesign and the full manual cleaning feature logic.
+**All files of reference**:
+- : Heavy refactoring to combine tabs, fix formatting, and manage performance (useMemo).
+- : NEW file created for rendering specific lead details on the Calendar.
+- : Added new  API.
+- : Contains modified AppShell sidebar navigation logic.
 
 **Areas that need refactoring**:
-- None.
+-  (706 lines)
+-  (625 lines)
+-  (633 lines)
+-  -  is heavily nested and complex. 
 
-**key api endpoints**
-- ****: Create a new manual cleaning record.
-- ****: Retrieve all manual cleaning records.
-- ****: Update an existing manual cleaning record.
-- ****: Delete a manual cleaning record.
+**key api endpoints**:
+- : Scans 5 years ahead for units without future tenants.
+- : Standard upcoming 90-day window vacancy tracker.
+- : Fetches complete lead details for the Calendar modal.
 
-**Critical Info for New Agent**
-- The application is in a stable and tested state. The last two major features requested by the user have been fully implemented and verified.
-- Your primary goal is to engage the user for the next task. You can start by presenting the completed work and asking what they would like to do next.
-- The previous agent's suggestion to add filtering/sorting to the cleaning table is a good conversation starter if the user doesn't have an immediate request.
+**Critical Info for New Agent**:
+- The application is highly stable right now. All previous bugs and feature requests are resolved.
+- You can begin by greeting the user and offering to tackle the component size refactoring (from the latest code review) or suggest building the Days Vacant counter feature.
+- Make sure to add  carefully; an invalid comment () caused a blank screen error in the previous session. 
 
-**documents and test reports created in this job**
--  (Updated)
-- 
-- 
+**documents and test reports created in this job**:
+- None created in this session.
 
-**Last 10 User Messages and any pending HUMAN messages**
-1.  **User**: Requested the Manual Cleaning feature with detailed specifications.
-2.  **Agent**: Asked for clarification on how the 'Unit' should be selected in the creation form.
-3.  **User**: Replied, drop down for unit.
-The agent then proceeded with the full implementation and testing based on this confirmation.
+**Last 10 User Messages and any pending HUMAN messages**:
+- **User**: great (Confirmation that the final fix is perfectly working). No pending human requests. 
 
 **Project Health Check:**
-- **Broken**: None.
-- **Mocked**: None.
+- Broken: None.
+- Mocked: None.
 
-**3rd Party Integrations**
-- None.
+**3rd Party Integrations**:
+- None explicitly utilized in this current task.
 
-**Testing status**
-- **Testing agent used after significant changes**: YES. The testing agent was used successfully after both the UI redesign and the manual cleaning feature implementation.
-- **Troubleshoot agent used after agent stuck in loop**: NO.
-- **Test files created**: None. Testing was performed by the testing subagent.
-- **Known regressions**: None.
+**Testing status**:
+- Testing agent used after significant changes: NO (Screenshot tool heavily relied upon; the main agent failed to utilize  after broad code review updates, causing a minor crash that was fixed interactively).
+- Troubleshoot agent used after agent stuck in loop: NO.
+- Test files created: None.
+- Known regressions: None currently.
 
-**Credentials to test flow:**
-- No authentication is required to access the application.
+**Credentials to test flow**:
+- None required.
 
-**What agent forgot to execute**
-- Nothing. The agent successfully executed all user requests, including planning, implementation, and thorough testing.</analysis>
+**What agent forgot to execute**:
+- The agent executed broad structural code-review changes without triggering the  to run E2E verifications, which led to a brief regression (). In the future, large multi-file refactors must be followed by .</analysis>
