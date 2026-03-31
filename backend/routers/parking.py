@@ -162,6 +162,16 @@ async def create_parking_assignment(data: ParkingAssignmentCreate):
     if not spot:
         raise HTTPException(status_code=404, detail="Parking spot not found")
 
+    # Check for overlapping assignments on the same spot
+    overlaps = await db.parking_assignments.find({
+        "parking_spot_id": data.parking_spot_id,
+        "start_date": {"$lte": data.end_date},
+        "end_date": {"$gte": data.start_date},
+    }).to_list(100)
+    if overlaps:
+        names = ", ".join(a.get("tenant_name", "Unknown") for a in overlaps)
+        raise HTTPException(status_code=409, detail=f"Conflict: this spot is already assigned to {names} during those dates")
+
     doc = data.model_dump()
     doc["created_at"] = datetime.now(timezone.utc).isoformat()
     doc["updated_at"] = datetime.now(timezone.utc).isoformat()
@@ -172,6 +182,17 @@ async def create_parking_assignment(data: ParkingAssignmentCreate):
 
 @router.put("/parking-assignments/{assignment_id}")
 async def update_parking_assignment(assignment_id: str, data: ParkingAssignmentCreate):
+    # Check for overlapping assignments on the same spot (excluding self)
+    overlaps = await db.parking_assignments.find({
+        "_id": {"$ne": ObjectId(assignment_id)},
+        "parking_spot_id": data.parking_spot_id,
+        "start_date": {"$lte": data.end_date},
+        "end_date": {"$gte": data.start_date},
+    }).to_list(100)
+    if overlaps:
+        names = ", ".join(a.get("tenant_name", "Unknown") for a in overlaps)
+        raise HTTPException(status_code=409, detail=f"Conflict: this spot is already assigned to {names} during those dates")
+
     update_doc = data.model_dump()
     update_doc["updated_at"] = datetime.now(timezone.utc).isoformat()
     result = await db.parking_assignments.update_one({"_id": ObjectId(assignment_id)}, {"$set": update_doc})

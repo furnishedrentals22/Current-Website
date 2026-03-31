@@ -69,6 +69,7 @@ Build and maintain a comprehensive property management application for furnished
   - Removed `has_parking` from tenant forms/display
   - Removed decals from Properties page
   - Manage Parking Spots collapsible section for spot CRUD
+  - **Assignment conflict detection**: overlapping date ranges on the same spot are blocked with a clear error message
 
 ## Backlog
 - P2: Date range filters for Upcoming Cleanings table on Housekeeping page
