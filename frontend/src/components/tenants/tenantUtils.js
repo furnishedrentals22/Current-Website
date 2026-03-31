@@ -60,6 +60,41 @@ export const getQuarterSortKey = (dateStr) => {
   return `${y}-${q}`;
 };
 
+// Table style constants
+export const thClass = "px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground whitespace-nowrap border-b border-border/60";
+export const tdClass = "px-3 py-2 text-[12px] whitespace-nowrap border-b border-border/40";
+export const rowBaseClass = "transition-colors cursor-pointer hover:bg-muted/30";
+
+export const currentColumns = [
+  { key: 'unit', label: 'Unit', w: '70px' },
+  { key: 'name', label: 'Tenant Name', w: '200px' },
+  { key: 'move_in', label: 'Move In', w: '90px' },
+  { key: 'move_out', label: 'Move Out', w: '90px' },
+  { key: 'rent', label: 'Monthly Rent', w: '110px' },
+  { key: 'notes', label: 'Notes', w: '180px' },
+  { key: 'actions', label: 'Actions', w: '80px' },
+];
+
+export const pastColumns = [
+  { key: 'unit', label: 'Unit', w: '70px' },
+  { key: 'name', label: 'Tenant Name', w: '200px' },
+  { key: 'move_in', label: 'Move In', w: '90px' },
+  { key: 'move_out', label: 'Move Out', w: '90px' },
+  { key: 'rent', label: 'Rent', w: '100px' },
+  { key: 'notes', label: 'Notes', w: '180px' },
+  { key: 'actions', label: 'Actions', w: '80px' },
+];
+
+export const renderTableHeader = (columns) => (
+  <thead className="sticky top-0 z-10 bg-[hsl(36,18%,94%)]">
+    <tr>
+      {columns.map(col => (
+        <th key={col.key} className={thClass} style={{ minWidth: col.w }}>{col.label}</th>
+      ))}
+    </tr>
+  </thead>
+);
+
 export const emptyForm = {
   property_id: '', unit_id: '', name: '', phone: '', email: '',
   move_in_date: '', move_out_date: '', is_airbnb_vrbo: false,
