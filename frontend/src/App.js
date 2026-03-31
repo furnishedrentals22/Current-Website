@@ -3,7 +3,7 @@ import '@/App.css';
 import { BrowserRouter, Routes, Route, NavLink, useLocation } from 'react-router-dom';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { Building2, Users, DollarSign, BarChart3, UserSearch, Calendar, Bell, FileText, StickyNote,
-  ChevronLeft, ChevronRight, ChevronDown, Menu, Info, Car, KeyRound, DoorOpen, Megaphone, Home, Settings, ArrowLeftRight, Brush, Wallet, ClipboardList, Wrench } from 'lucide-react';
+  ChevronLeft, ChevronRight, ChevronDown, Menu, Info, Car, KeyRound, DoorOpen, Megaphone, Home, Settings, ArrowLeftRight, Brush, Wallet, ClipboardList, Wrench, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
@@ -273,6 +273,11 @@ function AppShell({ children }) {
           <header className="flex items-center h-16 px-4 sm:px-6 border-b border-border/70 bg-card/80 backdrop-blur-md z-30">
             <MobileNav />
             <div className="flex-1" />
+            <a href="/listings" target="_blank" rel="noopener noreferrer" data-testid="topbar-listings-button">
+              <Button variant="ghost" size="sm" className="h-9 w-9" title="View Listings">
+                <ExternalLink className="h-5 w-5" />
+              </Button>
+            </a>
             <Sheet open={notifOpen} onOpenChange={setNotifOpen}>
               <SheetTrigger asChild>
                 <Button variant="ghost" size="sm" className="relative h-9 w-9" data-testid="topbar-notifications-button">

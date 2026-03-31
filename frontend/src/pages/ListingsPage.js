@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { Toaster } from '@/components/ui/sonner';
-import { MapPin, Lock, Unlock, Search, Loader2, X } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { MapPin, Lock, Unlock, Search, Loader2, X, Settings, LogOut } from 'lucide-react';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -78,6 +78,7 @@ export default function ListingsPage() {
   const [adminUnlocked, setAdminUnlocked] = useState(false);
   const [adminPass, setAdminPass] = useState(() => sessionStorage.getItem('listings_admin_pass') || '');
   const [adminError, setAdminError] = useState('');
+  const [showAdminDialog, setShowAdminDialog] = useState(false);
   const [selectedUnitId, setSelectedUnitId] = useState('');
   const [selectedMonths, setSelectedMonths] = useState([]);
   const [priceInput, setPriceInput] = useState('');
@@ -178,11 +179,36 @@ export default function ListingsPage() {
 
   const selectedListing = listings.find(l => l.id === selectedUnitId);
 
+  const handleAdminLogout = () => {
+    setAdminUnlocked(false);
+    setAdminPass('');
+    sessionStorage.removeItem('listings_admin_pass');
+    setShowAdminDialog(false);
+    setSelectedUnitId('');
+    setSelectedMonths([]);
+    setPriceInput('');
+    toast.success('Logged out of admin');
+  };
+
   return (
     <div className="min-h-screen bg-background" data-testid="listings-page">
       <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-border/60" data-testid="listings-header">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <h1 className="font-heading text-xl font-bold text-primary tracking-tight">Furnished Rentals Miami</h1>
+          {adminUnlocked ? (
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => setShowAdminDialog(true)} data-testid="admin-open-button">
+                <Settings className="h-4 w-4 mr-1" />Admin
+              </Button>
+              <Button variant="ghost" size="sm" onClick={handleAdminLogout} data-testid="admin-logout-button">
+                <LogOut className="h-4 w-4" />
+              </Button>
+            </div>
+          ) : (
+            <Button variant="ghost" size="sm" onClick={() => setShowAdminDialog(true)} className="text-muted-foreground" data-testid="admin-open-button">
+              <Lock className="h-4 w-4 mr-1" />Admin
+            </Button>
+          )}
         </div>
       </header>
 
@@ -223,92 +249,86 @@ export default function ListingsPage() {
         )}
       </section>
 
-      <section className="border-t bg-muted/20 py-12" data-testid="admin-pricing-section">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+      {/* Admin Dialog */}
+      <Dialog open={showAdminDialog} onOpenChange={setShowAdminDialog}>
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto" data-testid="admin-pricing-section">
+          <DialogHeader>
+            <DialogTitle className="font-heading text-lg flex items-center gap-2">
+              {adminUnlocked ? <><Unlock className="h-5 w-5 text-primary" />Manage Pricing</> : <><Lock className="h-5 w-5 text-muted-foreground" />Admin Access</>}
+            </DialogTitle>
+          </DialogHeader>
           {!adminUnlocked ? (
-            <Card className="shadow-sm">
-              <CardContent className="py-8 text-center">
-                <Lock className="mx-auto h-8 w-8 text-muted-foreground mb-3" />
-                <h3 className="font-heading text-lg font-semibold mb-1">Admin Access</h3>
-                <p className="text-sm text-muted-foreground mb-5">Enter password to manage listing pricing</p>
-                <form onSubmit={handleAdminUnlock} className="flex gap-2 max-w-xs mx-auto">
-                  <Input type="password" placeholder="Password" value={adminPass} onChange={e => { setAdminPass(e.target.value); setAdminError(''); }} data-testid="admin-password-input" />
-                  <Button type="submit" data-testid="admin-unlock-button">Unlock</Button>
-                </form>
-                {adminError && <p className="text-sm text-destructive mt-2">{adminError}</p>}
-              </CardContent>
-            </Card>
+            <div className="text-center py-4">
+              <p className="text-sm text-muted-foreground mb-4">Enter password to manage listing pricing</p>
+              <form onSubmit={handleAdminUnlock} className="flex gap-2 max-w-xs mx-auto">
+                <Input type="password" placeholder="Password" value={adminPass} onChange={e => { setAdminPass(e.target.value); setAdminError(''); }} data-testid="admin-password-input" />
+                <Button type="submit" data-testid="admin-unlock-button">Unlock</Button>
+              </form>
+              {adminError && <p className="text-sm text-destructive mt-2">{adminError}</p>}
+            </div>
           ) : (
-            <Card className="shadow-sm">
-              <CardContent className="py-6">
-                <div className="flex items-center gap-2 mb-6">
-                  <Unlock className="h-5 w-5 text-primary" />
-                  <h3 className="font-heading text-lg font-semibold">Manage Listing Pricing</h3>
-                </div>
-                <div className="space-y-6">
+            <div className="space-y-6">
+              <div>
+                <Label className="text-sm font-medium mb-2 block">Select Unit</Label>
+                <Select value={selectedUnitId} onValueChange={v => { setSelectedUnitId(v); setSelectedMonths([]); }}>
+                  <SelectTrigger data-testid="admin-unit-select"><SelectValue placeholder="Choose a unit..." /></SelectTrigger>
+                  <SelectContent>{listings.map(l => <SelectItem key={l.id} value={l.id}>{l.title}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+
+              {selectedUnitId && (
+                <>
                   <div>
-                    <Label className="text-sm font-medium mb-2 block">Select Unit</Label>
-                    <Select value={selectedUnitId} onValueChange={v => { setSelectedUnitId(v); setSelectedMonths([]); }}>
-                      <SelectTrigger data-testid="admin-unit-select"><SelectValue placeholder="Choose a unit..." /></SelectTrigger>
-                      <SelectContent>{listings.map(l => <SelectItem key={l.id} value={l.id}>{l.title}</SelectItem>)}</SelectContent>
-                    </Select>
+                    <Label className="text-sm font-medium mb-2 block">Select Months <span className="text-muted-foreground font-normal">({selectedMonths.length} selected)</span></Label>
+                    <div className="flex flex-wrap gap-2">
+                      {getNext18Months().map(({ year, month }) => {
+                        const key = `${year}-${month}`;
+                        const selected = selectedMonths.includes(key);
+                        return (
+                          <button key={key} onClick={() => toggleMonth(year, month)} data-testid={`month-chip-${month}-${year}`}
+                            className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${selected ? 'bg-primary text-primary-foreground border-primary' : 'bg-background text-foreground border-border hover:bg-muted'}`}>
+                            {MONTH_NAMES[month - 1].slice(0, 3)} '{String(year).slice(2)}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <div className="flex gap-3 items-end">
+                    <div className="flex-1 max-w-[200px]">
+                      <Label className="text-sm font-medium mb-1 block">Price</Label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
+                        <Input type="number" placeholder="0" className="pl-7" value={priceInput} onChange={e => setPriceInput(e.target.value)} data-testid="price-input" />
+                      </div>
+                    </div>
+                    <Button onClick={handleSetPrice} disabled={savingPricing || selectedMonths.length === 0} data-testid="set-price-button">
+                      {savingPricing ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+                      Set Price{selectedMonths.length > 0 ? ` for ${selectedMonths.length} mo` : ''}
+                    </Button>
                   </div>
 
-                  {selectedUnitId && (
-                    <>
-                      <div>
-                        <Label className="text-sm font-medium mb-2 block">Select Months <span className="text-muted-foreground font-normal">({selectedMonths.length} selected)</span></Label>
-                        <div className="flex flex-wrap gap-2">
-                          {getNext18Months().map(({ year, month }) => {
-                            const key = `${year}-${month}`;
-                            const selected = selectedMonths.includes(key);
-                            return (
-                              <button key={key} onClick={() => toggleMonth(year, month)} data-testid={`month-chip-${month}-${year}`}
-                                className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${selected ? 'bg-primary text-primary-foreground border-primary' : 'bg-background text-foreground border-border hover:bg-muted'}`}>
-                                {MONTH_NAMES[month - 1].slice(0, 3)} '{String(year).slice(2)}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                      <div className="flex gap-3 items-end">
-                        <div className="flex-1 max-w-[200px]">
-                          <Label className="text-sm font-medium mb-1 block">Price</Label>
-                          <div className="relative">
-                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
-                            <Input type="number" placeholder="0" className="pl-7" value={priceInput} onChange={e => setPriceInput(e.target.value)} data-testid="price-input" />
+                  {selectedListing?.pricing?.length > 0 && (
+                    <div>
+                      <Label className="text-sm font-medium mb-2 block">Current Pricing</Label>
+                      <div className="flex flex-wrap gap-2">
+                        {selectedListing.pricing.sort((a, b) => a.year - b.year || a.month - b.month).map(p => (
+                          <div key={`${p.year}-${p.month}`} className="flex items-center gap-1.5 bg-muted rounded-full px-3 py-1 text-xs">
+                            <span className="font-medium">{MONTH_NAMES[p.month - 1].slice(0, 3)} {p.year}</span>
+                            <span className="text-primary font-semibold">${p.price.toLocaleString()}</span>
+                            <button onClick={() => handleDeletePrice(selectedUnitId, p.year, p.month)} className="text-destructive hover:text-destructive/80 ml-1" data-testid={`delete-price-${p.month}-${p.year}`}>
+                              <X className="h-3 w-3" />
+                            </button>
                           </div>
-                        </div>
-                        <Button onClick={handleSetPrice} disabled={savingPricing || selectedMonths.length === 0} data-testid="set-price-button">
-                          {savingPricing ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
-                          Set Price{selectedMonths.length > 0 ? ` for ${selectedMonths.length} mo` : ''}
-                        </Button>
+                        ))}
                       </div>
-
-                      {selectedListing?.pricing?.length > 0 && (
-                        <div>
-                          <Label className="text-sm font-medium mb-2 block">Current Pricing</Label>
-                          <div className="flex flex-wrap gap-2">
-                            {selectedListing.pricing.sort((a, b) => a.year - b.year || a.month - b.month).map(p => (
-                              <div key={`${p.year}-${p.month}`} className="flex items-center gap-1.5 bg-muted rounded-full px-3 py-1 text-xs">
-                                <span className="font-medium">{MONTH_NAMES[p.month - 1].slice(0, 3)} {p.year}</span>
-                                <span className="text-primary font-semibold">${p.price.toLocaleString()}</span>
-                                <button onClick={() => handleDeletePrice(selectedUnitId, p.year, p.month)} className="text-destructive hover:text-destructive/80 ml-1" data-testid={`delete-price-${p.month}-${p.year}`}>
-                                  <X className="h-3 w-3" />
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </>
+                    </div>
                   )}
-                </div>
-              </CardContent>
-            </Card>
+                </>
+              )}
+            </div>
           )}
-        </div>
-      </section>
+        </DialogContent>
+      </Dialog>
 
       <footer className="border-t bg-card py-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">

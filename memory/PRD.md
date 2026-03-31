@@ -23,6 +23,7 @@ Build and maintain a comprehensive property management application for furnished
 11. **Password Protection** - Simple password gate for admin app (Mar 2026)
 12. **Guest Listings Page** - Public-facing listings at /listings with availability calendar and admin pricing (Mar 2026)
 13. **Listings Enhancements** - Detail pages, image carousel, photo uploads, date search, multi-month pricing, availability navigation (Mar 2026)
+14. **Admin UX Refinement** - Admin access moved to small header button with dialog, logout support, listings shortcut in main app header (Mar 2026)
 
 ## Architecture
 ```

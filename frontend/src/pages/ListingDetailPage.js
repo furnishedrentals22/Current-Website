@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -8,7 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { Toaster } from '@/components/ui/sonner';
-import { ChevronLeft, ChevronRight, MapPin, Lock, Unlock, Calendar, Loader2, Upload, X, ArrowLeft, Pencil, Trash2, Save } from 'lucide-react';
+import { ChevronLeft, ChevronRight, MapPin, Lock, Unlock, Calendar, Loader2, Upload, X, ArrowLeft, Pencil, Trash2, Save, Settings, LogOut } from 'lucide-react';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -80,6 +79,7 @@ export default function ListingDetailPage() {
   const [adminUnlocked, setAdminUnlocked] = useState(false);
   const [adminPass, setAdminPass] = useState(() => sessionStorage.getItem('listings_admin_pass') || '');
   const [adminError, setAdminError] = useState('');
+  const [showAdminDialog, setShowAdminDialog] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editTitle, setEditTitle] = useState('');
   const [editDesc, setEditDesc] = useState('');
@@ -163,6 +163,17 @@ export default function ListingDetailPage() {
         toast.success('Admin access granted');
       } else { setAdminError('Invalid password'); setAdminPass(''); }
     } catch { setAdminError('Failed to verify'); }
+  };
+
+  const handleAdminLogout = () => {
+    setAdminUnlocked(false);
+    setAdminPass('');
+    sessionStorage.removeItem('listings_admin_pass');
+    setShowAdminDialog(false);
+    setEditing(false);
+    setSelectedMonths([]);
+    setPriceInput('');
+    toast.success('Logged out of admin');
   };
 
   const handleSaveDetails = async () => {
@@ -252,9 +263,25 @@ export default function ListingDetailPage() {
       <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-border/60">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <Link to="/listings" className="font-heading text-xl font-bold text-primary tracking-tight">Furnished Rentals Miami</Link>
-          <Link to="/listings" data-testid="see-all-listings-link">
-            <Button variant="outline" size="sm"><ArrowLeft className="h-4 w-4 mr-1" />See All Listings</Button>
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link to="/listings" data-testid="see-all-listings-link">
+              <Button variant="outline" size="sm"><ArrowLeft className="h-4 w-4 mr-1" />See All Listings</Button>
+            </Link>
+            {adminUnlocked ? (
+              <>
+                <Button variant="outline" size="sm" onClick={() => setShowAdminDialog(true)} data-testid="detail-admin-open-button">
+                  <Settings className="h-4 w-4 mr-1" />Admin
+                </Button>
+                <Button variant="ghost" size="sm" onClick={handleAdminLogout} data-testid="detail-admin-logout-button">
+                  <LogOut className="h-4 w-4" />
+                </Button>
+              </>
+            ) : (
+              <Button variant="ghost" size="sm" onClick={() => setShowAdminDialog(true)} className="text-muted-foreground" data-testid="detail-admin-open-button">
+                <Lock className="h-4 w-4 mr-1" />Admin
+              </Button>
+            )}
+          </div>
         </div>
       </header>
 
@@ -354,151 +381,139 @@ export default function ListingDetailPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Admin Section */}
-      <section className="border-t bg-muted/20 py-12 mt-8" data-testid="detail-admin-section">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+      {/* Admin Dialog */}
+      <Dialog open={showAdminDialog} onOpenChange={setShowAdminDialog}>
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto" data-testid="detail-admin-section">
+          <DialogHeader>
+            <DialogTitle className="font-heading text-lg flex items-center gap-2">
+              {adminUnlocked ? <><Unlock className="h-5 w-5 text-primary" />Edit Listing</> : <><Lock className="h-5 w-5 text-muted-foreground" />Admin Access</>}
+            </DialogTitle>
+          </DialogHeader>
           {!adminUnlocked ? (
-            <Card className="shadow-sm">
-              <CardContent className="py-8 text-center">
-                <Lock className="mx-auto h-8 w-8 text-muted-foreground mb-3" />
-                <h3 className="font-heading text-lg font-semibold mb-1">Admin Access</h3>
-                <p className="text-sm text-muted-foreground mb-5">Enter password to edit this listing</p>
-                <form onSubmit={handleAdminUnlock} className="flex gap-2 max-w-xs mx-auto">
-                  <Input type="password" placeholder="Password" value={adminPass} onChange={e => { setAdminPass(e.target.value); setAdminError(''); }} data-testid="detail-admin-password" />
-                  <Button type="submit" data-testid="detail-admin-unlock">Unlock</Button>
-                </form>
-                {adminError && <p className="text-sm text-destructive mt-2">{adminError}</p>}
-              </CardContent>
-            </Card>
+            <div className="text-center py-4">
+              <p className="text-sm text-muted-foreground mb-4">Enter password to edit this listing</p>
+              <form onSubmit={handleAdminUnlock} className="flex gap-2 max-w-xs mx-auto">
+                <Input type="password" placeholder="Password" value={adminPass} onChange={e => { setAdminPass(e.target.value); setAdminError(''); }} data-testid="detail-admin-password" />
+                <Button type="submit" data-testid="detail-admin-unlock">Unlock</Button>
+              </form>
+              {adminError && <p className="text-sm text-destructive mt-2">{adminError}</p>}
+            </div>
           ) : (
             <div className="space-y-6">
               {/* Edit Details */}
-              <Card className="shadow-sm">
-                <CardContent className="py-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-2">
-                      <Pencil className="h-5 w-5 text-primary" />
-                      <h3 className="font-heading text-lg font-semibold">Edit Listing</h3>
-                    </div>
-                    {!editing && <Button variant="outline" size="sm" onClick={() => setEditing(true)} data-testid="edit-details-button"><Pencil className="h-3 w-3 mr-1" />Edit</Button>}
-                  </div>
-                  {editing ? (
-                    <div className="space-y-4">
-                      <div>
-                        <Label className="text-sm mb-1 block">Title</Label>
-                        <Input value={editTitle} onChange={e => setEditTitle(e.target.value)} data-testid="edit-title-input" />
-                      </div>
-                      <div>
-                        <Label className="text-sm mb-1 block">Description</Label>
-                        <Textarea value={editDesc} onChange={e => setEditDesc(e.target.value)} rows={3} data-testid="edit-description-input" />
-                      </div>
-                      <div className="flex gap-2">
-                        <Button onClick={handleSaveDetails} disabled={savingDetails} data-testid="save-details-button">
-                          {savingDetails ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Save className="h-4 w-4 mr-1" />}Save
-                        </Button>
-                        <Button variant="outline" onClick={() => { setEditing(false); setEditTitle(listing.title); setEditDesc(listing.description || ''); }}>Cancel</Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="text-sm text-muted-foreground">
-                      <p><strong>Title:</strong> {listing.title}</p>
-                      {listing.description && <p className="mt-1"><strong>Description:</strong> {listing.description}</p>}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Photos Management */}
-              <Card className="shadow-sm">
-                <CardContent className="py-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-2">
-                      <Upload className="h-5 w-5 text-primary" />
-                      <h3 className="font-heading text-lg font-semibold">Photos</h3>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-medium text-sm flex items-center gap-1.5"><Pencil className="h-4 w-4 text-primary" />Details</h4>
+                  {!editing && <Button variant="outline" size="sm" onClick={() => setEditing(true)} data-testid="edit-details-button"><Pencil className="h-3 w-3 mr-1" />Edit</Button>}
+                </div>
+                {editing ? (
+                  <div className="space-y-3">
+                    <div>
+                      <Label className="text-sm mb-1 block">Title</Label>
+                      <Input value={editTitle} onChange={e => setEditTitle(e.target.value)} data-testid="edit-title-input" />
                     </div>
                     <div>
-                      <input ref={fileInputRef} type="file" accept="image/*" onChange={handlePhotoUpload} className="hidden" />
-                      <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} disabled={uploading} data-testid="upload-photo-button">
-                        {uploading ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Upload className="h-3 w-3 mr-1" />}Upload
+                      <Label className="text-sm mb-1 block">Description</Label>
+                      <Textarea value={editDesc} onChange={e => setEditDesc(e.target.value)} rows={3} data-testid="edit-description-input" />
+                    </div>
+                    <div className="flex gap-2">
+                      <Button size="sm" onClick={handleSaveDetails} disabled={savingDetails} data-testid="save-details-button">
+                        {savingDetails ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Save className="h-4 w-4 mr-1" />}Save
                       </Button>
+                      <Button size="sm" variant="outline" onClick={() => { setEditing(false); setEditTitle(listing.title); setEditDesc(listing.description || ''); }}>Cancel</Button>
                     </div>
                   </div>
-                  {listing.photos?.length > 0 ? (
-                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
-                      {listing.photos.map(photo => (
-                        <div key={photo.id} className="relative group aspect-square rounded-lg overflow-hidden bg-muted">
-                          <img src={`${API}${photo.url}`} alt={photo.filename} className="w-full h-full object-cover" />
-                          <button onClick={() => handlePhotoDelete(photo.id)}
-                            className="absolute top-1 right-1 w-6 h-6 rounded-full bg-destructive text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                            data-testid={`delete-photo-${photo.id}`}>
-                            <X className="h-3 w-3" />
-                          </button>
+                ) : (
+                  <div className="text-sm text-muted-foreground">
+                    <p><strong>Title:</strong> {listing.title}</p>
+                    {listing.description && <p className="mt-1"><strong>Description:</strong> {listing.description}</p>}
+                  </div>
+                )}
+              </div>
+
+              <hr />
+
+              {/* Photos Management */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-medium text-sm flex items-center gap-1.5"><Upload className="h-4 w-4 text-primary" />Photos</h4>
+                  <div>
+                    <input ref={fileInputRef} type="file" accept="image/*" onChange={handlePhotoUpload} className="hidden" />
+                    <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} disabled={uploading} data-testid="upload-photo-button">
+                      {uploading ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Upload className="h-3 w-3 mr-1" />}Upload
+                    </Button>
+                  </div>
+                </div>
+                {listing.photos?.length > 0 ? (
+                  <div className="grid grid-cols-3 gap-2">
+                    {listing.photos.map(photo => (
+                      <div key={photo.id} className="relative group aspect-square rounded-lg overflow-hidden bg-muted">
+                        <img src={`${API}${photo.url}`} alt={photo.filename} className="w-full h-full object-cover" />
+                        <button onClick={() => handlePhotoDelete(photo.id)}
+                          className="absolute top-1 right-1 w-6 h-6 rounded-full bg-destructive text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                          data-testid={`delete-photo-${photo.id}`}>
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No photos uploaded yet.</p>
+                )}
+              </div>
+
+              <hr />
+
+              {/* Pricing Management */}
+              <div className="space-y-3">
+                <h4 className="font-medium text-sm flex items-center gap-1.5"><Unlock className="h-4 w-4 text-primary" />Pricing</h4>
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-1.5 block">Select Months ({selectedMonths.length} selected)</Label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {getNext18Months().map(({ year, month }) => {
+                      const key = `${year}-${month}`;
+                      const sel = selectedMonths.includes(key);
+                      return (
+                        <button key={key} onClick={() => toggleMonth(year, month)} data-testid={`detail-month-chip-${month}-${year}`}
+                          className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${sel ? 'bg-primary text-primary-foreground border-primary' : 'bg-background text-foreground border-border hover:bg-muted'}`}>
+                          {MONTH_NAMES[month - 1].slice(0, 3)} '{String(year).slice(2)}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div className="flex gap-3 items-end">
+                  <div className="flex-1 max-w-[180px]">
+                    <Label className="text-sm mb-1 block">Price</Label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
+                      <Input type="number" placeholder="0" className="pl-7" value={priceInput} onChange={e => setPriceInput(e.target.value)} data-testid="detail-price-input" />
+                    </div>
+                  </div>
+                  <Button size="sm" onClick={handleSetPrice} disabled={savingPrice || selectedMonths.length === 0} data-testid="detail-set-price-button">
+                    {savingPrice ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+                    Set Price{selectedMonths.length > 0 ? ` for ${selectedMonths.length} mo` : ''}
+                  </Button>
+                </div>
+                {listing.pricing?.length > 0 && (
+                  <div>
+                    <Label className="text-xs text-muted-foreground mb-1.5 block">Current Pricing</Label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {listing.pricing.sort((a, b) => a.year - b.year || a.month - b.month).map(p => (
+                        <div key={`${p.year}-${p.month}`} className="flex items-center gap-1.5 bg-muted rounded-full px-2.5 py-1 text-xs">
+                          <span className="font-medium">{MONTH_NAMES[p.month - 1].slice(0, 3)} {p.year}</span>
+                          <span className="text-primary font-semibold">${p.price.toLocaleString()}</span>
+                          <button onClick={() => handleDeletePrice(p.year, p.month)} className="text-destructive hover:text-destructive/80 ml-0.5"><X className="h-3 w-3" /></button>
                         </div>
                       ))}
                     </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">No photos uploaded. Placeholder images are shown to guests.</p>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Pricing Management */}
-              <Card className="shadow-sm">
-                <CardContent className="py-6">
-                  <div className="flex items-center gap-2 mb-4">
-                    <Unlock className="h-5 w-5 text-primary" />
-                    <h3 className="font-heading text-lg font-semibold">Pricing</h3>
                   </div>
-                  <div className="space-y-4">
-                    <div>
-                      <Label className="text-sm font-medium mb-2 block">Select Months <span className="text-muted-foreground font-normal">({selectedMonths.length} selected)</span></Label>
-                      <div className="flex flex-wrap gap-2">
-                        {getNext18Months().map(({ year, month }) => {
-                          const key = `${year}-${month}`;
-                          const sel = selectedMonths.includes(key);
-                          return (
-                            <button key={key} onClick={() => toggleMonth(year, month)} data-testid={`detail-month-chip-${month}-${year}`}
-                              className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${sel ? 'bg-primary text-primary-foreground border-primary' : 'bg-background text-foreground border-border hover:bg-muted'}`}>
-                              {MONTH_NAMES[month - 1].slice(0, 3)} '{String(year).slice(2)}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                    <div className="flex gap-3 items-end">
-                      <div className="flex-1 max-w-[200px]">
-                        <Label className="text-sm mb-1 block">Price</Label>
-                        <div className="relative">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
-                          <Input type="number" placeholder="0" className="pl-7" value={priceInput} onChange={e => setPriceInput(e.target.value)} data-testid="detail-price-input" />
-                        </div>
-                      </div>
-                      <Button onClick={handleSetPrice} disabled={savingPrice || selectedMonths.length === 0} data-testid="detail-set-price-button">
-                        {savingPrice ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
-                        Set Price{selectedMonths.length > 0 ? ` for ${selectedMonths.length} mo` : ''}
-                      </Button>
-                    </div>
-                    {listing.pricing?.length > 0 && (
-                      <div>
-                        <Label className="text-sm font-medium mb-2 block">Current Pricing</Label>
-                        <div className="flex flex-wrap gap-2">
-                          {listing.pricing.sort((a, b) => a.year - b.year || a.month - b.month).map(p => (
-                            <div key={`${p.year}-${p.month}`} className="flex items-center gap-1.5 bg-muted rounded-full px-3 py-1 text-xs">
-                              <span className="font-medium">{MONTH_NAMES[p.month - 1].slice(0, 3)} {p.year}</span>
-                              <span className="text-primary font-semibold">${p.price.toLocaleString()}</span>
-                              <button onClick={() => handleDeletePrice(p.year, p.month)} className="text-destructive hover:text-destructive/80 ml-1"><X className="h-3 w-3" /></button>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
+                )}
+              </div>
             </div>
           )}
-        </div>
-      </section>
+        </DialogContent>
+      </Dialog>
 
       <footer className="border-t bg-card py-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
