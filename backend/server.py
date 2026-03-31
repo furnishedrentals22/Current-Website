@@ -40,6 +40,15 @@ app.add_middleware(
 )
 
 
+@app.on_event("startup")
+async def startup():
+    try:
+        from object_storage import init_storage
+        init_storage()
+    except Exception as e:
+        logging.warning(f"Storage init deferred: {e}")
+
+
 @app.on_event("shutdown")
 async def shutdown_db_client():
     client.close()
