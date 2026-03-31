@@ -168,7 +168,12 @@ async def get_single_listing(unit_id: str):
 
 
 @router.get("/public/listings/{unit_id}/availability")
-async def get_listing_availability(unit_id: str):
+async def get_listing_availability(
+    unit_id: str,
+    start_year: Optional[int] = None,
+    start_month: Optional[int] = None,
+    num_months: Optional[int] = 6
+):
     unit = await db.units.find_one({"_id": ObjectId(unit_id)})
     if not unit:
         raise HTTPException(status_code=404, detail="Unit not found")
@@ -179,16 +184,20 @@ async def get_listing_availability(unit_id: str):
     pricing_map = {(p['year'], p['month']): p['price'] for p in pricing_docs}
 
     today = date.today()
+    sy = start_year or today.year
+    sm = start_month or today.month
+    count = min(num_months or 6, 24)
+
     months_data = []
-    for i in range(6):
-        m = today.month + i
-        y = today.year
+    for i in range(count):
+        m = sm + i
+        y = sy
         while m > 12:
             m -= 12
             y += 1
-        num_days = days_in_month(y, m)
+        num_days_val = days_in_month(y, m)
         days_data = []
-        for day in range(1, num_days + 1):
+        for day in range(1, num_days_val + 1):
             current_date = date(y, m, day)
             status = 'available'
             for tenant in tenants:

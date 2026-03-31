@@ -31,6 +31,7 @@ import MaintenancePage from '@/pages/MaintenancePage';
 import DepositsPage from '@/pages/DepositsPage';
 import RentTrackingPage from '@/pages/RentTrackingPage';
 import ListingsPage from '@/pages/ListingsPage';
+import ListingDetailPage from '@/pages/ListingDetailPage';
 import { PasswordGate } from '@/components/PasswordGate';
 
 export const NotificationContext = createContext();
@@ -337,6 +338,7 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/listings" element={<ListingsPage />} />
+        <Route path="/listings/:id" element={<ListingDetailPage />} />
         <Route path="/*" element={<ProtectedApp />} />
       </Routes>
       <Toaster position="bottom-right" />

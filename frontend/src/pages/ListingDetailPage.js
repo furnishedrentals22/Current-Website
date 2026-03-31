@@ -73,6 +73,9 @@ export default function ListingDetailPage() {
   const [availability, setAvailability] = useState(null);
   const [showAvailDialog, setShowAvailDialog] = useState(false);
   const [loadingAvail, setLoadingAvail] = useState(false);
+  const [availStartYear, setAvailStartYear] = useState(() => new Date().getFullYear());
+  const [availStartMonth, setAvailStartMonth] = useState(() => new Date().getMonth() + 1);
+  const [availMonthCount, setAvailMonthCount] = useState(6);
 
   const [adminUnlocked, setAdminUnlocked] = useState(false);
   const [adminPass, setAdminPass] = useState(() => sessionStorage.getItem('listings_admin_pass') || '');
@@ -115,15 +118,34 @@ export default function ListingDetailPage() {
     ? listing.photos.map(p => ({ ...p, src: p.url.startsWith('http') ? p.url : `${API}${p.url}` }))
     : PLACEHOLDER_IMAGES.map((url, i) => ({ id: `ph-${i}`, src: url, filename: 'Placeholder', isPlaceholder: true }));
 
-  const handleCheckAvailability = async () => {
-    setShowAvailDialog(true);
-    if (availability) return;
+  const fetchAvailability = async (sy, sm, count) => {
     setLoadingAvail(true);
     try {
-      const res = await fetch(`${API}/api/public/listings/${id}/availability`);
+      const params = new URLSearchParams({ start_year: sy, start_month: sm, num_months: count });
+      const res = await fetch(`${API}/api/public/listings/${id}/availability?${params}`);
       setAvailability(await res.json());
     } catch { toast.error('Failed to load availability'); }
     finally { setLoadingAvail(false); }
+  };
+
+  const handleCheckAvailability = async () => {
+    setShowAvailDialog(true);
+    fetchAvailability(availStartYear, availStartMonth, availMonthCount);
+  };
+
+  const navigateAvail = (dir) => {
+    let newM = availStartMonth + (dir * availMonthCount);
+    let newY = availStartYear;
+    while (newM > 12) { newM -= 12; newY++; }
+    while (newM < 1) { newM += 12; newY--; }
+    setAvailStartMonth(newM);
+    setAvailStartYear(newY);
+    fetchAvailability(newY, newM, availMonthCount);
+  };
+
+  const changeMonthCount = (count) => {
+    setAvailMonthCount(count);
+    fetchAvailability(availStartYear, availStartMonth, count);
   };
 
   const handleAdminUnlock = async (e) => {
@@ -199,7 +221,7 @@ export default function ListingDetailPage() {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ password: adminPass, unit_id: id, entries })
       });
-      if (res.ok) { toast.success(`Price set for ${selectedMonths.length} month(s)`); setSelectedMonths([]); setPriceInput(''); fetchListing(); setAvailability(null); }
+      if (res.ok) { toast.success(`Price set for ${selectedMonths.length} month(s)`); setSelectedMonths([]); setPriceInput(''); fetchListing(); fetchAvailability(availStartYear, availStartMonth, availMonthCount); }
     } catch { toast.error('Failed to save'); }
     finally { setSavingPrice(false); }
   };
@@ -210,7 +232,7 @@ export default function ListingDetailPage() {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ password: adminPass, unit_id: id, year, month })
       });
-      if (res.ok) { toast.success('Price removed'); fetchListing(); setAvailability(null); }
+      if (res.ok) { toast.success('Price removed'); fetchListing(); fetchAvailability(availStartYear, availStartMonth, availMonthCount); }
     } catch { toast.error('Failed to delete'); }
   };
 
@@ -296,10 +318,31 @@ export default function ListingDetailPage() {
             <div className="flex items-center justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
           ) : availability ? (
             <div className="space-y-4">
-              <div className="flex gap-4 text-xs items-center flex-wrap">
-                <span className="flex items-center gap-1.5"><div className="w-3 h-3 rounded bg-emerald-100 border border-emerald-200" />Available</span>
-                <span className="flex items-center gap-1.5"><div className="w-3 h-3 rounded bg-slate-200 border border-slate-300" />Occupied</span>
-                <span className="flex items-center gap-1.5"><div className="w-3 h-3 rounded bg-slate-50 border border-slate-100" />Past</span>
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div className="flex gap-4 text-xs items-center flex-wrap">
+                  <span className="flex items-center gap-1.5"><div className="w-3 h-3 rounded bg-emerald-100 border border-emerald-200" />Available</span>
+                  <span className="flex items-center gap-1.5"><div className="w-3 h-3 rounded bg-slate-200 border border-slate-300" />Occupied</span>
+                  <span className="flex items-center gap-1.5"><div className="w-3 h-3 rounded bg-slate-50 border border-slate-100" />Past</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  {[3, 6, 12].map(n => (
+                    <button key={n} onClick={() => changeMonthCount(n)} data-testid={`avail-count-${n}`}
+                      className={`px-2.5 py-1 rounded text-xs font-medium border transition-colors ${availMonthCount === n ? 'bg-primary text-primary-foreground border-primary' : 'bg-background border-border hover:bg-muted'}`}>
+                      {n}mo
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="flex items-center justify-between">
+                <Button variant="outline" size="sm" onClick={() => navigateAvail(-1)} data-testid="avail-prev">
+                  <ChevronLeft className="h-4 w-4 mr-1" />Prev
+                </Button>
+                <span className="text-sm font-medium text-muted-foreground">
+                  {MONTH_NAMES[availStartMonth - 1]} {availStartYear} &ndash; {availability.months?.length > 0 ? `${MONTH_NAMES[availability.months[availability.months.length - 1].month - 1]} ${availability.months[availability.months.length - 1].year}` : ''}
+                </span>
+                <Button variant="outline" size="sm" onClick={() => navigateAvail(1)} data-testid="avail-next">
+                  Next<ChevronRight className="h-4 w-4 ml-1" />
+                </Button>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {availability.months.map(month => (
