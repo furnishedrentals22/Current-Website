@@ -19,10 +19,11 @@ A comprehensive property management tool for furnished rentals, covering propert
 - Features page
 
 ### Housekeeping (Operations)
-- **Upcoming Cleanings tab**: Spreadsheet-style table (Unit, Check-out, Check-in, Cleaning Time, Cleaner, Maintenance, Notes, Status) with row-click edit modal
+- **Upcoming Cleanings tab**: Spreadsheet-style table with date range filters and search
 - **Current Housekeepers tab**: CRUD with archive support
 - **Housekeeping Leads tab**: CRUD with archive support
 - Maintenance person assignment integration
+- Manual cleanings feature
 
 ### Maintenance (Operations)
 - Full maintenance request CRUD
@@ -30,33 +31,48 @@ A comprehensive property management tool for furnished rentals, covering propert
 ### Marlins Decal Inventory System
 - `marlins_decals` collection with per-property inventory
 - Assign specific decal from inventory to a tenant via dropdown
-- Display decal assignments on property details page
 
-### Tenant Enhancements
-- Parking option for Airbnb tenants
+### UI/UX Enhancements (Completed)
+- Date formatting: `Day, M/D` on Move In/Out and Vacancy pages
+- Unit name formatting: `[Property] Apt [Unit]`
+- Sidebar navigation: headers as NavLinks, chevrons as dropdown toggles
+- Calendar Lead Detail Modal
+- Vacancy Page: Merged "Vacant Forward" into "Upcoming Vacancies" tab
 
-### Bug Fixes
-- Vacancy logic: properly accounts for future tenants beyond 90-day view
-- Marlins Decal: changed from simple toggle to full inventory selection
+### Component Refactoring (2026-03-31)
+- **PropertiesPage.js**: 706 -> 296 lines. Extracted PropertyFormDialog, UnitFormDialog, PropertyCard
+- **LeadsPage.js**: 625 -> 339 lines. Extracted LeadRow, LeadFormDialog, NotificationDialogs
+- **HousekeepingPage.js**: Extracted CleaningEditDialog, ManualCleaningDialog, housekeepingUtils
+- **TenantsPage.js**: 657 -> 341 lines. Extracted TenantRow, CurrentFutureTab, PastTenantsTab
+- **core_logic.py**: 504 -> 460 lines. Extracted _make_vacancy, _add_vacancy_with_future_check, _calculate_end_date helpers
 
 ## Key DB Collections
 - `properties`, `units`, `tenants`, `leads`
 - `cleaning_records`, `housekeepers`, `housekeeping_leads`
 - `maintenance_requests`, `maintenance_personnel`
-- `marlins_decals`
+- `marlins_decals`, `manual_cleanings`
 - `notifications`, `notes`, `income_records`, `deposits`, `rent_tracking`
 
 ## Key API Endpoints
+- `/api/vacancy` (GET) - 90-day vacancy window
+- `/api/vacant-forward` (GET) - 5-year vacancy scan
+- `/api/leads/{id}` (GET) - Lead details for Calendar modal
 - `/api/marlins_decals/` (GET, POST), `/api/marlins_decals/{id}` (PUT, DELETE)
 - `/api/maintenance/` (GET, POST), `/api/maintenance/{id}` (PUT, DELETE)
-- `/api/calendar/vacancy` (GET)
 - `/api/cleaning-records/`, `/api/housekeepers/`, `/api/housekeeping-leads/`
+- `/api/manual-cleanings` (GET, POST, PUT, DELETE)
+
+## Component Architecture
+```
+frontend/src/components/
+  properties/  -> PropertyFormDialog, UnitFormDialog, PropertyCard
+  leads/       -> LeadRow, LeadFormDialog, NotificationDialogs
+  housekeeping/ -> CleaningEditDialog, ManualCleaningDialog, housekeepingUtils
+  tenants/     -> TenantRow, CurrentFutureTab, PastTenantsTab, TenantFormDialog, TenantDetailDialog, TenantDeleteDialog, MiscChargesSection, tenantUtils
+  calendar/    -> LeadDetailModal, LeadOverlay, BookingBar, PropertyGroup, TimelineHeader, TodayMarker, UnitRow
+```
 
 ## Backlog
-- No pending tasks. Awaiting user direction.
-
-## Recent Changes (2026-03-19)
-- **Manual Cleanings Feature**: Added ability to create standalone cleaning entries not tied to reservations
-  - Backend: `manual_cleanings` collection with full CRUD at `/api/manual-cleanings`
-  - Frontend: "Add Manual Cleaning" button, unit dropdown, reddish rows with "Manual" label, trash icon for quick delete
-  - Fully editable after creation, chronologically sorted with regular cleanings
+- P2: Split HousekeepingPage UpcomingCleaningsTab (still 693 lines) into smaller subcomponents
+- P2: Add "Days Vacant" counter on Vacancy page rows
+- P2: Further date range filters for Upcoming Cleanings

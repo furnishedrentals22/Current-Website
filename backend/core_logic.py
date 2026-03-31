@@ -317,7 +317,6 @@ def calculate_unit_vacancy_for_month(
     Jan 15 is NOT vacant (Tenant B occupies from that night).
     """
     month_start = date(year, month, 1)
-    total_days_in_month = days_in_month(year, month)
     if month == 12:
         month_end = date(year + 1, 1, 1)
     else:
@@ -362,6 +361,51 @@ def calculate_unit_vacancy_for_month(
     }
 
 
+def _make_vacancy(unit: Dict, vacancy_start: date, vacancy_end: Optional[date] = None) -> Dict:
+    """Build a vacancy record for a unit. If vacancy_end is None, it's open-ended."""
+    base = {
+        'property_name': unit.get('property_name', ''),
+        'property_id': unit.get('property_id', ''),
+        'unit_number': unit.get('unit_number', ''),
+        'unit_id': unit.get('unit_id', ''),
+        'vacancy_start': vacancy_start,
+    }
+    if vacancy_end is not None:
+        base['has_future_tenant'] = True
+        base['vacancy_end'] = vacancy_end
+        base['message'] = f"Vacant {vacancy_start.isoformat()} to {vacancy_end.isoformat()}"
+    else:
+        base['has_future_tenant'] = False
+        base['message'] = f"Vacant from {vacancy_start.isoformat()} forward"
+    return base
+
+
+def _add_vacancy_with_future_check(
+    vacancies: List[Dict], unit: Dict, vacancy_start: date,
+    all_tenants: List[Dict]
+):
+    """Append a vacancy, checking if there's any future tenant after vacancy_start."""
+    future = [t for t in all_tenants if t['move_in'] > vacancy_start]
+    if future:
+        next_move_in = min(t['move_in'] for t in future)
+        vacancies.append(_make_vacancy(unit, vacancy_start, next_move_in))
+    else:
+        vacancies.append(_make_vacancy(unit, vacancy_start))
+
+
+def _calculate_end_date(from_date: date, months_ahead: int, days_ahead: Optional[int]) -> date:
+    """Calculate the scanning window end date."""
+    if days_ahead is not None:
+        return from_date + timedelta(days=days_ahead)
+    end = date(from_date.year, from_date.month, 1)
+    for _ in range(months_ahead):
+        if end.month == 12:
+            end = date(end.year + 1, 1, 1)
+        else:
+            end = date(end.year, end.month + 1, 1)
+    return end
+
+
 def find_upcoming_vacancies(
     units: List[Dict],
     from_date: date,
@@ -374,130 +418,43 @@ def find_upcoming_vacancies(
     If days_ahead is provided, uses a rolling day-based window from from_date.
     Otherwise uses months_ahead calendar months.
     """
-    # Calculate the end boundary
-    if days_ahead is not None:
-        end_date = from_date + timedelta(days=days_ahead)
-    else:
-        end_date = date(from_date.year, from_date.month, 1)
-        for _ in range(months_ahead):
-            if end_date.month == 12:
-                end_date = date(end_date.year + 1, 1, 1)
-            else:
-                end_date = date(end_date.year, end_date.month + 1, 1)
-    
+    end_date = _calculate_end_date(from_date, months_ahead, days_ahead)
     vacancies = []
-    
+
     for unit in units:
         tenants = sorted(unit.get('tenants', []), key=lambda t: t['move_in'])
         unit_close = unit.get('close_date')
-        
-        # Skip units already closed
+
         if unit_close and unit_close <= from_date:
             continue
-        
-        # Find the last tenant whose move_out is after from_date
-        # and check gaps
-        relevant_tenants = [
-            t for t in tenants 
-            if t['move_out'] > from_date and t['move_in'] < end_date
-        ]
-        
-        if not relevant_tenants:
-            # No tenants in the window — check if unit is available
-            # Find the last tenant before this window
-            past_tenants = [t for t in tenants if t['move_out'] <= from_date]
-            if past_tenants:
-                last_move_out = max(t['move_out'] for t in past_tenants)
-                vacancy_start = max(last_move_out, from_date)
+
+        relevant = [t for t in tenants if t['move_out'] > from_date and t['move_in'] < end_date]
+
+        if not relevant:
+            # No tenants in window — find vacancy start from last past tenant or availability
+            past = [t for t in tenants if t['move_out'] <= from_date]
+            if past:
+                vacancy_start = max(max(t['move_out'] for t in past), from_date)
             else:
                 vacancy_start = max(unit.get('availability_start_date', from_date), from_date)
 
             if vacancy_start < end_date:
-                # Check for any future tenant (including beyond the window)
-                future_tenants_all = [t for t in tenants if t['move_in'] > vacancy_start]
-                if future_tenants_all:
-                    next_move_in = min(t['move_in'] for t in future_tenants_all)
-                    vacancies.append({
-                        'property_name': unit.get('property_name', ''),
-                        'property_id': unit.get('property_id', ''),
-                        'unit_number': unit.get('unit_number', ''),
-                        'unit_id': unit.get('unit_id', ''),
-                        'vacancy_start': vacancy_start,
-                        'has_future_tenant': True,
-                        'vacancy_end': next_move_in,
-                        'message': f"Vacant {vacancy_start.isoformat()} to {next_move_in.isoformat()}"
-                    })
-                else:
-                    vacancies.append({
-                        'property_name': unit.get('property_name', ''),
-                        'property_id': unit.get('property_id', ''),
-                        'unit_number': unit.get('unit_number', ''),
-                        'unit_id': unit.get('unit_id', ''),
-                        'vacancy_start': vacancy_start,
-                        'has_future_tenant': False,
-                        'message': f"Vacant from {vacancy_start.isoformat()} forward"
-                    })
+                _add_vacancy_with_future_check(vacancies, unit, vacancy_start, tenants)
         else:
-            # Check gaps between consecutive tenants and after last tenant
-            for i, tenant in enumerate(relevant_tenants):
-                if i == 0:
-                    # Gap before first relevant tenant?
-                    if tenant['move_in'] > from_date:
-                        gap_start = from_date
-                        gap_end = tenant['move_in']
-                        if gap_start < gap_end:
-                            vacancies.append({
-                                'property_name': unit.get('property_name', ''),
-                                'property_id': unit.get('property_id', ''),
-                                'unit_number': unit.get('unit_number', ''),
-                                'unit_id': unit.get('unit_id', ''),
-                                'vacancy_start': gap_start,
-                                'has_future_tenant': True,
-                                'vacancy_end': gap_end,
-                                'message': f"Vacant {gap_start.isoformat()} to {gap_end.isoformat()}"
-                            })
-                
-                if i < len(relevant_tenants) - 1:
-                    # Gap between this tenant and next
-                    gap_start = tenant['move_out']
-                    gap_end = relevant_tenants[i + 1]['move_in']
-                    if gap_start < gap_end:  # Same-day turnover = no gap
-                        vacancies.append({
-                            'property_name': unit.get('property_name', ''),
-                            'property_id': unit.get('property_id', ''),
-                            'unit_number': unit.get('unit_number', ''),
-                            'unit_id': unit.get('unit_id', ''),
-                            'vacancy_start': gap_start,
-                            'has_future_tenant': True,
-                            'vacancy_end': gap_end,
-                            'message': f"Vacant {gap_start.isoformat()} to {gap_end.isoformat()}"
-                        })
-                else:
-                    # After last tenant — check for any future tenant (even beyond the window)
-                    last_out = tenant['move_out']
-                    if last_out < end_date:
-                        future_tenants_all = [t for t in tenants if t['move_in'] > last_out]
-                        if future_tenants_all:
-                            next_move_in = min(t['move_in'] for t in future_tenants_all)
-                            vacancies.append({
-                                'property_name': unit.get('property_name', ''),
-                                'property_id': unit.get('property_id', ''),
-                                'unit_number': unit.get('unit_number', ''),
-                                'unit_id': unit.get('unit_id', ''),
-                                'vacancy_start': last_out,
-                                'has_future_tenant': True,
-                                'vacancy_end': next_move_in,
-                                'message': f"Vacant {last_out.isoformat()} to {next_move_in.isoformat()}"
-                            })
-                        else:
-                            vacancies.append({
-                                'property_name': unit.get('property_name', ''),
-                                'property_id': unit.get('property_id', ''),
-                                'unit_number': unit.get('unit_number', ''),
-                                'unit_id': unit.get('unit_id', ''),
-                                'vacancy_start': last_out,
-                                'has_future_tenant': False,
-                                'message': f"Vacant from {last_out.isoformat()} forward"
-                            })
-    
+            # Check gap before first relevant tenant
+            if relevant[0]['move_in'] > from_date:
+                vacancies.append(_make_vacancy(unit, from_date, relevant[0]['move_in']))
+
+            # Check gaps between consecutive tenants
+            for i in range(len(relevant) - 1):
+                gap_start = relevant[i]['move_out']
+                gap_end = relevant[i + 1]['move_in']
+                if gap_start < gap_end:
+                    vacancies.append(_make_vacancy(unit, gap_start, gap_end))
+
+            # Check after last tenant in window
+            last_out = relevant[-1]['move_out']
+            if last_out < end_date:
+                _add_vacancy_with_future_check(vacancies, unit, last_out, tenants)
+
     return vacancies
