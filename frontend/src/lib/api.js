@@ -95,6 +95,9 @@ export const createParkingAssignment = (data) => api.post('/parking-assignments'
 export const updateParkingAssignment = (id, data) => api.put(`/parking-assignments/${id}`, data).then(r => r.data);
 export const deleteParkingAssignment = (id) => api.delete(`/parking-assignments/${id}`).then(r => r.data);
 
+// Parking Timeline
+export const getParkingTimeline = () => api.get('/parking/timeline').then(r => r.data);
+
 // Door Codes
 export const getDoorCodes = (params = {}) => api.get('/door-codes', { params }).then(r => r.data);
 export const saveDoorCode = (data) => api.post('/door-codes', data).then(r => r.data);
@@ -180,8 +183,4 @@ export const updateMaintenanceRequest = (id, data) => api.put(`/maintenance-requ
 export const deleteMaintenanceRequest = (id) => api.delete(`/maintenance-requests/${id}`).then(r => r.data);
 
 // Marlins Decals
-export const getMarlinsDecals = (params = {}) => api.get('/marlins-decals', { params }).then(r => r.data);
-export const createMarlinsDecal = (data) => api.post('/marlins-decals', data).then(r => r.data);
-export const deleteMarlinsDecal = (id) => api.delete(`/marlins-decals/${id}`).then(r => r.data);
-
 export default api;

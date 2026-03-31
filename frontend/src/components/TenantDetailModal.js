@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { getTenants, getProperties, getUnits } from '@/lib/api';
+import { Car } from 'lucide-react';
+import { getTenants, getProperties, getUnits, getParkingAssignments } from '@/lib/api';
 
 const fmtDate = (v) => {
   if (!v) return '-';
@@ -13,7 +14,6 @@ const fmtDate = (v) => {
 };
 const fmtMoney = (v) => v != null && v !== '' && v !== 0 ? `$${parseFloat(v).toLocaleString()}` : '-';
 
-// Cache for lookups
 let cachedTenants = null;
 let cachedProps = null;
 let cachedUnits = null;
@@ -36,6 +36,7 @@ export function TenantDetailModal({ tenantId, tenantData, open, onClose }) {
   const [propName, setPropName] = useState('');
   const [unitNum, setUnitNum] = useState('');
   const [loading, setLoading] = useState(false);
+  const [parkingAssignments, setParkingAssignments] = useState([]);
 
   useEffect(() => {
     if (!open) return;
@@ -70,6 +71,15 @@ export function TenantDetailModal({ tenantId, tenantData, open, onClose }) {
     }
   }, [tenant, propName]);
 
+  useEffect(() => {
+    const tid = tenantId || tenantData?.id;
+    if (open && tid) {
+      getParkingAssignments({ tenant_id: tid }).then(setParkingAssignments).catch(() => {});
+    } else {
+      setParkingAssignments([]);
+    }
+  }, [open, tenantId, tenantData?.id]);
+
   const isAirbnb = tenant?.is_airbnb_vrbo;
 
   return (
@@ -86,15 +96,12 @@ export function TenantDetailModal({ tenantId, tenantData, open, onClose }) {
 
         {tenant && !loading && (
           <div className="space-y-4">
-            {/* Type Badge */}
             <div className="flex items-center gap-2">
               <Badge variant={isAirbnb ? 'secondary' : 'default'}>
                 {isAirbnb ? 'Airbnb/VRBO' : 'Long-term'}
               </Badge>
-              {tenant.has_parking && <Badge variant="outline">Parking</Badge>}
             </div>
 
-            {/* Dates */}
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Move In</p>
@@ -108,7 +115,6 @@ export function TenantDetailModal({ tenantId, tenantData, open, onClose }) {
 
             <Separator />
 
-            {/* Contact */}
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Phone</p>
@@ -122,7 +128,6 @@ export function TenantDetailModal({ tenantId, tenantData, open, onClose }) {
 
             <Separator />
 
-            {/* Financial */}
             <div className="grid grid-cols-2 gap-4">
               {!isAirbnb && (
                 <>
@@ -172,8 +177,7 @@ export function TenantDetailModal({ tenantId, tenantData, open, onClose }) {
               </>
             )}
 
-            {/* Other Info */}
-            {(tenant.pets || tenant.parking || tenant.notes) && (
+            {(tenant.pets || tenant.notes) && (
               <>
                 <Separator />
                 {tenant.pets && (
@@ -182,18 +186,30 @@ export function TenantDetailModal({ tenantId, tenantData, open, onClose }) {
                     <p className="text-sm">{tenant.pets}</p>
                   </div>
                 )}
-                {tenant.parking && (
-                  <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Parking</p>
-                    <p className="text-sm">{tenant.parking}</p>
-                  </div>
-                )}
                 {tenant.notes && (
                   <div>
                     <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Notes</p>
                     <p className="text-sm whitespace-pre-wrap">{tenant.notes}</p>
                   </div>
                 )}
+              </>
+            )}
+
+            {parkingAssignments.length > 0 && (
+              <>
+                <Separator />
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">Parking</p>
+                  <div className="space-y-1.5">
+                    {parkingAssignments.map(pa => (
+                      <div key={pa.id} className="flex items-center gap-2 text-sm px-2 py-1.5 rounded bg-violet-50 border border-violet-200" data-testid="tenant-parking-note">
+                        <Car className="h-3.5 w-3.5 text-violet-600 flex-shrink-0" />
+                        <span className="font-medium text-violet-800">{pa.spot_label}</span>
+                        <span className="text-xs text-violet-600">{pa.start_date} to {pa.end_date}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </>
             )}
           </div>

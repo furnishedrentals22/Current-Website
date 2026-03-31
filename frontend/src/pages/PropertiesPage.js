@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { getProperties, createProperty, updateProperty, deleteProperty, getUnits, createUnit, updateUnit, deleteUnit, getMarlinsDecals, createMarlinsDecal, deleteMarlinsDecal } from '@/lib/api';
+import { getProperties, createProperty, updateProperty, deleteProperty, getUnits, createUnit, updateUnit, deleteUnit } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Building2, Plus } from 'lucide-react';
@@ -12,7 +12,6 @@ const emptyPropertyForm = {
   name: '', address: '', owner_manager_name: '', owner_manager_phone: '',
   owner_manager_email: '', available_parking: '', pets_permitted: false,
   pet_notes: '', building_amenities: [], additional_notes: '', building_id: '',
-  marlins_decal_property: false
 };
 
 const emptyUnitForm = {
@@ -23,7 +22,6 @@ const emptyUnitForm = {
 export default function PropertiesPage() {
   const [properties, setProperties] = useState([]);
   const [unitsByProperty, setUnitsByProperty] = useState({});
-  const [decals, setDecals] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const [propDialogOpen, setPropDialogOpen] = useState(false);
@@ -38,14 +36,11 @@ export default function PropertiesPage() {
 
   const [expandedDetails, setExpandedDetails] = useState({});
   const [expandedUnits, setExpandedUnits] = useState({});
-  const [expandedDecals, setExpandedDecals] = useState({});
-  const [newDecalInput, setNewDecalInput] = useState({});
 
   const fetchData = async () => {
     try {
-      const [props, units, decalsData] = await Promise.all([getProperties(), getUnits(), getMarlinsDecals()]);
+      const [props, units] = await Promise.all([getProperties(), getUnits()]);
       setProperties(props);
-      setDecals(decalsData);
       const grouped = {};
       units.forEach(u => {
         if (!grouped[u.property_id]) grouped[u.property_id] = [];
@@ -67,24 +62,6 @@ export default function PropertiesPage() {
     return m;
   }, [unitsByProperty]);
 
-  // ---- Decal CRUD ----
-  const addDecal = async (propId) => {
-    const num = (newDecalInput[propId] || '').trim();
-    if (!num) return;
-    try {
-      await createMarlinsDecal({ property_id: propId, decal_number: num });
-      setNewDecalInput(prev => ({ ...prev, [propId]: '' }));
-      fetchData();
-      toast.success('Decal added');
-    } catch { toast.error('Failed to add decal'); }
-  };
-
-  const handleDeleteDecal = async (decalId) => {
-    if (!window.confirm('Delete this decal? Any tenant assignments will be cleared.')) return;
-    try { await deleteMarlinsDecal(decalId); fetchData(); toast.success('Decal deleted'); }
-    catch { toast.error('Failed to delete decal'); }
-  };
-
   // ---- Property CRUD ----
   const openCreateProp = () => {
     setEditingProp(null);
@@ -104,8 +81,7 @@ export default function PropertiesPage() {
       pet_notes: prop.pet_notes || '',
       building_amenities: prop.building_amenities || [],
       additional_notes: prop.additional_notes || '',
-      building_id: prop.building_id != null ? prop.building_id : '',
-      marlins_decal_property: prop.marlins_decal_property || false
+      building_id: prop.building_id != null ? prop.building_id : ''
     });
     setPropDialogOpen(true);
   };
@@ -237,23 +213,19 @@ export default function PropertiesPage() {
         <div className="space-y-4">
           {properties.map(prop => {
             const units = unitsByProperty[prop.id] || [];
-            const propDecals = decals.filter(d => d.property_id === prop.id);
             return (
               <PropertyCard
                 key={prop.id}
                 prop={prop}
                 units={units}
-                decals={propDecals}
                 unitMap={unitMap}
                 expanded={{
                   details: expandedDetails[prop.id],
                   units: expandedUnits[prop.id],
-                  decals: expandedDecals[prop.id]
                 }}
                 toggles={{
                   details: () => setExpandedDetails(prev => ({ ...prev, [prop.id]: !prev[prop.id] })),
                   units: () => setExpandedUnits(prev => ({ ...prev, [prop.id]: !prev[prop.id] })),
-                  decals: () => setExpandedDecals(prev => ({ ...prev, [prop.id]: !prev[prop.id] }))
                 }}
                 handlers={{
                   editProp: () => openEditProp(prop),
@@ -261,11 +233,7 @@ export default function PropertiesPage() {
                   createUnit: () => openCreateUnit(prop.id),
                   editUnit: openEditUnit,
                   deleteUnit: handleDeleteUnit,
-                  addDecal: () => addDecal(prop.id),
-                  deleteDecal: handleDeleteDecal
                 }}
-                decalInput={newDecalInput[prop.id] || ''}
-                onDecalInputChange={val => setNewDecalInput(prev => ({ ...prev, [prop.id]: val }))}
               />
             );
           })}

@@ -6,14 +6,13 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { Card, CardContent } from '@/components/ui/card';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { MiscChargesSection } from './MiscChargesSection';
 import { sortUnitsNumerically } from './tenantUtils';
 
 export function TenantFormDialog({
   open, onOpenChange, editing, form, setForm, handleSave, saving,
-  sortedProperties, filteredUnits, fetchData, marlinsDecals = []
+  sortedProperties, filteredUnits, fetchData
 }) {
   const nights = (() => {
     if (form.move_in_date && form.move_out_date) {
@@ -25,10 +24,6 @@ export function TenantFormDialog({
     return 0;
   })();
   const perNight = form.total_rent && nights > 0 ? (parseFloat(form.total_rent) / nights).toFixed(2) : 0;
-
-  const selectedProperty = sortedProperties.find(p => p.id === form.property_id);
-  const isMarlinsProp = !!selectedProperty?.marlins_decal_property;
-  const propertyDecals = marlinsDecals.filter(d => d.property_id === form.property_id);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -127,19 +122,9 @@ export function TenantFormDialog({
                   <Input type="number" value={form.partial_last_month} onChange={e => setForm({ ...form, partial_last_month: e.target.value })} placeholder="Leave blank for full rent" />
                 </div>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Pets</Label>
-                  <Input value={form.pets} onChange={e => setForm({ ...form, pets: e.target.value })} />
-                </div>
-                <div className="space-y-2">
-                  <Label>Parking Info</Label>
-                  <Input value={form.parking} onChange={e => setForm({ ...form, parking: e.target.value })} />
-                  <div className="flex items-center gap-2 mt-1">
-                    <Checkbox checked={form.has_parking || false} onCheckedChange={(v) => setForm({ ...form, has_parking: !!v })} data-testid="tenant-has-parking-checkbox" />
-                    <Label className="text-xs cursor-pointer">Has parking spot</Label>
-                  </div>
-                </div>
+              <div className="space-y-2">
+                <Label>Pets</Label>
+                <Input value={form.pets} onChange={e => setForm({ ...form, pets: e.target.value })} />
               </div>
               <Separator />
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Deposit Return (fill after move-out)</p>
@@ -198,49 +183,7 @@ export function TenantFormDialog({
                 <Label>Notes</Label>
                 <Textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} placeholder="Add any notes about this Airbnb/VRBO stay..." data-testid="tenant-airbnb-notes" />
               </div>
-              <div className="space-y-2">
-                <Label>Parking Info</Label>
-                <Input value={form.parking} onChange={e => setForm({ ...form, parking: e.target.value })} placeholder="e.g. Spot #12, Street" data-testid="tenant-parking-airbnb" />
-                <div className="flex items-center gap-2 mt-1">
-                  <Checkbox checked={form.has_parking || false} onCheckedChange={(v) => setForm({ ...form, has_parking: !!v })} data-testid="tenant-has-parking-checkbox" />
-                  <Label className="text-xs cursor-pointer">Has parking spot</Label>
-                </div>
-              </div>
             </>
-          )}
-
-          {isMarlinsProp && (
-            <div className="space-y-2 p-3 rounded-lg border bg-blue-50 border-blue-200">
-              <Label className="text-blue-800 font-medium text-sm">Marlins Decal Assignment</Label>
-              <Select
-                value={form.marlins_decal_id || '_none'}
-                onValueChange={v => setForm({ ...form, marlins_decal_id: v === '_none' ? null : v })}
-              >
-                <SelectTrigger data-testid="tenant-marlins-decal-select" className="bg-white">
-                  <SelectValue placeholder="No decal assigned" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="_none">No decal assigned</SelectItem>
-                  {propertyDecals.map(d => {
-                    const isAssignedToOther = d.assigned_tenant && d.assigned_tenant.id !== editing?.id;
-                    return (
-                      <SelectItem key={d.id} value={d.id} disabled={isAssignedToOther}>
-                        {d.decal_number}
-                        {isAssignedToOther
-                          ? ` (Assigned: ${d.assigned_tenant.name})`
-                          : d.assigned_tenant ? ' — Currently yours' : ' — Available'
-                        }
-                      </SelectItem>
-                    );
-                  })}
-                </SelectContent>
-              </Select>
-              {propertyDecals.length === 0 && (
-                <p className="text-xs text-blue-600 mt-1">
-                  No decals configured for this property yet. Add them from the Properties page.
-                </p>
-              )}
-            </div>
           )}
         </div>
         <DialogFooter>

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { getTenants, createTenant, updateTenant, deleteTenant, confirmMoveout, getPendingMoveouts, getProperties, getUnits, getMarlinsDecals } from '@/lib/api';
+import { getTenants, createTenant, updateTenant, deleteTenant, confirmMoveout, getPendingMoveouts, getProperties, getUnits } from '@/lib/api';
 import { useNotifications } from '@/App';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -22,8 +22,6 @@ export default function TenantsPage() {
   const [properties, setProperties] = useState([]);
   const [allUnits, setAllUnits] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [pendingMoveouts, setPendingMoveouts] = useState([]);
-  const [marlinsDecals, setMarlinsDecals] = useState([]);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState(null);
@@ -38,17 +36,17 @@ export default function TenantsPage() {
 
   const [deleteDialog, setDeleteDialog] = useState(null);
   const [deleteConfirmStep, setDeleteConfirmStep] = useState(0);
+  const [pendingMoveouts, setPendingMoveouts] = useState([]);
 
   const { refreshNotifications } = useNotifications();
 
   const fetchData = useCallback(async () => {
     try {
-      const [t, p, u, pm, decals] = await Promise.all([getTenants(), getProperties(), getUnits(), getPendingMoveouts(), getMarlinsDecals()]);
+      const [t, p, u, pm] = await Promise.all([getTenants(), getProperties(), getUnits(), getPendingMoveouts()]);
       setTenants(t);
       setProperties(p);
       setAllUnits(u);
       setPendingMoveouts(pm);
-      setMarlinsDecals(decals);
     } catch {
       toast.error('Failed to load data');
     } finally {
@@ -136,7 +134,7 @@ export default function TenantsPage() {
       deposit_amount: tenant.deposit_amount || '', deposit_date: tenant.deposit_date || '',
       monthly_rent: tenant.monthly_rent || '', partial_first_month: tenant.partial_first_month || '',
       partial_last_month: tenant.partial_last_month || '', pets: tenant.pets || '',
-      parking: tenant.parking || '', has_parking: tenant.has_parking || false,
+      pets: tenant.pets || '',
       notes: tenant.notes || '', total_rent: tenant.total_rent || '',
       payment_method: tenant.payment_method || '', rent_due_date: tenant.rent_due_date || '',
       moveout_confirmed: tenant.moveout_confirmed || false,
@@ -144,7 +142,6 @@ export default function TenantsPage() {
       deposit_return_date: tenant.deposit_return_date || '',
       deposit_return_amount: tenant.deposit_return_amount || '',
       deposit_return_method: tenant.deposit_return_method || '',
-      marlins_decal_id: tenant.marlins_decal_id || null
     });
     setDialogOpen(true);
   };
@@ -311,7 +308,6 @@ export default function TenantsPage() {
         propMap={propMap}
         unitMap={unitMap}
         onEdit={openEdit}
-        marlinsDecals={marlinsDecals}
       />
 
       <TenantFormDialog
@@ -325,7 +321,6 @@ export default function TenantsPage() {
         sortedProperties={sortedProperties}
         filteredUnits={filteredUnits}
         fetchData={fetchData}
-        marlinsDecals={marlinsDecals}
       />
 
       <TenantDeleteDialog

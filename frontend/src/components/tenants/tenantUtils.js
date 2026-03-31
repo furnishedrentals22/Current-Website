@@ -100,9 +100,8 @@ export const emptyForm = {
   move_in_date: '', move_out_date: '', is_airbnb_vrbo: false,
   deposit_amount: '', deposit_date: '', monthly_rent: '',
   partial_first_month: '', partial_last_month: '',
-  pets: '', parking: '', has_parking: false, notes: '', total_rent: '',
+  pets: '', notes: '', total_rent: '',
   payment_method: '', rent_due_date: '',
   moveout_confirmed: false, moveout_confirmed_date: null,
   deposit_return_date: '', deposit_return_amount: '', deposit_return_method: '',
-  marlins_decal_id: null
 };

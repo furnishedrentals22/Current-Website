@@ -70,13 +70,6 @@ export function PropertyFormDialog({ open, onOpenChange, editing, form, setForm,
                 <span className="text-sm">{form.pets_permitted ? 'Yes' : 'No'}</span>
               </div>
             </div>
-            <div className="space-y-2">
-              <Label>Marlins Decal Property</Label>
-              <div className="flex items-center gap-3 pt-2">
-                <Switch checked={form.marlins_decal_property} onCheckedChange={v => setForm(f => ({...f, marlins_decal_property: v}))} data-testid="property-marlins-decal-toggle" />
-                <span className="text-sm">{form.marlins_decal_property ? 'Yes' : 'No'}</span>
-              </div>
-            </div>
           </div>
           {form.pets_permitted && (
             <div className="space-y-2">

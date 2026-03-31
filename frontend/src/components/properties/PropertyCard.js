@@ -3,18 +3,16 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, Pencil, Trash2, X, ChevronDown, ChevronRight, Home, MapPin, User, Phone, Mail, PawPrint, Car, Info, Shield } from 'lucide-react';
+import { Plus, Pencil, Trash2, ChevronDown, ChevronRight, Home, MapPin, User, Phone, Mail, PawPrint, Car, Info } from 'lucide-react';
 
 export function PropertyCard({
-  prop, units, decals, unitMap,
+  prop, units, unitMap,
   expanded, toggles, handlers,
-  decalInput, onDecalInputChange
 }) {
-  const { details: isDetailsOpen, units: isUnitsOpen, decals: isDecalsOpen } = expanded;
+  const { details: isDetailsOpen, units: isUnitsOpen } = expanded;
 
   return (
     <Card className="overflow-hidden border-l-4 border-l-primary/30 shadow-sm" data-testid="properties-table-row">
-      {/* Property Summary Header */}
       <div className="p-5 bg-gradient-to-r from-slate-50 to-white">
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1 min-w-0">
@@ -64,7 +62,6 @@ export function PropertyCard({
         </div>
       </div>
 
-      {/* Property Details */}
       {isDetailsOpen && (
         <div className="px-5 pb-5 border-t bg-amber-50/40">
           <div className="pt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -95,12 +92,6 @@ export function PropertyCard({
                 )}
               </div>
             </div>
-            {prop.marlins_decal_property && (
-              <div className="space-y-1">
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Marlins Decal</p>
-                <Badge className="text-xs bg-blue-50 text-blue-700 border border-blue-200">Marlins Decal Property</Badge>
-              </div>
-            )}
             {prop.building_amenities && prop.building_amenities.length > 0 && (
               <div className="space-y-1 md:col-span-2 lg:col-span-1">
                 <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Amenities</p>
@@ -121,7 +112,6 @@ export function PropertyCard({
         </div>
       )}
 
-      {/* Units Table */}
       {isUnitsOpen && (
         <div className="border-t">
           <div className="px-5 py-3 flex items-center justify-between bg-muted/30">
@@ -187,71 +177,6 @@ export function PropertyCard({
                   })}
                 </TableBody>
               </Table>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Decals Section */}
-      {prop.marlins_decal_property && (
-        <div className="border-t">
-          <button
-            className="w-full px-5 py-3 flex items-center justify-between bg-blue-50/60 hover:bg-blue-50 transition-colors"
-            onClick={toggles.decals}
-            data-testid={`decals-expand-${prop.id}`}
-          >
-            <div className="flex items-center gap-2">
-              <Shield className="h-4 w-4 text-blue-600" />
-              <h3 className="text-sm font-semibold text-blue-800">Decal Assignments</h3>
-              <span className="text-xs text-blue-600">({decals.length} decals)</span>
-            </div>
-            <ChevronRight className={`h-4 w-4 text-blue-600 transition-transform ${isDecalsOpen ? 'rotate-90' : ''}`} />
-          </button>
-          {isDecalsOpen && (
-            <div className="px-5 py-4 space-y-3 bg-blue-50/20" data-testid={`decals-section-${prop.id}`}>
-              <div className="flex gap-2">
-                <Input
-                  placeholder="Decal number or ID..."
-                  value={decalInput}
-                  onChange={e => onDecalInputChange(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && handlers.addDecal()}
-                  className="flex-1 h-8 text-sm"
-                  data-testid={`decal-input-${prop.id}`}
-                />
-                <Button size="sm" className="h-8" onClick={handlers.addDecal} data-testid={`decal-add-btn-${prop.id}`}>
-                  <Plus className="h-3 w-3 mr-1" />Add
-                </Button>
-              </div>
-              {decals.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No decals added yet. Enter a decal number above.</p>
-              ) : (
-                <div className="space-y-1.5">
-                  {decals.map(d => (
-                    <div key={d.id} className="flex items-center justify-between px-3 py-2 bg-white rounded-lg border text-sm" data-testid="decal-row">
-                      <div className="flex items-center gap-3">
-                        <span className="font-mono font-semibold text-blue-800">{d.decal_number}</span>
-                        {d.assigned_tenant ? (
-                          <span className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
-                            {d.assigned_tenant.name}
-                            {unitMap[d.assigned_tenant.unit_id] && (
-                              <span className="text-emerald-600 ml-1">· Unit {unitMap[d.assigned_tenant.unit_id].unit_number}</span>
-                            )}
-                          </span>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">Available</span>
-                        )}
-                      </div>
-                      <Button
-                        variant="ghost" size="sm" className="h-6 w-6 p-0 text-destructive hover:text-destructive"
-                        onClick={() => handlers.deleteDecal(d.id)}
-                        data-testid={`decal-delete-${d.id}`}
-                      >
-                        <X className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
           )}
         </div>

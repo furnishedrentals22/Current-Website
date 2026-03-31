@@ -158,15 +158,13 @@ class TeamMemberCreate(BaseModel):
 
 
 class ParkingSpotCreate(BaseModel):
-    spot_type: str
-    location: Optional[str] = ""
-    property_ids: List[str] = []
+    spot_type: str  # "designated" or "marlins_decal"
     spot_number: Optional[str] = ""
-    parking_pass_number: Optional[str] = ""
-    cost: Optional[float] = None
-    notes: Optional[str] = ""
+    location: Optional[str] = ""
+    needs_tag: bool = False
     decal_number: Optional[str] = ""
     decal_year: Optional[str] = ""
+    notes: Optional[str] = ""
 
 
 class ParkingAssignmentCreate(BaseModel):

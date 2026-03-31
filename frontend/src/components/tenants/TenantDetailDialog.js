@@ -1,15 +1,23 @@
+import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { CheckCircle2 } from 'lucide-react';
+import { CheckCircle2, Car } from 'lucide-react';
+import { getParkingAssignments } from '@/lib/api';
 
-export function TenantDetailDialog({ tenant, onClose, propMap, unitMap, onEdit, marlinsDecals = [] }) {
+export function TenantDetailDialog({ tenant, onClose, propMap, unitMap, onEdit }) {
+  const [parkingAssignments, setParkingAssignments] = useState([]);
+
+  useEffect(() => {
+    if (tenant?.id) {
+      getParkingAssignments({ tenant_id: tenant.id }).then(setParkingAssignments).catch(() => {});
+    } else {
+      setParkingAssignments([]);
+    }
+  }, [tenant?.id]);
+
   if (!tenant) return null;
-
-  const assignedDecal = tenant.marlins_decal_id
-    ? marlinsDecals.find(d => d.id === tenant.marlins_decal_id)
-    : null;
 
   return (
     <Dialog open={!!tenant} onOpenChange={onClose}>
@@ -99,15 +107,9 @@ export function TenantDetailDialog({ tenant, onClose, propMap, unitMap, onEdit, 
                   </div>
                 </div>
               )}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Pets</p>
-                  <p className="text-sm">{tenant.pets || '-'}</p>
-                </div>
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Parking</p>
-                  <p className="text-sm">{tenant.parking || '-'}</p>
-                </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Pets</p>
+                <p className="text-sm">{tenant.pets || '-'}</p>
               </div>
               {tenant.notes && (
                 <div>
@@ -152,22 +154,24 @@ export function TenantDetailDialog({ tenant, onClose, propMap, unitMap, onEdit, 
                   <p className="text-sm text-muted-foreground">{tenant.notes}</p>
                 </div>
               )}
-              {(tenant.parking || tenant.has_parking) && (
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Parking</p>
-                  <p className="text-sm">{tenant.parking || (tenant.has_parking ? 'Has parking spot' : '-')}</p>
-                </div>
-              )}
             </>
           )}
 
-          {(tenant.marlins_decal_id || tenant.marlins_decal) && (
+          {/* Parking Assignments */}
+          {parkingAssignments.length > 0 && (
             <>
               <Separator />
-              <div className="flex items-center gap-2">
-                <Badge className="text-xs bg-blue-50 text-blue-700 border border-blue-200">
-                  {assignedDecal ? `Marlins Decal: ${assignedDecal.decal_number}` : 'Marlins Decal Assigned'}
-                </Badge>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Parking</p>
+                <div className="space-y-1.5">
+                  {parkingAssignments.map(pa => (
+                    <div key={pa.id} className="flex items-center gap-2 text-sm px-2 py-1.5 rounded bg-violet-50 border border-violet-200" data-testid="tenant-parking-assignment">
+                      <Car className="h-3.5 w-3.5 text-violet-600 flex-shrink-0" />
+                      <span className="font-medium text-violet-800">{pa.spot_label}</span>
+                      <span className="text-xs text-violet-600">{pa.start_date} to {pa.end_date}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             </>
           )}
