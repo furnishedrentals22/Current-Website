@@ -13,7 +13,7 @@ import requests
 import os
 from datetime import date
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://property-mgmt-ui-1.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://tenant-parking-1.preview.emergentagent.com')
 
 
 class TestDepositsEndpoints:
