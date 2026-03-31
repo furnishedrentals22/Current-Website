@@ -1,78 +1,75 @@
-# Furnished Rentals - Property Management App
+# Furnished Rentals Property Management - PRD
 
 ## Original Problem Statement
-A comprehensive property management tool for furnished rentals, covering properties, tenants, calendar, budgeting, operations (housekeeping, maintenance, move in/out), and more.
+Build and maintain a comprehensive property management application for furnished rentals, with a focus on high data clarity, responsive design, and maintainable component structures.
 
 ## Stack
-- **Frontend**: React + Shadcn/UI + Tailwind CSS
-- **Backend**: FastAPI + MongoDB
-- **No Authentication**: Open access
+- **Frontend**: React (JavaScript), Shadcn/UI, TailwindCSS
+- **Backend**: FastAPI (Python)
+- **Database**: MongoDB
 
-## Completed Features
+## Core Features (Implemented)
+1. **Properties Management** - Full CRUD for properties and units with building IDs, amenities, costs
+2. **Tenants Management** - Current/future/past tenant tracking with long-term and Airbnb/VRBO types, misc charges, deposit returns
+3. **Calendar** - Occupancy timeline visualization
+4. **Leads Management** - Prospect tracking with status pipeline
+5. **Housekeeping** - Cleaning schedule tracking
+6. **Vacancy Tracking** - Upcoming vacancy predictions from booking data
+7. **Budgeting** - Financial tracking
+8. **Notes, Login Info, Door Codes, Marketing** - Supporting info pages
+9. **Notifications** - Alert system
+10. **Parking** - Calendar-style timeline for parking spot assignments (REBUILT Feb 2026)
 
-### Core
-- Properties CRUD, Units CRUD, Tenants CRUD, Leads management
-- Calendar, Vacancy tracking (90-day window, sorted by building numeric ID)
-- Income tracking, Deposits, Rent Tracking
-- Notes, Notifications, Door Codes, Login Info, Marketing, Parking
-- Move In/Out management
-- Features page
-
-### Housekeeping (Operations)
-- **Upcoming Cleanings tab**: Spreadsheet-style table with date range filters and search
-- **Current Housekeepers tab**: CRUD with archive support
-- **Housekeeping Leads tab**: CRUD with archive support
-- Maintenance person assignment integration
-- Manual cleanings feature
-
-### Maintenance (Operations)
-- Full maintenance request CRUD
-
-### Marlins Decal Inventory System
-- `marlins_decals` collection with per-property inventory
-- Assign specific decal from inventory to a tenant via dropdown
-
-### UI/UX Enhancements (Completed)
-- Date formatting: `Day, M/D` on Move In/Out and Vacancy pages
-- Unit name formatting: `[Property] Apt [Unit]`
-- Sidebar navigation: headers as NavLinks, chevrons as dropdown toggles
-- Calendar Lead Detail Modal
-- Vacancy Page: Merged "Vacant Forward" into "Upcoming Vacancies" tab
-
-### Component Refactoring (2026-03-31)
-- **PropertiesPage.js**: 706 -> 296 lines. Extracted PropertyFormDialog, UnitFormDialog, PropertyCard
-- **LeadsPage.js**: 625 -> 339 lines. Extracted LeadRow, LeadFormDialog, NotificationDialogs
-- **HousekeepingPage.js**: Extracted CleaningEditDialog, ManualCleaningDialog, housekeepingUtils
-- **TenantsPage.js**: 657 -> 341 lines. Extracted TenantRow, CurrentFutureTab, PastTenantsTab
-- **core_logic.py**: 504 -> 460 lines. Extracted _make_vacancy, _add_vacancy_with_future_check, _calculate_end_date helpers
-
-## Key DB Collections
-- `properties`, `units`, `tenants`, `leads`
-- `cleaning_records`, `housekeepers`, `housekeeping_leads`
-- `maintenance_requests`, `maintenance_personnel`
-- `marlins_decals`, `manual_cleanings`
-- `notifications`, `notes`, `income_records`, `deposits`, `rent_tracking`
-
-## Key API Endpoints
-- `/api/vacancy` (GET) - 90-day vacancy window
-- `/api/vacant-forward` (GET) - 5-year vacancy scan
-- `/api/leads/{id}` (GET) - Lead details for Calendar modal
-- `/api/marlins_decals/` (GET, POST), `/api/marlins_decals/{id}` (PUT, DELETE)
-- `/api/maintenance/` (GET, POST), `/api/maintenance/{id}` (PUT, DELETE)
-- `/api/cleaning-records/`, `/api/housekeepers/`, `/api/housekeeping-leads/`
-- `/api/manual-cleanings` (GET, POST, PUT, DELETE)
-
-## Component Architecture
+## Architecture
 ```
-frontend/src/components/
-  properties/  -> PropertyFormDialog, UnitFormDialog, PropertyCard
-  leads/       -> LeadRow, LeadFormDialog, NotificationDialogs
-  housekeeping/ -> CleaningEditDialog, ManualCleaningDialog, housekeepingUtils
-  tenants/     -> TenantRow, CurrentFutureTab, PastTenantsTab, TenantFormDialog, TenantDetailDialog, TenantDeleteDialog, MiscChargesSection, tenantUtils
-  calendar/    -> LeadDetailModal, LeadOverlay, BookingBar, PropertyGroup, TimelineHeader, TodayMarker, UnitRow
+/app/
+├── backend/
+│   ├── core_logic.py
+│   ├── routers/
+│   │   ├── parking.py         # Rebuilt: timeline + CRUD + tenant filtering
+│   │   ├── marlins_decals.py  # Legacy (no longer used by frontend)
+│   │   └── ...
+│   └── tests/
+│       ├── test_parking.py
+│       └── test_vacancy_refactor.py
+└── frontend/
+    └── src/
+        ├── components/
+        │   ├── parking/           # REBUILT
+        │   │   ├── ParkingAssignBar.js
+        │   │   ├── ParkingAssignDialog.js
+        │   │   ├── ParkingSpotDialog.js
+        │   │   ├── ParkingSpotRow.js
+        │   │   └── ParkingSpotsList.js
+        │   ├── properties/
+        │   ├── leads/
+        │   ├── housekeeping/
+        │   ├── tenants/
+        │   ├── calendar/
+        │   └── TenantDetailModal.js
+        ├── pages/
+        │   ├── ParkingPage.js     # REBUILT with calendar timeline
+        │   ├── PropertiesPage.js  # Cleaned: removed decal references
+        │   ├── TenantsPage.js     # Cleaned: removed has_parking/marlins_decal
+        │   └── ...
+        └── lib/
+            └── api.js
 ```
+
+## Completed Tasks
+- P0: Core CRUD for all entities
+- P0: Major frontend refactoring (Properties, Leads, Housekeeping, Tenants pages modularized)
+- P0: Backend core_logic.py vacancy logic simplified
+- **P0: Parking page complete rebuild** (Feb 2026)
+  - Calendar-style timeline showing parking spots as rows with assignment bars
+  - Spots have types: Designated (with optional tag) or Marlins/City Decal
+  - Click-to-assign from timeline with date-filtered tenant list + building filter
+  - Full CRUD for spots and assignments
+  - Parking assignments shown on tenant profile
+  - Removed `has_parking` from tenant forms/display
+  - Removed decals from Properties page
+  - Manage Parking Spots collapsible section for spot CRUD
 
 ## Backlog
-- P2: Split HousekeepingPage UpcomingCleaningsTab (still 693 lines) into smaller subcomponents
-- P2: Add "Days Vacant" counter on Vacancy page rows
-- P2: Further date range filters for Upcoming Cleanings
+- P2: Date range filters for Upcoming Cleanings table on Housekeeping page
+- P2: "Days Vacant" counter for each row on Vacancy page
