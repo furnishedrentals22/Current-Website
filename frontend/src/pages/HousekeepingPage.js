@@ -11,18 +11,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Plus, Pencil, Trash2, Archive, Wrench } from 'lucide-react';
+import { Plus, Pencil, Trash2, Archive, Wrench, Search } from 'lucide-react';
 import { toast } from 'sonner';
-
-const formatShortDate = (dateStr) => {
-  if (!dateStr) return '';
-  const d = new Date(dateStr + 'T12:00:00');
-  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-  return `${days[d.getDay()]}, ${d.getMonth() + 1}/${d.getDate()}`;
-};
+import { formatShortDate } from '@/components/housekeeping/housekeepingUtils';
+import { CleaningEditDialog } from '@/components/housekeeping/CleaningEditDialog';
+import { ManualCleaningDialog } from '@/components/housekeeping/ManualCleaningDialog';
 
 export default function HousekeepingPage() {
   const [records, setRecords] = useState([]);
@@ -126,10 +120,8 @@ function UpcomingCleaningsTab({ records, manualCleanings, housekeepers, maintena
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [editForm, setEditForm] = useState({});
   const [saving, setSaving] = useState(false);
-  const [useCustomMaint, setUseCustomMaint] = useState(false);
   const [isEditingManual, setIsEditingManual] = useState(false);
 
-  // Manual create modal state
   const [createModal, setCreateModal] = useState(false);
   const [createForm, setCreateForm] = useState({
     unit_id: '', tenant_name: '', check_out_date: '', next_check_in_date: '',
@@ -138,14 +130,32 @@ function UpcomingCleaningsTab({ records, manualCleanings, housekeepers, maintena
     assigned_maintenance_id: null, assigned_maintenance_name: '',
     maintenance_note: '', notes: '', confirmed: false,
   });
-  const [createUseCustomMaint, setCreateUseCustomMaint] = useState(false);
   const [creating, setCreating] = useState(false);
+
+  // Filters
+  const [filterFrom, setFilterFrom] = useState('');
+  const [filterTo, setFilterTo] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
 
   // Merge regular + manual cleanings, sorted chronologically
   const mergedRecords = [
     ...records.map(r => ({ ...r, _isManual: false })),
     ...manualCleanings.map(mc => ({ ...mc, _isManual: true, check_out_date: mc.check_out_date || '' })),
   ].sort((a, b) => (a.check_out_date || '').localeCompare(b.check_out_date || ''));
+
+  // Apply filters
+  const filteredRecords = mergedRecords.filter(r => {
+    if (filterFrom && r.check_out_date && r.check_out_date < filterFrom) return false;
+    if (filterTo && r.check_out_date && r.check_out_date > filterTo) return false;
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      const u = unitMap[r.unit_id];
+      const propName = propMap[u?.property_id]?.name || '';
+      const text = `${propName} ${u?.unit_number || ''} ${r.tenant_name || ''} ${r.assigned_cleaner_name || ''} ${r.notes || ''}`.toLowerCase();
+      if (!text.includes(term)) return false;
+    }
+    return true;
+  });
 
   const openEdit = (r) => {
     setSelectedRecord(r);
@@ -166,22 +176,7 @@ function UpcomingCleaningsTab({ records, manualCleanings, housekeepers, maintena
       assigned_maintenance_name: r.assigned_maintenance_name || '',
       maintenance_note: r.maintenance_note || '',
     });
-    setUseCustomMaint(!r.assigned_maintenance_id && !!r.assigned_maintenance_name);
     setEditModal(true);
-  };
-
-  const handleMaintSelect = (val) => {
-    if (val === '_none') {
-      setEditForm(f => ({ ...f, assigned_maintenance_id: null, assigned_maintenance_name: '' }));
-      setUseCustomMaint(false);
-    } else if (val === '_custom') {
-      setEditForm(f => ({ ...f, assigned_maintenance_id: null, assigned_maintenance_name: '' }));
-      setUseCustomMaint(true);
-    } else {
-      const p = maintenancePersonnel.find(p => p.id === val);
-      setEditForm(f => ({ ...f, assigned_maintenance_id: val, assigned_maintenance_name: p?.name || '' }));
-      setUseCustomMaint(false);
-    }
   };
 
   const handleSave = async () => {
@@ -195,7 +190,6 @@ function UpcomingCleaningsTab({ records, manualCleanings, housekeepers, maintena
         payload.assigned_cleaner_id = null;
         payload.assigned_cleaner_name = '';
       }
-      // Build unit_label for manual cleanings
       if (isEditingManual) {
         const u = unitMap[payload.unit_id];
         payload.unit_label = u ? u.unit_number : '';
@@ -210,21 +204,6 @@ function UpcomingCleaningsTab({ records, manualCleanings, housekeepers, maintena
       toast.error('Failed to update');
     } finally {
       setSaving(false);
-    }
-  };
-
-  // Create manual cleaning handlers
-  const handleCreateMaintSelect = (val) => {
-    if (val === '_none') {
-      setCreateForm(f => ({ ...f, assigned_maintenance_id: null, assigned_maintenance_name: '' }));
-      setCreateUseCustomMaint(false);
-    } else if (val === '_custom') {
-      setCreateForm(f => ({ ...f, assigned_maintenance_id: null, assigned_maintenance_name: '' }));
-      setCreateUseCustomMaint(true);
-    } else {
-      const p = maintenancePersonnel.find(p => p.id === val);
-      setCreateForm(f => ({ ...f, assigned_maintenance_id: val, assigned_maintenance_name: p?.name || '' }));
-      setCreateUseCustomMaint(false);
     }
   };
 
@@ -251,7 +230,6 @@ function UpcomingCleaningsTab({ records, manualCleanings, housekeepers, maintena
         assigned_maintenance_id: null, assigned_maintenance_name: '',
         maintenance_note: '', notes: '', confirmed: false,
       });
-      setCreateUseCustomMaint(false);
       onRefresh();
       toast.success('Manual cleaning created');
     } catch {
@@ -264,36 +242,63 @@ function UpcomingCleaningsTab({ records, manualCleanings, housekeepers, maintena
   const handleDeleteManual = async (e, id) => {
     e.stopPropagation();
     if (!window.confirm('Delete this manual cleaning?')) return;
-    try {
-      await deleteManualCleaning(id);
-      onRefresh();
-      toast.success('Deleted');
-    } catch {
-      toast.error('Failed to delete');
-    }
+    try { await deleteManualCleaning(id); onRefresh(); toast.success('Deleted'); }
+    catch { toast.error('Failed to delete'); }
   };
 
-  const modalUnit = selectedRecord ? unitMap[selectedRecord.unit_id] : null;
-  const modalProp = selectedRecord ? propMap[selectedRecord.property_id] : null;
-  const hasMaintAssigned = editForm.assigned_maintenance_id || editForm.assigned_maintenance_name;
-  const createHasMaintAssigned = createForm.assigned_maintenance_id || createForm.assigned_maintenance_name;
-
-  const anyMaint = mergedRecords.some(r => r.assigned_maintenance_name);
+  const anyMaint = filteredRecords.some(r => r.assigned_maintenance_name);
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-3">
-        <p className="text-xs text-muted-foreground">
-          Upcoming checkouts in the next 60 days. Click any row to edit details.
-        </p>
+      {/* Filters and actions */}
+      <div className="flex items-end gap-3 mb-3 flex-wrap">
+        <div className="flex-1 min-w-0">
+          <p className="text-xs text-muted-foreground mb-2">
+            Upcoming checkouts in the next 60 days. Click any row to edit details.
+          </p>
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-1.5">
+              <Input
+                type="date"
+                value={filterFrom}
+                onChange={e => setFilterFrom(e.target.value)}
+                className="h-8 w-36 text-xs"
+                data-testid="cleaning-filter-from"
+              />
+              <span className="text-xs text-muted-foreground">to</span>
+              <Input
+                type="date"
+                value={filterTo}
+                onChange={e => setFilterTo(e.target.value)}
+                className="h-8 w-36 text-xs"
+                data-testid="cleaning-filter-to"
+              />
+            </div>
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+                className="h-8 w-52 text-xs pl-8"
+                placeholder="Search unit, cleaner, notes..."
+                data-testid="cleaning-search-input"
+              />
+            </div>
+            {(filterFrom || filterTo || searchTerm) && (
+              <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => { setFilterFrom(''); setFilterTo(''); setSearchTerm(''); }}>
+                Clear
+              </Button>
+            )}
+          </div>
+        </div>
         <Button size="sm" onClick={() => setCreateModal(true)} data-testid="add-manual-cleaning-btn">
           <Plus className="h-4 w-4 mr-1" />Add Manual Cleaning
         </Button>
       </div>
 
-      {mergedRecords.length === 0 ? (
+      {filteredRecords.length === 0 ? (
         <div className="text-center py-12 text-muted-foreground text-sm border rounded bg-muted/20">
-          No upcoming cleanings
+          {mergedRecords.length === 0 ? 'No upcoming cleanings' : 'No cleanings match your filters'}
         </div>
       ) : (
         <div className="rounded border border-border/60 overflow-hidden bg-white" data-testid="upcoming-cleanings-list">
@@ -311,13 +316,10 @@ function UpcomingCleaningsTab({ records, manualCleanings, housekeepers, maintena
               </tr>
             </thead>
             <tbody>
-              {mergedRecords.map((r, idx) => {
+              {filteredRecords.map((r, idx) => {
                 const u = unitMap[r.unit_id];
                 const isManual = r._isManual;
-                const rowBg = isManual
-                  ? 'bg-red-50'
-                  : idx % 2 === 0 ? 'bg-white' : 'bg-[#fafaf7]';
-
+                const rowBg = isManual ? 'bg-red-50' : idx % 2 === 0 ? 'bg-white' : 'bg-[#fafaf7]';
                 return (
                   <tr
                     key={r.id}
@@ -342,29 +344,23 @@ function UpcomingCleaningsTab({ records, manualCleanings, housekeepers, maintena
                       {r.check_out_time && <span className="text-muted-foreground ml-1">{r.check_out_time}</span>}
                     </td>
                     <td className="px-3 py-2.5 whitespace-nowrap">
-                      {r.next_check_in_date ? formatShortDate(r.next_check_in_date) : '—'}
+                      {r.next_check_in_date ? formatShortDate(r.next_check_in_date) : '\u2014'}
                       {r.check_in_time && <span className="text-muted-foreground ml-1">{r.check_in_time}</span>}
                     </td>
-                    <td className="px-3 py-2.5 whitespace-nowrap">
-                      {r.cleaning_time || '—'}
-                    </td>
-                    <td className="px-3 py-2.5 whitespace-nowrap">
-                      {r.assigned_cleaner_name || '—'}
-                    </td>
+                    <td className="px-3 py-2.5 whitespace-nowrap">{r.cleaning_time || '\u2014'}</td>
+                    <td className="px-3 py-2.5 whitespace-nowrap">{r.assigned_cleaner_name || '\u2014'}</td>
                     {anyMaint && (
                       <td className="px-3 py-2.5 whitespace-nowrap">
                         {r.assigned_maintenance_name ? (
                           <span className="inline-flex items-center gap-1 text-amber-700">
                             <Wrench className="h-3 w-3" />
                             {r.assigned_maintenance_name}
-                            {r.maintenance_note && <span className="text-amber-500 text-xs">— {r.maintenance_note}</span>}
+                            {r.maintenance_note && <span className="text-amber-500 text-xs">{'\u2014'} {r.maintenance_note}</span>}
                           </span>
-                        ) : '—'}
+                        ) : '\u2014'}
                       </td>
                     )}
-                    <td className="px-3 py-2.5 max-w-[200px] truncate text-muted-foreground">
-                      {r.notes || '—'}
-                    </td>
+                    <td className="px-3 py-2.5 max-w-[200px] truncate text-muted-foreground">{r.notes || '\u2014'}</td>
                     <td className="px-3 py-2.5 text-right whitespace-nowrap">
                       <div className="inline-flex items-center gap-1.5">
                         <span className={`text-xs px-2 py-0.5 rounded border ${
@@ -394,240 +390,33 @@ function UpcomingCleaningsTab({ records, manualCleanings, housekeepers, maintena
         </div>
       )}
 
-      {/* Edit Modal (shared for regular and manual) */}
-      <Dialog open={editModal} onOpenChange={setEditModal}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>
-              {isEditingManual ? 'Edit Manual Cleaning' : (modalUnit ? `Unit ${modalUnit.unit_number}` : 'Cleaning Details')}
-              {!isEditingManual && modalProp && (
-                <span className="text-sm font-normal text-muted-foreground ml-2">— {modalProp.name}</span>
-              )}
-              {isEditingManual && (
-                <span className="ml-2 text-xs font-normal text-red-600 bg-red-50 border border-red-200 px-2 py-0.5 rounded">Manual</span>
-              )}
-            </DialogTitle>
-            <DialogDescription>
-              {selectedRecord?.tenant_name}
-              {selectedRecord?.check_out_date && ` · Checkout: ${formatShortDate(selectedRecord.check_out_date)}`}
-              {selectedRecord?.next_check_in_date && ` → Check-in: ${formatShortDate(selectedRecord.next_check_in_date)}`}
-            </DialogDescription>
-          </DialogHeader>
+      <CleaningEditDialog
+        open={editModal}
+        onOpenChange={setEditModal}
+        record={selectedRecord}
+        isManual={isEditingManual}
+        form={editForm}
+        setForm={setEditForm}
+        housekeepers={housekeepers}
+        maintenancePersonnel={maintenancePersonnel}
+        units={units}
+        unitMap={unitMap}
+        propMap={propMap}
+        onSave={handleSave}
+        saving={saving}
+      />
 
-          <div className="grid gap-3 py-2">
-            {isEditingManual && (
-              <>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <Label className="text-xs">Unit</Label>
-                    <Select value={editForm.unit_id || '_none'} onValueChange={v => setEditForm(f => ({ ...f, unit_id: v === '_none' ? '' : v }))}>
-                      <SelectTrigger data-testid="hk-edit-unit-select"><SelectValue placeholder="Select unit" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="_none">Select unit</SelectItem>
-                        {units.map(u => (
-                          <SelectItem key={u.id} value={u.id}>{u.unit_number}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Label / Guest Name</Label>
-                    <Input value={editForm.tenant_name || ''} onChange={e => setEditForm(f => ({ ...f, tenant_name: e.target.value }))} placeholder="e.g. Deep clean" className="text-sm" />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <Label className="text-xs">Date (Check-out)</Label>
-                    <Input type="date" value={editForm.check_out_date || ''} onChange={e => setEditForm(f => ({ ...f, check_out_date: e.target.value }))} className="text-sm" />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Check-in Date</Label>
-                    <Input type="date" value={editForm.next_check_in_date || ''} onChange={e => setEditForm(f => ({ ...f, next_check_in_date: e.target.value }))} className="text-sm" />
-                  </div>
-                </div>
-              </>
-            )}
-
-            <div className="grid grid-cols-3 gap-3">
-              <div className="space-y-1">
-                <Label className="text-xs">Checkout Time</Label>
-                <Input type="time" value={editForm.check_out_time || ''} onChange={e => setEditForm(f => ({ ...f, check_out_time: e.target.value }))} className="text-sm" />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Check-in Time</Label>
-                <Input type="time" value={editForm.check_in_time || ''} onChange={e => setEditForm(f => ({ ...f, check_in_time: e.target.value }))} className="text-sm" />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Cleaning Time</Label>
-                <Input type="time" value={editForm.cleaning_time || ''} onChange={e => setEditForm(f => ({ ...f, cleaning_time: e.target.value }))} className="text-sm" />
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <Label>Assigned Cleaner</Label>
-              <Select value={editForm.assigned_cleaner_id || '_none'} onValueChange={v => setEditForm(f => ({ ...f, assigned_cleaner_id: v === '_none' ? null : v }))}>
-                <SelectTrigger data-testid="hk-edit-cleaner-select"><SelectValue placeholder="Unassigned" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="_none">Unassigned</SelectItem>
-                  {housekeepers.map(h => (
-                    <SelectItem key={h.id} value={h.id}>{h.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label>Assign Maintenance Person</Label>
-              <Select value={useCustomMaint ? '_custom' : (editForm.assigned_maintenance_id || '_none')} onValueChange={handleMaintSelect}>
-                <SelectTrigger data-testid="hk-edit-maintenance-select"><SelectValue placeholder="None" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="_none">None</SelectItem>
-                  {maintenancePersonnel.map(p => (
-                    <SelectItem key={p.id} value={p.id}>{p.name}{p.role ? ` — ${p.role}` : ''}</SelectItem>
-                  ))}
-                  <SelectItem value="_custom">+ Custom person...</SelectItem>
-                </SelectContent>
-              </Select>
-              {useCustomMaint && (
-                <Input className="mt-1 text-sm" value={editForm.assigned_maintenance_name || ''} placeholder="Enter maintenance person name" onChange={e => setEditForm(f => ({ ...f, assigned_maintenance_name: e.target.value }))} data-testid="hk-custom-maint-input" />
-              )}
-            </div>
-
-            {hasMaintAssigned && (
-              <div className="space-y-1">
-                <Label>Maintenance Note</Label>
-                <Input value={editForm.maintenance_note || ''} onChange={e => setEditForm(f => ({ ...f, maintenance_note: e.target.value }))} placeholder="e.g. Check kitchen faucet" data-testid="hk-maint-note-input" />
-              </div>
-            )}
-
-            <div className="space-y-1">
-              <Label>Notes</Label>
-              <Textarea value={editForm.notes || ''} onChange={e => setEditForm(f => ({ ...f, notes: e.target.value }))} rows={3} placeholder="Cleaning notes..." />
-            </div>
-
-            <div className="flex items-center gap-2 pt-1">
-              <Checkbox id="hk-confirmed" checked={editForm.confirmed || false} onCheckedChange={v => setEditForm(f => ({ ...f, confirmed: v }))} data-testid="cleaning-confirmed-checkbox" />
-              <Label htmlFor="hk-confirmed" className="cursor-pointer">Mark as Done</Label>
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditModal(false)}>Cancel</Button>
-            <Button onClick={handleSave} disabled={saving} data-testid="hk-edit-save-btn">
-              {saving ? 'Saving...' : 'Save'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Create Manual Cleaning Modal */}
-      <Dialog open={createModal} onOpenChange={setCreateModal}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>
-              Add Manual Cleaning
-              <span className="ml-2 text-xs font-normal text-red-600 bg-red-50 border border-red-200 px-2 py-0.5 rounded">Manual</span>
-            </DialogTitle>
-            <DialogDescription>Create a standalone cleaning entry not tied to any reservation.</DialogDescription>
-          </DialogHeader>
-
-          <div className="grid gap-3 py-2">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label className="text-xs">Unit *</Label>
-                <Select value={createForm.unit_id || '_none'} onValueChange={v => setCreateForm(f => ({ ...f, unit_id: v === '_none' ? '' : v }))}>
-                  <SelectTrigger data-testid="mc-unit-select"><SelectValue placeholder="Select unit" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="_none">Select unit</SelectItem>
-                    {units.map(u => (
-                      <SelectItem key={u.id} value={u.id}>{u.unit_number}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Label / Guest Name</Label>
-                <Input value={createForm.tenant_name} onChange={e => setCreateForm(f => ({ ...f, tenant_name: e.target.value }))} placeholder="e.g. Deep clean" className="text-sm" data-testid="mc-tenant-name-input" />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label className="text-xs">Date (Check-out) *</Label>
-                <Input type="date" value={createForm.check_out_date} onChange={e => setCreateForm(f => ({ ...f, check_out_date: e.target.value }))} className="text-sm" data-testid="mc-checkout-date-input" />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Check-in Date</Label>
-                <Input type="date" value={createForm.next_check_in_date} onChange={e => setCreateForm(f => ({ ...f, next_check_in_date: e.target.value }))} className="text-sm" data-testid="mc-checkin-date-input" />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-3">
-              <div className="space-y-1">
-                <Label className="text-xs">Checkout Time</Label>
-                <Input type="time" value={createForm.check_out_time} onChange={e => setCreateForm(f => ({ ...f, check_out_time: e.target.value }))} className="text-sm" />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Check-in Time</Label>
-                <Input type="time" value={createForm.check_in_time} onChange={e => setCreateForm(f => ({ ...f, check_in_time: e.target.value }))} className="text-sm" />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Cleaning Time</Label>
-                <Input type="time" value={createForm.cleaning_time} onChange={e => setCreateForm(f => ({ ...f, cleaning_time: e.target.value }))} className="text-sm" />
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <Label>Assigned Cleaner</Label>
-              <Select value={createForm.assigned_cleaner_id || '_none'} onValueChange={v => setCreateForm(f => ({ ...f, assigned_cleaner_id: v === '_none' ? null : v }))}>
-                <SelectTrigger data-testid="mc-cleaner-select"><SelectValue placeholder="Unassigned" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="_none">Unassigned</SelectItem>
-                  {housekeepers.map(h => (
-                    <SelectItem key={h.id} value={h.id}>{h.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label>Assign Maintenance Person</Label>
-              <Select value={createUseCustomMaint ? '_custom' : (createForm.assigned_maintenance_id || '_none')} onValueChange={handleCreateMaintSelect}>
-                <SelectTrigger data-testid="mc-maintenance-select"><SelectValue placeholder="None" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="_none">None</SelectItem>
-                  {maintenancePersonnel.map(p => (
-                    <SelectItem key={p.id} value={p.id}>{p.name}{p.role ? ` — ${p.role}` : ''}</SelectItem>
-                  ))}
-                  <SelectItem value="_custom">+ Custom person...</SelectItem>
-                </SelectContent>
-              </Select>
-              {createUseCustomMaint && (
-                <Input className="mt-1 text-sm" value={createForm.assigned_maintenance_name || ''} placeholder="Enter maintenance person name" onChange={e => setCreateForm(f => ({ ...f, assigned_maintenance_name: e.target.value }))} />
-              )}
-            </div>
-
-            {createHasMaintAssigned && (
-              <div className="space-y-1">
-                <Label>Maintenance Note</Label>
-                <Input value={createForm.maintenance_note || ''} onChange={e => setCreateForm(f => ({ ...f, maintenance_note: e.target.value }))} placeholder="e.g. Check kitchen faucet" />
-              </div>
-            )}
-
-            <div className="space-y-1">
-              <Label>Notes</Label>
-              <Textarea value={createForm.notes} onChange={e => setCreateForm(f => ({ ...f, notes: e.target.value }))} rows={3} placeholder="Cleaning notes..." data-testid="mc-notes-input" />
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setCreateModal(false)}>Cancel</Button>
-            <Button onClick={handleCreate} disabled={creating} data-testid="mc-create-btn">
-              {creating ? 'Creating...' : 'Add Cleaning'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ManualCleaningDialog
+        open={createModal}
+        onOpenChange={setCreateModal}
+        form={createForm}
+        setForm={setCreateForm}
+        housekeepers={housekeepers}
+        maintenancePersonnel={maintenancePersonnel}
+        units={units}
+        onSave={handleCreate}
+        saving={creating}
+      />
     </div>
   );
 }
@@ -687,12 +476,7 @@ function HousekeepersTab({ housekeepers, showArchived, setShowArchived, onRefres
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <Button
-          size="sm"
-          variant={showArchived ? 'secondary' : 'outline'}
-          className="text-xs h-8"
-          onClick={() => setShowArchived(!showArchived)}
-        >
+        <Button size="sm" variant={showArchived ? 'secondary' : 'outline'} className="text-xs h-8" onClick={() => setShowArchived(!showArchived)}>
           <Archive className="h-3 w-3 mr-1" />{showArchived ? 'Hide' : 'Show'} Archived
         </Button>
         <Button onClick={openCreate} data-testid="hk-add-btn">
@@ -701,30 +485,18 @@ function HousekeepersTab({ housekeepers, showArchived, setShowArchived, onRefres
       </div>
 
       {active.length === 0 && !showArchived && (
-        <div className="text-center py-12 text-muted-foreground text-sm border rounded-xl bg-muted/20">
-          No housekeepers added yet
-        </div>
+        <div className="text-center py-12 text-muted-foreground text-sm border rounded-xl bg-muted/20">No housekeepers added yet</div>
       )}
 
       <div className="space-y-2" data-testid="housekeepers-list">
         {active.map((h, idx) => (
-          <HousekeeperCard
-            key={h.id} housekeeper={h} idx={idx}
-            onEdit={() => openEdit(h)}
-            onArchive={() => handleArchive(h)}
-            onDelete={() => handleDelete(h.id)}
-          />
+          <HousekeeperCard key={h.id} housekeeper={h} idx={idx} onEdit={() => openEdit(h)} onArchive={() => handleArchive(h)} onDelete={() => handleDelete(h.id)} />
         ))}
         {showArchived && archived.length > 0 && (
           <>
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground pt-2 pb-1 px-1">Archived</p>
             {archived.map((h, idx) => (
-              <HousekeeperCard
-                key={h.id} housekeeper={h} idx={idx} isArchived
-                onEdit={() => openEdit(h)}
-                onArchive={() => handleArchive(h)}
-                onDelete={() => handleDelete(h.id)}
-              />
+              <HousekeeperCard key={h.id} housekeeper={h} idx={idx} isArchived onEdit={() => openEdit(h)} onArchive={() => handleArchive(h)} onDelete={() => handleDelete(h.id)} />
             ))}
           </>
         )}
@@ -738,39 +510,19 @@ function HousekeepersTab({ housekeepers, showArchived, setShowArchived, onRefres
           </DialogHeader>
           <div className="grid gap-3 py-3">
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label>Name *</Label>
-                <Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} data-testid="hk-name-input" />
-              </div>
-              <div className="space-y-1">
-                <Label>Contact</Label>
-                <Input value={form.contact} onChange={e => setForm({ ...form, contact: e.target.value })} />
-              </div>
+              <div className="space-y-1"><Label>Name *</Label><Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} data-testid="hk-name-input" /></div>
+              <div className="space-y-1"><Label>Contact</Label><Input value={form.contact} onChange={e => setForm({ ...form, contact: e.target.value })} /></div>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label>Availability</Label>
-                <Input value={form.availability} onChange={e => setForm({ ...form, availability: e.target.value })} placeholder="e.g. Mon-Fri" />
-              </div>
-              <div className="space-y-1">
-                <Label>Preference</Label>
-                <Input value={form.preference} onChange={e => setForm({ ...form, preference: e.target.value })} />
-              </div>
+              <div className="space-y-1"><Label>Availability</Label><Input value={form.availability} onChange={e => setForm({ ...form, availability: e.target.value })} placeholder="e.g. Mon-Fri" /></div>
+              <div className="space-y-1"><Label>Preference</Label><Input value={form.preference} onChange={e => setForm({ ...form, preference: e.target.value })} /></div>
             </div>
-            <div className="space-y-1">
-              <Label>Pay</Label>
-              <Input value={form.pay} onChange={e => setForm({ ...form, pay: e.target.value })} placeholder="e.g. $100/cleaning" />
-            </div>
-            <div className="space-y-1">
-              <Label>Notes</Label>
-              <Textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} rows={2} />
-            </div>
+            <div className="space-y-1"><Label>Pay</Label><Input value={form.pay} onChange={e => setForm({ ...form, pay: e.target.value })} placeholder="e.g. $100/cleaning" /></div>
+            <div className="space-y-1"><Label>Notes</Label><Textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} rows={2} /></div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialog(false)}>Cancel</Button>
-            <Button onClick={handleSave} disabled={saving} data-testid="hk-save-btn">
-              {saving ? 'Saving...' : editing ? 'Update' : 'Add'}
-            </Button>
+            <Button onClick={handleSave} disabled={saving} data-testid="hk-save-btn">{saving ? 'Saving...' : editing ? 'Update' : 'Add'}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -780,10 +532,7 @@ function HousekeepersTab({ housekeepers, showArchived, setShowArchived, onRefres
 
 function HousekeeperCard({ housekeeper: h, idx, isArchived, onEdit, onArchive, onDelete }) {
   return (
-    <div
-      className={`group border rounded-xl px-4 py-3.5 ${idx % 2 === 0 ? 'bg-card' : 'bg-muted/20'} ${isArchived ? 'opacity-60' : ''} hover:shadow-sm transition-shadow`}
-      data-testid="housekeeper-row"
-    >
+    <div className={`group border rounded-xl px-4 py-3.5 ${idx % 2 === 0 ? 'bg-card' : 'bg-muted/20'} ${isArchived ? 'opacity-60' : ''} hover:shadow-sm transition-shadow`} data-testid="housekeeper-row">
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
           <p className="font-medium text-sm">{h.name}</p>
@@ -796,15 +545,9 @@ function HousekeeperCard({ housekeeper: h, idx, isArchived, onEdit, onArchive, o
           {h.notes && <p className="text-xs text-muted-foreground mt-1">{h.notes}</p>}
         </div>
         <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={onEdit}>
-            <Pencil className="h-3.5 w-3.5" />
-          </Button>
-          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={onArchive}>
-            <Archive className="h-3.5 w-3.5" />
-          </Button>
-          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive hover:text-destructive" onClick={onDelete}>
-            <Trash2 className="h-3.5 w-3.5" />
-          </Button>
+          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={onEdit}><Pencil className="h-3.5 w-3.5" /></Button>
+          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={onArchive}><Archive className="h-3.5 w-3.5" /></Button>
+          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive hover:text-destructive" onClick={onDelete}><Trash2 className="h-3.5 w-3.5" /></Button>
         </div>
       </div>
     </div>
@@ -870,12 +613,7 @@ function HousekeepingLeadsTab({ leads, showArchived, setShowArchived, onRefresh 
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <Button
-          size="sm"
-          variant={showArchived ? 'secondary' : 'outline'}
-          className="text-xs h-8"
-          onClick={() => setShowArchived(!showArchived)}
-        >
+        <Button size="sm" variant={showArchived ? 'secondary' : 'outline'} className="text-xs h-8" onClick={() => setShowArchived(!showArchived)}>
           <Archive className="h-3 w-3 mr-1" />{showArchived ? 'Hide' : 'Show'} Archived
         </Button>
         <Button onClick={openCreate} data-testid="hk-lead-add-btn">
@@ -884,30 +622,18 @@ function HousekeepingLeadsTab({ leads, showArchived, setShowArchived, onRefresh 
       </div>
 
       {active.length === 0 && !showArchived && (
-        <div className="text-center py-12 text-muted-foreground text-sm border rounded-xl bg-muted/20">
-          No housekeeping leads added
-        </div>
+        <div className="text-center py-12 text-muted-foreground text-sm border rounded-xl bg-muted/20">No housekeeping leads added</div>
       )}
 
       <div className="space-y-2" data-testid="hk-leads-list">
         {active.map((l, idx) => (
-          <LeadCard
-            key={l.id} lead={l} idx={idx}
-            onEdit={() => openEdit(l)}
-            onArchive={() => handleArchive(l)}
-            onDelete={() => handleDelete(l.id)}
-          />
+          <LeadCard key={l.id} lead={l} idx={idx} onEdit={() => openEdit(l)} onArchive={() => handleArchive(l)} onDelete={() => handleDelete(l.id)} />
         ))}
         {showArchived && archived.length > 0 && (
           <>
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground pt-2 pb-1 px-1">Archived</p>
             {archived.map((l, idx) => (
-              <LeadCard
-                key={l.id} lead={l} idx={idx} isArchived
-                onEdit={() => openEdit(l)}
-                onArchive={() => handleArchive(l)}
-                onDelete={() => handleDelete(l.id)}
-              />
+              <LeadCard key={l.id} lead={l} idx={idx} isArchived onEdit={() => openEdit(l)} onArchive={() => handleArchive(l)} onDelete={() => handleDelete(l.id)} />
             ))}
           </>
         )}
@@ -921,43 +647,20 @@ function HousekeepingLeadsTab({ leads, showArchived, setShowArchived, onRefresh 
           </DialogHeader>
           <div className="grid gap-3 py-3">
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label>Name *</Label>
-                <Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} data-testid="hk-lead-name-input" />
-              </div>
-              <div className="space-y-1">
-                <Label>Contact</Label>
-                <Input value={form.contact} onChange={e => setForm({ ...form, contact: e.target.value })} />
-              </div>
+              <div className="space-y-1"><Label>Name *</Label><Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} data-testid="hk-lead-name-input" /></div>
+              <div className="space-y-1"><Label>Contact</Label><Input value={form.contact} onChange={e => setForm({ ...form, contact: e.target.value })} /></div>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label>Call Time</Label>
-                <Input value={form.call_time} onChange={e => setForm({ ...form, call_time: e.target.value })} placeholder="e.g. 2pm" />
-              </div>
-              <div className="space-y-1">
-                <Label>Interview Pay</Label>
-                <Input value={form.interview_pay} onChange={e => setForm({ ...form, interview_pay: e.target.value })} />
-              </div>
+              <div className="space-y-1"><Label>Call Time</Label><Input value={form.call_time} onChange={e => setForm({ ...form, call_time: e.target.value })} placeholder="e.g. 2pm" /></div>
+              <div className="space-y-1"><Label>Interview Pay</Label><Input value={form.interview_pay} onChange={e => setForm({ ...form, interview_pay: e.target.value })} /></div>
             </div>
-            <div className="space-y-1">
-              <Label>Trial</Label>
-              <Input value={form.trial} onChange={e => setForm({ ...form, trial: e.target.value })} placeholder="e.g. Trial cleaning scheduled 3/15" />
-            </div>
-            <div className="space-y-1">
-              <Label>Notes</Label>
-              <Textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} rows={2} />
-            </div>
-            <div className="space-y-1">
-              <Label>Additional Notes</Label>
-              <Textarea value={form.additional_notes} onChange={e => setForm({ ...form, additional_notes: e.target.value })} rows={2} />
-            </div>
+            <div className="space-y-1"><Label>Trial</Label><Input value={form.trial} onChange={e => setForm({ ...form, trial: e.target.value })} placeholder="e.g. Trial cleaning scheduled 3/15" /></div>
+            <div className="space-y-1"><Label>Notes</Label><Textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} rows={2} /></div>
+            <div className="space-y-1"><Label>Additional Notes</Label><Textarea value={form.additional_notes} onChange={e => setForm({ ...form, additional_notes: e.target.value })} rows={2} /></div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialog(false)}>Cancel</Button>
-            <Button onClick={handleSave} disabled={saving} data-testid="hk-lead-save-btn">
-              {saving ? 'Saving...' : editing ? 'Update' : 'Add'}
-            </Button>
+            <Button onClick={handleSave} disabled={saving} data-testid="hk-lead-save-btn">{saving ? 'Saving...' : editing ? 'Update' : 'Add'}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -967,10 +670,7 @@ function HousekeepingLeadsTab({ leads, showArchived, setShowArchived, onRefresh 
 
 function LeadCard({ lead: l, idx, isArchived, onEdit, onArchive, onDelete }) {
   return (
-    <div
-      className={`group border rounded-xl px-4 py-3.5 ${idx % 2 === 0 ? 'bg-card' : 'bg-muted/20'} ${isArchived ? 'opacity-60' : ''} hover:shadow-sm transition-shadow`}
-      data-testid="hk-lead-row"
-    >
+    <div className={`group border rounded-xl px-4 py-3.5 ${idx % 2 === 0 ? 'bg-card' : 'bg-muted/20'} ${isArchived ? 'opacity-60' : ''} hover:shadow-sm transition-shadow`} data-testid="hk-lead-row">
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
           <p className="font-medium text-sm">{l.name}</p>
@@ -983,15 +683,9 @@ function LeadCard({ lead: l, idx, isArchived, onEdit, onArchive, onDelete }) {
           {l.notes && <p className="text-xs text-muted-foreground mt-1">{l.notes}</p>}
         </div>
         <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={onEdit}>
-            <Pencil className="h-3.5 w-3.5" />
-          </Button>
-          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={onArchive}>
-            <Archive className="h-3.5 w-3.5" />
-          </Button>
-          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive hover:text-destructive" onClick={onDelete}>
-            <Trash2 className="h-3.5 w-3.5" />
-          </Button>
+          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={onEdit}><Pencil className="h-3.5 w-3.5" /></Button>
+          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={onArchive}><Archive className="h-3.5 w-3.5" /></Button>
+          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive hover:text-destructive" onClick={onDelete}><Trash2 className="h-3.5 w-3.5" /></Button>
         </div>
       </div>
     </div>

@@ -2,19 +2,11 @@ import { useState, useEffect, useMemo } from 'react';
 import { getProperties, createProperty, updateProperty, deleteProperty, getUnits, createUnit, updateUnit, deleteUnit, getMarlinsDecals, createMarlinsDecal, deleteMarlinsDecal } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Switch } from '@/components/ui/switch';
-import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { Building2, Plus, Pencil, Trash2, X, ChevronDown, ChevronRight, Home, MapPin, User, Phone, Mail, PawPrint, Car, Info, Shield } from 'lucide-react';
+import { Building2, Plus } from 'lucide-react';
 import { toast } from 'sonner';
-
-const UNIT_SIZES = ['0/1', '1/1', '2/1', '2/2', '3/1', '3/2', '3/3', 'other'];
+import { PropertyFormDialog } from '@/components/properties/PropertyFormDialog';
+import { UnitFormDialog } from '@/components/properties/UnitFormDialog';
+import { PropertyCard } from '@/components/properties/PropertyCard';
 
 const emptyPropertyForm = {
   name: '', address: '', owner_manager_name: '', owner_manager_phone: '',
@@ -34,20 +26,16 @@ export default function PropertiesPage() {
   const [decals, setDecals] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Property dialog
   const [propDialogOpen, setPropDialogOpen] = useState(false);
   const [editingProp, setEditingProp] = useState(null);
   const [propForm, setPropForm] = useState(emptyPropertyForm);
-  const [amenityInput, setAmenityInput] = useState('');
   const [savingProp, setSavingProp] = useState(false);
 
-  // Unit dialog
   const [unitDialogOpen, setUnitDialogOpen] = useState(false);
   const [editingUnit, setEditingUnit] = useState(null);
   const [unitForm, setUnitForm] = useState(emptyUnitForm);
   const [savingUnit, setSavingUnit] = useState(false);
 
-  // Expanded states
   const [expandedDetails, setExpandedDetails] = useState({});
   const [expandedUnits, setExpandedUnits] = useState({});
   const [expandedDecals, setExpandedDecals] = useState({});
@@ -64,7 +52,7 @@ export default function PropertiesPage() {
         grouped[u.property_id].push(u);
       });
       setUnitsByProperty(grouped);
-    } catch (e) {
+    } catch {
       toast.error('Failed to load data');
     } finally {
       setLoading(false);
@@ -73,17 +61,13 @@ export default function PropertiesPage() {
 
   useEffect(() => { fetchData(); }, []);
 
-  // Build flat unit map for decal assignment display
   const unitMap = useMemo(() => {
     const m = {};
     Object.values(unitsByProperty).forEach(arr => arr.forEach(u => { m[u.id] = u; }));
     return m;
   }, [unitsByProperty]);
 
-  const toggleDetails = (id) => setExpandedDetails(prev => ({ ...prev, [id]: !prev[id] }));
-  const toggleUnits = (id) => setExpandedUnits(prev => ({ ...prev, [id]: !prev[id] }));
-  const toggleDecals = (id) => setExpandedDecals(prev => ({ ...prev, [id]: !prev[id] }));
-
+  // ---- Decal CRUD ----
   const addDecal = async (propId) => {
     const num = (newDecalInput[propId] || '').trim();
     if (!num) return;
@@ -100,10 +84,11 @@ export default function PropertiesPage() {
     try { await deleteMarlinsDecal(decalId); fetchData(); toast.success('Decal deleted'); }
     catch { toast.error('Failed to delete decal'); }
   };
+
+  // ---- Property CRUD ----
   const openCreateProp = () => {
     setEditingProp(null);
     setPropForm(emptyPropertyForm);
-    setAmenityInput('');
     setPropDialogOpen(true);
   };
 
@@ -122,7 +107,6 @@ export default function PropertiesPage() {
       building_id: prop.building_id != null ? prop.building_id : '',
       marlins_decal_property: prop.marlins_decal_property || false
     });
-    setAmenityInput('');
     setPropDialogOpen(true);
   };
 
@@ -164,17 +148,6 @@ export default function PropertiesPage() {
     }
   };
 
-  const addAmenity = () => {
-    if (amenityInput.trim()) {
-      setPropForm({ ...propForm, building_amenities: [...propForm.building_amenities, amenityInput.trim()] });
-      setAmenityInput('');
-    }
-  };
-
-  const removeAmenity = (idx) => {
-    setPropForm({ ...propForm, building_amenities: propForm.building_amenities.filter((_, i) => i !== idx) });
-  };
-
   // ---- Unit CRUD ----
   const openCreateUnit = (propertyId) => {
     setEditingUnit(null);
@@ -195,20 +168,6 @@ export default function PropertiesPage() {
       close_date: unit.close_date || ''
     });
     setUnitDialogOpen(true);
-  };
-
-  const addCost = () => {
-    setUnitForm({ ...unitForm, additional_monthly_costs: [...unitForm.additional_monthly_costs, { name: '', amount: '' }] });
-  };
-
-  const updateCost = (idx, field, value) => {
-    const costs = [...unitForm.additional_monthly_costs];
-    costs[idx] = { ...costs[idx], [field]: field === 'amount' ? parseFloat(value) || '' : value };
-    setUnitForm({ ...unitForm, additional_monthly_costs: costs });
-  };
-
-  const removeCost = (idx) => {
-    setUnitForm({ ...unitForm, additional_monthly_costs: unitForm.additional_monthly_costs.filter((_, i) => i !== idx) });
   };
 
   const handleSaveUnit = async () => {
@@ -278,459 +237,60 @@ export default function PropertiesPage() {
         <div className="space-y-4">
           {properties.map(prop => {
             const units = unitsByProperty[prop.id] || [];
-            const isDetailsOpen = expandedDetails[prop.id];
-            const isUnitsOpen = expandedUnits[prop.id];
-            const isDecalsOpen = expandedDecals[prop.id];
             const propDecals = decals.filter(d => d.property_id === prop.id);
-
             return (
-              <Card key={prop.id} className="overflow-hidden border-l-4 border-l-primary/30 shadow-sm" data-testid="properties-table-row">
-                {/* Property Summary Header - Always Visible */}
-                <div className="p-5 bg-gradient-to-r from-slate-50 to-white">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-3 mb-1">
-                        <h2 className="font-heading text-lg font-semibold tracking-tight truncate">{prop.name}</h2>
-                        {prop.building_id != null && (
-                          <Badge variant="outline" className="text-xs flex-shrink-0 tabular-nums">
-                            Bldg #{prop.building_id}
-                          </Badge>
-                        )}
-                        <Badge variant="secondary" className="text-xs flex-shrink-0 tabular-nums">
-                          {units.length} {units.length === 1 ? 'Unit' : 'Units'}
-                        </Badge>
-                      </div>
-                      <div className="flex items-center gap-1.5 text-sm text-muted-foreground mb-3">
-                        <MapPin className="h-3.5 w-3.5 flex-shrink-0" />
-                        <span className="truncate">{prop.address}</span>
-                      </div>
-                      {/* Unit badges */}
-                      {units.length > 0 && (
-                        <div className="flex flex-wrap gap-1.5">
-                          {units.map(u => (
-                            <Badge key={u.id} variant="outline" className="text-xs font-normal gap-1">
-                              <Home className="h-3 w-3" />
-                              {u.unit_number}
-                              <span className="text-muted-foreground">({u.unit_size === 'other' ? u.unit_size_custom : u.unit_size})</span>
-                            </Badge>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1 flex-shrink-0">
-                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => openEditProp(prop)} data-testid="property-edit-button">
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-destructive" onClick={() => handleDeleteProp(prop.id)} data-testid="property-delete-button">
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-
-                  {/* Expand toggles */}
-                  <div className="flex gap-2 mt-4 pt-3 border-t border-border/50">
-                    <Button
-                      variant={isDetailsOpen ? "secondary" : "ghost"}
-                      size="sm"
-                      className="h-8 text-xs gap-1.5"
-                      onClick={() => toggleDetails(prop.id)}
-                      data-testid="property-details-toggle"
-                    >
-                      {isDetailsOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-                      <Info className="h-3.5 w-3.5" />
-                      Property Details
-                    </Button>
-                    <Button
-                      variant={isUnitsOpen ? "secondary" : "ghost"}
-                      size="sm"
-                      className="h-8 text-xs gap-1.5"
-                      onClick={() => toggleUnits(prop.id)}
-                      data-testid="property-units-toggle"
-                    >
-                      {isUnitsOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-                      <Home className="h-3.5 w-3.5" />
-                      Units ({units.length})
-                    </Button>
-                  </div>
-                </div>
-
-                {/* Expandable: Property Details */}
-                {isDetailsOpen && (
-                  <div className="px-5 pb-5 border-t bg-amber-50/40">
-                    <div className="pt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                          <User className="h-3.5 w-3.5" /> Owner / Manager
-                        </div>
-                        <p className="text-sm font-medium">{prop.owner_manager_name || '-'}</p>
-                      </div>
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                          <Phone className="h-3.5 w-3.5" /> Phone
-                        </div>
-                        <p className="text-sm">{prop.owner_manager_phone || '-'}</p>
-                      </div>
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                          <Mail className="h-3.5 w-3.5" /> Email
-                        </div>
-                        <p className="text-sm">{prop.owner_manager_email || '-'}</p>
-                      </div>
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                          <Car className="h-3.5 w-3.5" /> Parking
-                        </div>
-                        <p className="text-sm">{prop.available_parking || 'Not specified'}</p>
-                      </div>
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                          <PawPrint className="h-3.5 w-3.5" /> Pets
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Badge variant={prop.pets_permitted ? 'default' : 'secondary'} className="text-xs">
-                            {prop.pets_permitted ? 'Permitted' : 'Not Permitted'}
-                          </Badge>
-                          {prop.pets_permitted && prop.pet_notes && (
-                            <span className="text-xs text-muted-foreground">{prop.pet_notes}</span>
-                          )}
-                        </div>
-                      </div>
-                      {prop.marlins_decal_property && (
-                        <div className="space-y-1">
-                          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Marlins Decal</p>
-                          <Badge className="text-xs bg-blue-50 text-blue-700 border border-blue-200">
-                            Marlins Decal Property
-                          </Badge>
-                        </div>
-                      )}
-                      {prop.building_amenities && prop.building_amenities.length > 0 && (
-                        <div className="space-y-1 md:col-span-2 lg:col-span-1">
-                          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Amenities</p>
-                          <div className="flex flex-wrap gap-1.5">
-                            {prop.building_amenities.map((a, i) => (
-                              <Badge key={i} variant="outline" className="text-xs font-normal">{a}</Badge>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                    {prop.additional_notes && (
-                      <div className="mt-4 pt-3 border-t border-border/50">
-                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">Notes</p>
-                        <p className="text-sm text-muted-foreground">{prop.additional_notes}</p>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Expandable: Units */}
-                {isUnitsOpen && (
-                  <div className="border-t">
-                    <div className="px-5 py-3 flex items-center justify-between bg-muted/30">
-                      <h3 className="text-sm font-semibold">Units</h3>
-                      <Button size="sm" className="h-7 text-xs" onClick={() => openCreateUnit(prop.id)} data-testid="units-create-button">
-                        <Plus className="h-3 w-3 mr-1" /> Add Unit
-                      </Button>
-                    </div>
-                    {units.length === 0 ? (
-                      <div className="px-5 py-8 text-center">
-                        <Home className="h-8 w-8 text-muted-foreground/40 mx-auto mb-2" />
-                        <p className="text-sm text-muted-foreground">No units added yet</p>
-                        <Button size="sm" variant="outline" className="mt-3 text-xs" onClick={() => openCreateUnit(prop.id)}>
-                          Add First Unit
-                        </Button>
-                      </div>
-                    ) : (
-                      <div className="overflow-x-auto">
-                        <Table>
-                          <TableHeader>
-                            <TableRow className="bg-muted/20">
-                              <TableHead className="text-xs font-semibold uppercase tracking-wide">Unit #</TableHead>
-                              <TableHead className="text-xs font-semibold uppercase tracking-wide">Size</TableHead>
-                              <TableHead className="text-xs font-semibold uppercase tracking-wide">Base Rent</TableHead>
-                              <TableHead className="text-xs font-semibold uppercase tracking-wide">Add'l Costs</TableHead>
-                              <TableHead className="text-xs font-semibold uppercase tracking-wide">Available From</TableHead>
-                              <TableHead className="text-xs font-semibold uppercase tracking-wide">Close Date</TableHead>
-                              <TableHead className="text-xs font-semibold uppercase tracking-wide w-[80px]">Actions</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {units.map(u => {
-                              const addlTotal = (u.additional_monthly_costs || []).reduce((sum, c) => sum + (parseFloat(c.amount) || 0), 0);
-                              return (
-                                <TableRow key={u.id} className="hover:bg-muted/30" data-testid="units-table-row">
-                                  <TableCell className="font-medium">{u.unit_number}</TableCell>
-                                  <TableCell>
-                                    <Badge variant="secondary" className="text-xs">
-                                      {u.unit_size === 'other' ? u.unit_size_custom : u.unit_size}
-                                    </Badge>
-                                  </TableCell>
-                                  <TableCell className="tabular-nums">${parseFloat(u.base_rent).toLocaleString()}</TableCell>
-                                  <TableCell className="tabular-nums">
-                                    {addlTotal > 0 ? (
-                                      <span className="text-xs">
-                                        +${addlTotal.toLocaleString()}
-                                        <span className="text-muted-foreground ml-1">
-                                          ({(u.additional_monthly_costs || []).map(c => c.name).join(', ')})
-                                        </span>
-                                      </span>
-                                    ) : (
-                                      <span className="text-xs text-muted-foreground">-</span>
-                                    )}
-                                  </TableCell>
-                                  <TableCell className="text-sm">{u.availability_start_date}</TableCell>
-                                  <TableCell className="text-sm">{u.close_date || '-'}</TableCell>
-                                  <TableCell>
-                                    <div className="flex gap-1">
-                                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => openEditUnit(u)}>
-                                        <Pencil className="h-3.5 w-3.5" />
-                                      </Button>
-                                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive" onClick={() => handleDeleteUnit(u.id)}>
-                                        <Trash2 className="h-3.5 w-3.5" />
-                                      </Button>
-                                    </div>
-                                  </TableCell>
-                                </TableRow>
-                              );
-                            })}
-                          </TableBody>
-                        </Table>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Decal Assignments Section — only for Marlins Decal properties */}
-                {prop.marlins_decal_property && (
-                  <div className="border-t">
-                    <button
-                      className="w-full px-5 py-3 flex items-center justify-between bg-blue-50/60 hover:bg-blue-50 transition-colors"
-                      onClick={() => toggleDecals(prop.id)}
-                      data-testid={`decals-expand-${prop.id}`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <Shield className="h-4 w-4 text-blue-600" />
-                        <h3 className="text-sm font-semibold text-blue-800">Decal Assignments</h3>
-                        <span className="text-xs text-blue-600">({propDecals.length} decals)</span>
-                      </div>
-                      <ChevronRight className={`h-4 w-4 text-blue-600 transition-transform ${isDecalsOpen ? 'rotate-90' : ''}`} />
-                    </button>
-
-                    {isDecalsOpen && (
-                      <div className="px-5 py-4 space-y-3 bg-blue-50/20" data-testid={`decals-section-${prop.id}`}>
-                        <div className="flex gap-2">
-                          <Input
-                            placeholder="Decal number or ID..."
-                            value={newDecalInput[prop.id] || ''}
-                            onChange={e => setNewDecalInput(prev => ({ ...prev, [prop.id]: e.target.value }))}
-                            onKeyDown={e => e.key === 'Enter' && addDecal(prop.id)}
-                            className="flex-1 h-8 text-sm"
-                            data-testid={`decal-input-${prop.id}`}
-                          />
-                          <Button size="sm" className="h-8" onClick={() => addDecal(prop.id)} data-testid={`decal-add-btn-${prop.id}`}>
-                            <Plus className="h-3 w-3 mr-1" />Add
-                          </Button>
-                        </div>
-
-                        {propDecals.length === 0 ? (
-                          <p className="text-sm text-muted-foreground">No decals added yet. Enter a decal number above.</p>
-                        ) : (
-                          <div className="space-y-1.5">
-                            {propDecals.map(d => (
-                              <div key={d.id} className="flex items-center justify-between px-3 py-2 bg-white rounded-lg border text-sm" data-testid="decal-row">
-                                <div className="flex items-center gap-3">
-                                  <span className="font-mono font-semibold text-blue-800">{d.decal_number}</span>
-                                  {d.assigned_tenant ? (
-                                    <span className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
-                                      {d.assigned_tenant.name}
-                                      {unitMap[d.assigned_tenant.unit_id] && (
-                                        <span className="text-emerald-600 ml-1">
-                                          · Unit {unitMap[d.assigned_tenant.unit_id].unit_number}
-                                        </span>
-                                      )}
-                                    </span>
-                                  ) : (
-                                    <span className="text-xs text-muted-foreground">Available</span>
-                                  )}
-                                </div>
-                                <Button
-                                  variant="ghost" size="sm" className="h-6 w-6 p-0 text-destructive hover:text-destructive"
-                                  onClick={() => handleDeleteDecal(d.id)}
-                                  data-testid={`decal-delete-${d.id}`}
-                                >
-                                  <X className="h-3 w-3" />
-                                </Button>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </Card>
+              <PropertyCard
+                key={prop.id}
+                prop={prop}
+                units={units}
+                decals={propDecals}
+                unitMap={unitMap}
+                expanded={{
+                  details: expandedDetails[prop.id],
+                  units: expandedUnits[prop.id],
+                  decals: expandedDecals[prop.id]
+                }}
+                toggles={{
+                  details: () => setExpandedDetails(prev => ({ ...prev, [prop.id]: !prev[prop.id] })),
+                  units: () => setExpandedUnits(prev => ({ ...prev, [prop.id]: !prev[prop.id] })),
+                  decals: () => setExpandedDecals(prev => ({ ...prev, [prop.id]: !prev[prop.id] }))
+                }}
+                handlers={{
+                  editProp: () => openEditProp(prop),
+                  deleteProp: () => handleDeleteProp(prop.id),
+                  createUnit: () => openCreateUnit(prop.id),
+                  editUnit: openEditUnit,
+                  deleteUnit: handleDeleteUnit,
+                  addDecal: () => addDecal(prop.id),
+                  deleteDecal: handleDeleteDecal
+                }}
+                decalInput={newDecalInput[prop.id] || ''}
+                onDecalInputChange={val => setNewDecalInput(prev => ({ ...prev, [prop.id]: val }))}
+              />
             );
           })}
         </div>
       )}
 
-      <Dialog open={propDialogOpen} onOpenChange={setPropDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="font-heading">{editingProp ? 'Edit Property' : 'Add Property'}</DialogTitle>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label>Property Name *</Label>
-                <Input value={propForm.name} onChange={e => setPropForm({...propForm, name: e.target.value})} data-testid="property-name-input" />
-              </div>
-              <div className="space-y-2">
-                <Label>Address *</Label>
-                <Input value={propForm.address} onChange={e => setPropForm({...propForm, address: e.target.value})} data-testid="property-address-input" />
-              </div>
-              <div className="space-y-2">
-                <Label>Building ID</Label>
-                <Input type="number" value={propForm.building_id} onChange={e => setPropForm({...propForm, building_id: e.target.value})} placeholder="e.g. 1, 2, 3" data-testid="property-building-id-input" />
-              </div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label>Owner/Manager Name *</Label>
-                <Input value={propForm.owner_manager_name} onChange={e => setPropForm({...propForm, owner_manager_name: e.target.value})} />
-              </div>
-              <div className="space-y-2">
-                <Label>Phone *</Label>
-                <Input value={propForm.owner_manager_phone} onChange={e => setPropForm({...propForm, owner_manager_phone: e.target.value})} />
-              </div>
-              <div className="space-y-2">
-                <Label>Email *</Label>
-                <Input type="email" value={propForm.owner_manager_email} onChange={e => setPropForm({...propForm, owner_manager_email: e.target.value})} />
-              </div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label>Available Parking</Label>
-                <Input value={propForm.available_parking} onChange={e => setPropForm({...propForm, available_parking: e.target.value})} placeholder="e.g. 2 spots, street parking" />
-              </div>
-              <div className="space-y-2">
-                <Label>Pets Permitted</Label>
-                <div className="flex items-center gap-3 pt-2">
-                  <Switch checked={propForm.pets_permitted} onCheckedChange={v => setPropForm({...propForm, pets_permitted: v})} data-testid="property-pets-toggle" />
-                  <span className="text-sm">{propForm.pets_permitted ? 'Yes' : 'No'}</span>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label>Marlins Decal Property</Label>
-                <div className="flex items-center gap-3 pt-2">
-                  <Switch checked={propForm.marlins_decal_property} onCheckedChange={v => setPropForm({...propForm, marlins_decal_property: v})} data-testid="property-marlins-decal-toggle" />
-                  <span className="text-sm">{propForm.marlins_decal_property ? 'Yes' : 'No'}</span>
-                </div>
-              </div>
-            </div>
-            {propForm.pets_permitted && (
-              <div className="space-y-2">
-                <Label>Pet Notes</Label>
-                <Input value={propForm.pet_notes} onChange={e => setPropForm({...propForm, pet_notes: e.target.value})} placeholder="Weight limits, breed restrictions..." />
-              </div>
-            )}
-            <div className="space-y-2">
-              <Label>Building Amenities</Label>
-              <div className="flex gap-2">
-                <Input value={amenityInput} onChange={e => setAmenityInput(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addAmenity())}
-                  placeholder="Add amenity and press Enter" />
-                <Button type="button" variant="secondary" onClick={addAmenity}>Add</Button>
-              </div>
-              <div className="flex flex-wrap gap-2 mt-2">
-                {propForm.building_amenities.map((a, i) => (
-                  <Badge key={i} variant="secondary" className="gap-1">
-                    {a}
-                    <button onClick={() => removeAmenity(i)} className="ml-1"><X className="h-3 w-3" /></button>
-                  </Badge>
-                ))}
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Additional Notes</Label>
-              <Textarea value={propForm.additional_notes} onChange={e => setPropForm({...propForm, additional_notes: e.target.value})} />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setPropDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleSaveProp} disabled={savingProp} data-testid="property-save-button">
-              {savingProp ? 'Saving...' : (editingProp ? 'Update' : 'Create')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <PropertyFormDialog
+        open={propDialogOpen}
+        onOpenChange={setPropDialogOpen}
+        editing={editingProp}
+        form={propForm}
+        setForm={setPropForm}
+        onSave={handleSaveProp}
+        saving={savingProp}
+      />
 
-      {/* Unit Create/Edit Dialog */}
-      <Dialog open={unitDialogOpen} onOpenChange={setUnitDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="font-heading">{editingUnit ? 'Edit Unit' : 'Add Unit'}</DialogTitle>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Unit Number *</Label>
-                <Input value={unitForm.unit_number} onChange={e => setUnitForm({...unitForm, unit_number: e.target.value})} data-testid="unit-number-input" />
-              </div>
-              <div className="space-y-2">
-                <Label>Unit Size *</Label>
-                <Select value={unitForm.unit_size} onValueChange={v => setUnitForm({...unitForm, unit_size: v})}>
-                  <SelectTrigger data-testid="unit-size-select"><SelectValue placeholder="Select size" /></SelectTrigger>
-                  <SelectContent>
-                    {UNIT_SIZES.map(s => (<SelectItem key={s} value={s}>{s === 'other' ? 'Other' : s}</SelectItem>))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            {unitForm.unit_size === 'other' && (
-              <div className="space-y-2">
-                <Label>Custom Size</Label>
-                <Input value={unitForm.unit_size_custom} onChange={e => setUnitForm({...unitForm, unit_size_custom: e.target.value})} placeholder="e.g. Studio, 4/2" />
-              </div>
-            )}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Base Rent *</Label>
-                <Input type="number" value={unitForm.base_rent} onChange={e => setUnitForm({...unitForm, base_rent: e.target.value})} data-testid="unit-rent-input" />
-              </div>
-              <div className="space-y-2">
-                <Label>Availability Start Date *</Label>
-                <Input type="date" value={unitForm.availability_start_date} onChange={e => setUnitForm({...unitForm, availability_start_date: e.target.value})} data-testid="unit-avail-date" />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Close Date (optional)</Label>
-              <Input type="date" value={unitForm.close_date} onChange={e => setUnitForm({...unitForm, close_date: e.target.value})} />
-            </div>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <Label>Additional Monthly Costs</Label>
-                <Button type="button" variant="secondary" size="sm" onClick={addCost} data-testid="units-costs-add-row-button">
-                  <Plus className="h-3 w-3 mr-1" /> Add Cost
-                </Button>
-              </div>
-              {unitForm.additional_monthly_costs.map((cost, idx) => (
-                <div key={idx} className="flex items-center gap-3 p-3 rounded-lg border bg-muted/20">
-                  <Input className="flex-1" placeholder="Cost name" value={cost.name} onChange={e => updateCost(idx, 'name', e.target.value)} />
-                  <Input className="w-32" type="number" placeholder="Amount" value={cost.amount} onChange={e => updateCost(idx, 'amount', e.target.value)} />
-                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-destructive" onClick={() => removeCost(idx)}><X className="h-4 w-4" /></Button>
-                </div>
-              ))}
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setUnitDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleSaveUnit} disabled={savingUnit} data-testid="unit-save-button">
-              {savingUnit ? 'Saving...' : (editingUnit ? 'Update' : 'Create')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <UnitFormDialog
+        open={unitDialogOpen}
+        onOpenChange={setUnitDialogOpen}
+        editing={editingUnit}
+        form={unitForm}
+        setForm={setUnitForm}
+        onSave={handleSaveUnit}
+        saving={savingUnit}
+      />
     </div>
   );
 }
