@@ -1,12 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
-import { getDoorCodes, saveDoorCode, getProperties, getUnits, verifyPin, getPinStatus, setPin } from '@/lib/api';
+import { getDoorCodes, saveDoorCode, getProperties, getUnits, verifyPin } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
-import { Textarea } from '@/components/ui/textarea';
-import { DoorOpen, ChevronDown, ChevronRight, Eye, EyeOff, Lock, Save, Settings } from 'lucide-react';
+import { DoorOpen, ChevronDown, ChevronRight, Eye, Lock, Save, Shield } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function DoorCodesPage() {
@@ -23,14 +21,15 @@ export default function DoorCodesPage() {
   const [pinDialog, setPinDialog] = useState(false);
   const [pinInput, setPinInput] = useState('');
   const [pinTarget, setPinTarget] = useState(null);
-  const [pinStatus, setPinStatus] = useState({});
-  const [setupDialog, setSetupDialog] = useState(false);
-  const [newPin, setNewPin] = useState('');
+  const [pinAction, setPinAction] = useState(null); // 'view' or 'edit'
+  const [adminEditDialog, setAdminEditDialog] = useState(false);
+  const [adminEditForm, setAdminEditForm] = useState({});
+  const [adminEditUnit, setAdminEditUnit] = useState(null);
 
   const fetchData = useCallback(async () => {
     try {
-      const [dc, p, u, ps] = await Promise.all([getDoorCodes(), getProperties(), getUnits(), getPinStatus()]);
-      setDoorCodes(dc); setProperties(p); setUnits(u); setPinStatus(ps);
+      const [dc, p, u] = await Promise.all([getDoorCodes(), getProperties(), getUnits()]);
+      setDoorCodes(dc); setProperties(p); setUnits(u);
     } catch { toast.error('Failed to load data'); }
     finally { setLoading(false); }
   }, []);
@@ -59,11 +58,11 @@ export default function DoorCodesPage() {
     return ai - bi || a.name.localeCompare(b.name);
   });
 
+  // Open regular codes edit (no admin code)
   const openEdit = (unit) => {
     const existing = codeMap[unit.id];
     setEditingUnit(unit);
     setEditForm({
-      admin_code: existing?.admin_code || '', admin_code_note: existing?.admin_code_note || '',
       housekeeping_code: existing?.housekeeping_code || '', housekeeping_code_note: existing?.housekeeping_code_note || '',
       guest_code: existing?.guest_code || '', guest_code_note: existing?.guest_code_note || '',
       backup_code_1: existing?.backup_code_1 || '', backup_code_1_note: existing?.backup_code_1_note || '',
@@ -72,21 +71,25 @@ export default function DoorCodesPage() {
     setEditDialog(true);
   };
 
+  // Save regular codes (preserves existing admin code)
   const handleSave = async () => {
     setSaving(true);
     try {
-      await saveDoorCode({ unit_id: editingUnit.id, property_id: editingUnit.property_id, ...editForm });
+      const existing = codeMap[editingUnit.id];
+      await saveDoorCode({
+        unit_id: editingUnit.id, property_id: editingUnit.property_id,
+        admin_code: existing?.admin_code || '', admin_code_note: existing?.admin_code_note || '',
+        ...editForm,
+      });
       toast.success('Door codes saved');
       setEditDialog(false); fetchData();
     } catch { toast.error('Failed to save'); }
     finally { setSaving(false); }
   };
 
-  const requestAdminUnlock = (unitId) => {
-    if (!pinStatus.shared_pin_set) {
-      toast.error('No PIN configured. Set one in settings.'); setSetupDialog(true); return;
-    }
-    setPinTarget(unitId); setPinInput(''); setPinDialog(true);
+  // Request PIN for viewing or editing admin code
+  const requestAdminUnlock = (unitId, action = 'view') => {
+    setPinTarget(unitId); setPinInput(''); setPinAction(action); setPinDialog(true);
   };
 
   const handlePinVerify = async () => {
@@ -94,32 +97,62 @@ export default function DoorCodesPage() {
       const res = await verifyPin({ pin: pinInput, pin_type: 'shared' });
       if (res.valid) {
         setAdminUnlocked(p => ({ ...p, [pinTarget]: true }));
-        setPinDialog(false); toast.success('Admin code unlocked');
+        setPinDialog(false);
+        if (pinAction === 'edit') {
+          openAdminEdit(pinTarget);
+        } else {
+          toast.success('Admin code unlocked');
+        }
       } else { toast.error('Incorrect PIN'); }
     } catch { toast.error('Verification failed'); }
   };
 
-  const handleSetPin = async () => {
-    if (!newPin || newPin.length < 4) { toast.error('PIN must be at least 4 digits'); return; }
+  // Open admin code edit dialog
+  const openAdminEdit = (unitId) => {
+    const unit = units.find(u => u.id === unitId);
+    const existing = codeMap[unitId];
+    setAdminEditUnit(unit);
+    setAdminEditForm({
+      admin_code: existing?.admin_code || '',
+      admin_code_note: existing?.admin_code_note || '',
+    });
+    setAdminEditDialog(true);
+  };
+
+  // Save admin code (preserves other codes)
+  const handleAdminSave = async () => {
+    setSaving(true);
     try {
-      await setPin({ pin: newPin, pin_type: 'shared' });
-      toast.success('PIN set successfully');
-      setSetupDialog(false); setNewPin(''); fetchData();
-    } catch { toast.error('Failed to set PIN'); }
+      const existing = codeMap[adminEditUnit.id];
+      await saveDoorCode({
+        unit_id: adminEditUnit.id, property_id: adminEditUnit.property_id,
+        admin_code: adminEditForm.admin_code, admin_code_note: adminEditForm.admin_code_note,
+        housekeeping_code: existing?.housekeeping_code || '', housekeeping_code_note: existing?.housekeeping_code_note || '',
+        guest_code: existing?.guest_code || '', guest_code_note: existing?.guest_code_note || '',
+        backup_code_1: existing?.backup_code_1 || '', backup_code_1_note: existing?.backup_code_1_note || '',
+        backup_code_2: existing?.backup_code_2 || '', backup_code_2_note: existing?.backup_code_2_note || '',
+      });
+      toast.success('Admin code saved');
+      setAdminEditDialog(false); fetchData();
+    } catch { toast.error('Failed to save'); }
+    finally { setSaving(false); }
+  };
+
+  const handleEditAdminClick = (unitId) => {
+    if (adminUnlocked[unitId]) {
+      openAdminEdit(unitId);
+    } else {
+      requestAdminUnlock(unitId, 'edit');
+    }
   };
 
   if (loading) return <div className="text-center py-12 text-muted-foreground">Loading...</div>;
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="font-heading text-2xl font-semibold tracking-tight" data-testid="door-codes-page-title">Door Codes</h1>
-          <p className="text-sm text-muted-foreground mt-1">Manage entry codes for each unit</p>
-        </div>
-        <Button variant="outline" size="sm" onClick={() => setSetupDialog(true)} data-testid="door-codes-pin-settings">
-          <Settings className="h-4 w-4 mr-2" />PIN Settings
-        </Button>
+      <div>
+        <h1 className="font-heading text-2xl font-semibold tracking-tight" data-testid="door-codes-page-title">Door Codes</h1>
+        <p className="text-sm text-muted-foreground mt-1">Manage entry codes for each unit</p>
       </div>
 
       {sortedProps.length === 0 ? (
@@ -152,14 +185,19 @@ export default function DoorCodesPage() {
                         <div key={unit.id} className="border-b last:border-0 p-3" data-testid="door-codes-unit-row">
                           <div className="flex items-center justify-between mb-2">
                             <span className="font-medium text-sm">Unit {unit.unit_number}</span>
-                            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => openEdit(unit)}>
-                              <Save className="h-3 w-3 mr-1" />{codes ? 'Edit Codes' : 'Set Codes'}
-                            </Button>
+                            <div className="flex gap-1.5">
+                              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => openEdit(unit)} data-testid="door-codes-edit-btn">
+                                <Save className="h-3 w-3 mr-1" />{codes ? 'Edit Codes' : 'Set Codes'}
+                              </Button>
+                              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleEditAdminClick(unit.id)} data-testid="door-codes-edit-admin-btn">
+                                <Shield className="h-3 w-3 mr-1" />Edit Admin
+                              </Button>
+                            </div>
                           </div>
                           {codes ? (
                             <div className="grid grid-cols-1 sm:grid-cols-5 gap-2">
                               <CodeDisplay label="Admin" code={codes.admin_code} note={codes.admin_code_note}
-                                isProtected={!isUnlocked} onUnlock={() => requestAdminUnlock(unit.id)} />
+                                isProtected={!isUnlocked} onUnlock={() => requestAdminUnlock(unit.id, 'view')} />
                               <CodeDisplay label="Housekeeping" code={codes.housekeeping_code} note={codes.housekeeping_code_note} />
                               <CodeDisplay label="Guest" code={codes.guest_code} note={codes.guest_code_note} isGuest />
                               <CodeDisplay label="Backup 1" code={codes.backup_code_1} note={codes.backup_code_1_note} />
@@ -179,16 +217,15 @@ export default function DoorCodesPage() {
         </div>
       )}
 
-      {/* Edit Dialog */}
+      {/* Regular Codes Edit Dialog (no admin code) */}
       <Dialog open={editDialog} onOpenChange={setEditDialog}>
         <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Door Codes - Unit {editingUnit?.unit_number}</DialogTitle>
-            <DialogDescription>Set entry codes for this unit.</DialogDescription>
+            <DialogDescription>Edit regular entry codes for this unit.</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-3">
             {[
-              { key: 'admin_code', label: 'Admin Code (PIN Protected)' },
               { key: 'housekeeping_code', label: 'Housekeeping Code' },
               { key: 'guest_code', label: 'Guest Code' },
               { key: 'backup_code_1', label: 'Backup Code 1' },
@@ -214,12 +251,37 @@ export default function DoorCodesPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Admin Code Edit Dialog (PIN-gated) */}
+      <Dialog open={adminEditDialog} onOpenChange={setAdminEditDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle><Shield className="h-4 w-4 inline mr-2" />Admin Code - Unit {adminEditUnit?.unit_number}</DialogTitle>
+            <DialogDescription>Edit the admin door code for this unit.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-3">
+            <div className="space-y-1">
+              <Label className="text-xs">Admin Code</Label>
+              <Input value={adminEditForm.admin_code || ''} onChange={e => setAdminEditForm({ ...adminEditForm, admin_code: e.target.value })}
+                data-testid="door-code-admin_code-input" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Note</Label>
+              <Input value={adminEditForm.admin_code_note || ''} onChange={e => setAdminEditForm({ ...adminEditForm, admin_code_note: e.target.value })} placeholder="Optional note" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAdminEditDialog(false)}>Cancel</Button>
+            <Button onClick={handleAdminSave} disabled={saving} data-testid="door-code-admin-save-btn">{saving ? 'Saving...' : 'Save Admin Code'}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* PIN Verify Dialog */}
       <Dialog open={pinDialog} onOpenChange={setPinDialog}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle><Lock className="h-4 w-4 inline mr-2" />Enter PIN</DialogTitle>
-            <DialogDescription>Enter the shared PIN to view admin code.</DialogDescription>
+            <DialogDescription>Enter the PIN to {pinAction === 'edit' ? 'edit' : 'view'} admin code.</DialogDescription>
           </DialogHeader>
           <div className="py-3">
             <Input type="password" placeholder="Enter PIN" value={pinInput} onChange={e => setPinInput(e.target.value)}
@@ -228,29 +290,6 @@ export default function DoorCodesPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setPinDialog(false)}>Cancel</Button>
             <Button onClick={handlePinVerify} data-testid="door-code-pin-verify-btn">Verify</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* PIN Setup Dialog */}
-      <Dialog open={setupDialog} onOpenChange={setSetupDialog}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>PIN Settings</DialogTitle>
-            <DialogDescription>Set or update the shared PIN for admin door codes and other protected areas.</DialogDescription>
-          </DialogHeader>
-          <div className="py-3 space-y-3">
-            <div className="space-y-2">
-              <Label>Shared PIN (min 4 digits)</Label>
-              <Input type="password" value={newPin} onChange={e => setNewPin(e.target.value)} placeholder="Enter new PIN" data-testid="pin-setup-input" />
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Status: {pinStatus.shared_pin_set ? 'PIN is set' : 'No PIN set'}
-            </p>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setSetupDialog(false)}>Cancel</Button>
-            <Button onClick={handleSetPin} data-testid="pin-setup-save-btn">Save PIN</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

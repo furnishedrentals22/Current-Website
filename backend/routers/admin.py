@@ -5,7 +5,7 @@ from bson import ObjectId
 
 from database import db
 from helpers import serialize_doc, parse_date
-from schemas import TeamMemberCreate, PinSet, PinVerify
+from schemas import TeamMemberCreate, PinVerify
 from core_logic import dates_overlap
 
 router = APIRouter()
@@ -136,42 +136,13 @@ async def delete_team_member(member_id: str):
 # PIN MANAGEMENT
 # ============================================================
 
+HARD_PIN = "3401"
+
 @router.get("/pins/status")
 async def get_pin_status():
-    config = await db.settings.find_one({"type": "pin_config"})
-    if not config:
-        return {"shared_pin_set": False, "level_2_pin_set": False, "level_3_pin_set": False}
-    return {
-        "shared_pin_set": bool(config.get("shared_pin")),
-        "level_2_pin_set": bool(config.get("level_2_pin")),
-        "level_3_pin_set": bool(config.get("level_3_pin"))
-    }
-
-
-@router.post("/pins/set")
-async def set_pin(data: PinSet):
-    config = await db.settings.find_one({"type": "pin_config"})
-    if not config:
-        config = {"type": "pin_config"}
-        await db.settings.insert_one(config)
-    field_map = {"shared": "shared_pin", "level_2": "level_2_pin", "level_3": "level_3_pin"}
-    field = field_map.get(data.pin_type)
-    if not field:
-        raise HTTPException(status_code=400, detail="Invalid pin type")
-    await db.settings.update_one({"type": "pin_config"}, {"$set": {field: data.pin}})
-    return {"message": f"PIN set for {data.pin_type}"}
+    return {"shared_pin_set": True, "level_2_pin_set": True, "level_3_pin_set": True}
 
 
 @router.post("/pins/verify")
 async def verify_pin(data: PinVerify):
-    config = await db.settings.find_one({"type": "pin_config"})
-    if not config:
-        return {"valid": False, "message": "No PIN configured. Please set a PIN first."}
-    field_map = {"shared": "shared_pin", "level_2": "level_2_pin", "level_3": "level_3_pin"}
-    field = field_map.get(data.pin_type)
-    if not field:
-        raise HTTPException(status_code=400, detail="Invalid pin type")
-    stored_pin = config.get(field, "")
-    if not stored_pin:
-        return {"valid": False, "message": f"No PIN set for {data.pin_type}. Please set one in settings."}
-    return {"valid": data.pin == stored_pin}
+    return {"valid": data.pin == HARD_PIN}
