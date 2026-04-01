@@ -140,6 +140,12 @@ Build and maintain a comprehensive property management application for furnished
 - `listing_details.photos[].order`: int - Display order
 - `listing_details.photos[].is_cover`: bool - Cover photo flag
 
+- P0: M2M (Month-to-Month) Tag Feature (Apr 2026)
+  - M2M toggle on tenant add/edit form (long-term tenants only, hidden for Airbnb/VRBO)
+  - M2M badge displayed on: Tenant rows, Tenant detail dialog, Calendar timeline tooltip, Parking assign dialog, TenantDetailModal (Calendar/Deposits pages)
+  - "+1 Month" button in tenant detail dialog for M2M tenants: adds 30 days to move-out, keeps same monthly rate, updates cleaning records and notifications
+  - Backend endpoint: POST /api/tenants/{id}/extend-month with validation
+
 ## Infrastructure Changes (Apr 2026)
 - MongoDB maxPoolSize set to 20 in database.py client initialization
 - Notification polling interval reduced from 30s to 120s in App.js
