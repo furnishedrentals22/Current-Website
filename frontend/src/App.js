@@ -257,7 +257,7 @@ function AppShell({ children }) {
 
   useEffect(() => {
     refreshNotifications();
-    const interval = setInterval(refreshNotifications, 30000);
+    const interval = setInterval(refreshNotifications, 120000);
     return () => clearInterval(interval);
   }, [refreshNotifications]);
 
