@@ -112,6 +112,34 @@ Build and maintain a comprehensive property management application for furnished
   - Removed Login Info from sidebar nav, embedded as toggle button at bottom of Marketing page
   - Moved Notes in nav to between Notifications and Features
 
+- P0: Listings Page Enhancements v2 (Apr 2026)
+  - Multi-photo upload (batch upload multiple photos at once)
+  - Photo ordering with up/down arrows in admin panel
+  - Set cover photo (displayed first, shown with star badge)
+  - Rich text description editor (bold, paragraphs, line breaks)
+  - Amenities system: 20 preset STR amenities with lucide icons, custom amenities, Airbnb-style grid display
+  - Address input with Nominatim geocoding + interactive OpenStreetMap/Leaflet map display
+  - Photo carousel on main listings page (arrow buttons to flip through photos without visiting detail page)
+  - Video upload in admin mode with HTML5 player on listing page
+  - Image quality improvements (higher resolution placeholders, cache headers, no compression)
+  - Thumbnail strip below main photo on detail page
+
+## Key New API Endpoints
+- `GET /api/public/amenities/defaults` - 20 preset amenities list
+- `POST /api/public/admin/listings/{unit_id}/photos/batch` - Multi-photo upload
+- `POST /api/public/admin/listings/{unit_id}/photos/reorder` - Reorder photos
+- `POST /api/public/admin/listings/{unit_id}/photos/cover` - Set cover photo
+- `POST /api/public/admin/listings/{unit_id}/video` - Upload video
+- `POST /api/public/admin/listings/{unit_id}/video/delete` - Delete video
+
+## Updated DB Schema
+- `listing_details.amenities`: `[{name, icon}]` - Amenities list
+- `listing_details.address`: string - Property address
+- `listing_details.address_lat/lng`: float - Geocoded coordinates
+- `listing_details.video`: `{id, storage_path, original_filename, content_type, is_deleted, created_at}` - Video
+- `listing_details.photos[].order`: int - Display order
+- `listing_details.photos[].is_cover`: bool - Cover photo flag
+
 ## Backlog
 - P2: Date range filters for Upcoming Cleanings table on Housekeeping page
 - P2: "Days Vacant" counter for each row on Vacancy page
