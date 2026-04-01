@@ -66,6 +66,7 @@ Build and maintain a comprehensive property management application for furnished
 - `listing_pricing`: `{unit_id, year, month, price, updated_at}` - Monthly pricing per unit
 - `listing_details`: `{unit_id, title, description, photos[{id, storage_path, original_filename, content_type, is_deleted, created_at}]}` - Custom listing details with uploaded photos
 - `settings`: `{type: "app_password", password: "..."}` - App password storage
+- `settings`: `{type: "pin_config"}` - PIN config (deprecated; PIN now hard-coded to 3401 in backend)
 - `parking_spots`: `{spot_type, spot_number, decal_number, needs_tag, location, notes}`
 - `parking_assignments`: `{spot_id, tenant_id, start_date, end_date, notes}`
 
@@ -95,6 +96,12 @@ Build and maintain a comprehensive property management application for furnished
   - Date-range search on /listings page filtering by tenant occupancy
   - Direct URLs for individual listings with "See All Listings" nav
   - Availability calendar with month navigation (prev/next) and 3/6/12mo toggle
+- P0: Hard PIN & Admin Code Separation (Apr 2026)
+  - Removed PIN Settings UI from Door Codes and Login Info pages
+  - Hard-coded single PIN (3401) for all protected areas (admin codes, sensitivity levels)
+  - Separated regular code editing from admin code editing on Door Codes page
+  - "Edit Codes" for housekeeping/guest/backup codes (no PIN required)
+  - "Edit Admin" for admin code (requires PIN 3401 verification)
 
 ## Backlog
 - P2: Date range filters for Upcoming Cleanings table on Housekeeping page
