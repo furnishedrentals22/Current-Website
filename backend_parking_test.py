@@ -12,7 +12,7 @@ import json
 from datetime import date, timedelta
 
 # Use the production URL from frontend/.env
-BASE_URL = "https://property-redesign-4.preview.emergentagent.com"
+BASE_URL = "https://listing-upgrades.preview.emergentagent.com"
 
 class ParkingFixesTest:
     def __init__(self):

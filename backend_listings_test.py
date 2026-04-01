@@ -7,7 +7,7 @@ import io
 from datetime import datetime
 
 class ListingsEnhancementTester:
-    def __init__(self, base_url="https://property-redesign-4.preview.emergentagent.com"):
+    def __init__(self, base_url="https://listing-upgrades.preview.emergentagent.com"):
         self.base_url = base_url
         self.api_url = f"{self.base_url}/api"
         self.password = "emergeontop"
