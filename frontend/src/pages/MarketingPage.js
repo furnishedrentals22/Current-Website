@@ -3,10 +3,10 @@ import { getMarketingLinks, saveMarketingLink, getProperties, getUnits } from '@
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
-import { Megaphone, ChevronDown, ChevronRight, Copy, ExternalLink, Pencil, Plus, X, Image } from 'lucide-react';
+import { Megaphone, ChevronDown, ChevronRight, Copy, ExternalLink, Pencil, Plus, X, Image, KeyRound } from 'lucide-react';
 import { toast } from 'sonner';
+import LoginInfoPage from '@/pages/LoginInfoPage';
 
 export default function MarketingPage() {
   const [links, setLinks] = useState([]);
@@ -18,6 +18,7 @@ export default function MarketingPage() {
   const [editingUnit, setEditingUnit] = useState(null);
   const [form, setForm] = useState({ airbnb_link: '', furnished_finder_link: '', photos_link: '', additional_links: [] });
   const [saving, setSaving] = useState(false);
+  const [showLoginInfo, setShowLoginInfo] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -141,6 +142,23 @@ export default function MarketingPage() {
           })}
         </div>
       )}
+
+      {/* Login Info Section */}
+      <div className="border-t pt-4 mt-6">
+        <Button
+          variant={showLoginInfo ? 'default' : 'outline'}
+          onClick={() => setShowLoginInfo(v => !v)}
+          data-testid="marketing-login-info-toggle"
+        >
+          <KeyRound className="h-4 w-4 mr-2" />
+          {showLoginInfo ? 'Hide Login Info' : 'Login Info'}
+        </Button>
+        {showLoginInfo && (
+          <div className="mt-4" data-testid="marketing-login-info-section">
+            <LoginInfoPage />
+          </div>
+        )}
+      </div>
 
       <Dialog open={editDialog} onOpenChange={setEditDialog}>
         <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">

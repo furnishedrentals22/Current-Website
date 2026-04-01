@@ -197,7 +197,8 @@ export default function DoorCodesPage() {
                           {codes ? (
                             <div className="grid grid-cols-1 sm:grid-cols-5 gap-2">
                               <CodeDisplay label="Admin" code={codes.admin_code} note={codes.admin_code_note}
-                                isProtected={!isUnlocked} onUnlock={() => requestAdminUnlock(unit.id, 'view')} />
+                                isProtected={!isUnlocked} onUnlock={() => requestAdminUnlock(unit.id, 'view')}
+                                onLock={() => setAdminUnlocked(p => { const n = { ...p }; delete n[unit.id]; return n; })} />
                               <CodeDisplay label="Housekeeping" code={codes.housekeeping_code} note={codes.housekeeping_code_note} />
                               <CodeDisplay label="Guest" code={codes.guest_code} note={codes.guest_code_note} isGuest />
                               <CodeDisplay label="Backup 1" code={codes.backup_code_1} note={codes.backup_code_1_note} />
@@ -297,7 +298,7 @@ export default function DoorCodesPage() {
   );
 }
 
-function CodeDisplay({ label, code, note, isProtected, onUnlock, isGuest }) {
+function CodeDisplay({ label, code, note, isProtected, onUnlock, onLock, isGuest }) {
   return (
     <div className={`rounded-md border p-2 ${isGuest ? 'bg-amber-50 border-amber-200' : 'bg-card'}`}>
       <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">{label}</p>
@@ -309,9 +310,16 @@ function CodeDisplay({ label, code, note, isProtected, onUnlock, isGuest }) {
           </Button>
         </div>
       ) : (
-        <p className={`font-mono tracking-wider ${isGuest ? 'text-base font-bold' : 'text-sm'}`}>
-          {code || <span className="text-muted-foreground italic text-xs">Not set</span>}
-        </p>
+        <div className="flex items-center gap-1.5">
+          <p className={`font-mono tracking-wider ${isGuest ? 'text-base font-bold' : 'text-sm'}`}>
+            {code || <span className="text-muted-foreground italic text-xs">Not set</span>}
+          </p>
+          {onLock && (
+            <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-muted-foreground" onClick={onLock} data-testid="door-code-lock-btn">
+              <Lock className="h-3.5 w-3.5" />
+            </Button>
+          )}
+        </div>
       )}
       {note && <p className="text-[10px] text-muted-foreground mt-0.5">{note}</p>}
     </div>

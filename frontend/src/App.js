@@ -3,7 +3,7 @@ import '@/App.css';
 import { BrowserRouter, Routes, Route, NavLink, useLocation } from 'react-router-dom';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { Building2, Users, DollarSign, BarChart3, UserSearch, Calendar, Bell, FileText, StickyNote,
-  ChevronLeft, ChevronRight, ChevronDown, Menu, Info, Car, KeyRound, DoorOpen, Megaphone, Home, Settings, ArrowLeftRight, Brush, Wallet, ClipboardList, Wrench, ExternalLink } from 'lucide-react';
+  ChevronLeft, ChevronRight, ChevronDown, Menu, Info, Car, DoorOpen, Megaphone, Home, Settings, ArrowLeftRight, Brush, Wallet, ClipboardList, Wrench, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
@@ -23,7 +23,6 @@ import NotesPage from '@/pages/NotesPage';
 import NotificationsPage from '@/pages/NotificationsPage';
 import ParkingPage from '@/pages/ParkingPage';
 import DoorCodesPage from '@/pages/DoorCodesPage';
-import LoginInfoPage from '@/pages/LoginInfoPage';
 import MarketingPage from '@/pages/MarketingPage';
 import MoveInOutPage from '@/pages/MoveInOutPage';
 import HousekeepingPage from '@/pages/HousekeepingPage';
@@ -67,12 +66,10 @@ const NAV_ITEMS = [
       { path: '/budgeting/rent-tracking', label: 'Rent Tracking', icon: ClipboardList, testId: 'sidebar-nav-rent-tracking' },
     ]
   },
-  { path: '/notes', label: 'Notes', icon: StickyNote, testId: 'sidebar-nav-notes' },
   {
     label: 'Info', icon: Info, path: '/info/parking', testId: 'sidebar-nav-info', isGroup: true,
     children: [
       { path: '/info/parking', label: 'Parking', icon: Car, testId: 'sidebar-nav-parking' },
-      { path: '/info/login-info', label: 'Login Info', icon: KeyRound, testId: 'sidebar-nav-login-info' },
       { path: '/info/door-codes', label: 'Door Codes', icon: DoorOpen, testId: 'sidebar-nav-door-codes' },
       { path: '/info/marketing', label: 'Marketing', icon: Megaphone, testId: 'sidebar-nav-marketing' },
     ]
@@ -86,6 +83,7 @@ const NAV_ITEMS = [
     ]
   },
   { path: '/notifications', label: 'Notifications', icon: Bell, testId: 'sidebar-nav-notifications' },
+  { path: '/notes', label: 'Notes', icon: StickyNote, testId: 'sidebar-nav-notes' },
   { path: '/features', label: 'Features', icon: FileText, testId: 'sidebar-nav-features' },
 ];
 
@@ -323,7 +321,6 @@ function ProtectedApp() {
             <Route path="/calendar" element={<CalendarPage />} />
             <Route path="/notes" element={<NotesPage />} />
             <Route path="/info/parking" element={<ParkingPage />} />
-            <Route path="/info/login-info" element={<LoginInfoPage />} />
             <Route path="/info/door-codes" element={<DoorCodesPage />} />
             <Route path="/info/marketing" element={<MarketingPage />} />
             <Route path="/ops/move-in-out" element={<MoveInOutPage />} />

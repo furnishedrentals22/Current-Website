@@ -164,6 +164,11 @@ export default function LoginInfoPage() {
                       <Lock className="h-3 w-3 mr-1" />Unlock
                     </Button>
                   )}
+                  {isUnlocked && (
+                    <Button variant="ghost" size="sm" className="h-6 text-xs ml-2 text-muted-foreground" onClick={() => setUnlockedLevels(p => { const n = { ...p }; delete n[level.value]; return n; })} data-testid={`login-lock-level-${level.value}`}>
+                      <Lock className="h-3 w-3 mr-1" />Lock
+                    </Button>
+                  )}
                 </div>
                 {!isUnlocked ? (
                   <div className="border border-dashed rounded-lg p-6 text-center bg-muted/20">
