@@ -140,6 +140,10 @@ Build and maintain a comprehensive property management application for furnished
 - `listing_details.photos[].order`: int - Display order
 - `listing_details.photos[].is_cover`: bool - Cover photo flag
 
+## Infrastructure Changes (Apr 2026)
+- MongoDB maxPoolSize set to 20 in database.py client initialization
+- Notification polling interval reduced from 30s to 120s in App.js
+
 ## Backlog
 - P2: Date range filters for Upcoming Cleanings table on Housekeeping page
 - P2: "Days Vacant" counter for each row on Vacancy page
