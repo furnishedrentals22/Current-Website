@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { getLoginAccounts, createLoginAccount, updateLoginAccount, deleteLoginAccount, verifyPin } from '@/lib/api';
+import { getLoginAccounts, createLoginAccount, updateLoginAccount, deleteLoginAccount, verifyPin, getPinStatus, setPin } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -7,11 +7,11 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Pencil, Trash2, Eye, EyeOff, Lock, Shield, Copy } from 'lucide-react';
+import { Plus, Pencil, Trash2, Eye, EyeOff, Lock, Shield, Copy, Settings } from 'lucide-react';
 import { toast } from 'sonner';
 
 const LEVELS = [
-  { value: 1, label: 'Low', color: 'bg-emerald-100 text-emerald-800', pinType: null },
+  { value: 1, label: 'Low', color: 'bg-emerald-100 text-emerald-800', pinType: 'level_1' },
   { value: 2, label: 'Medium', color: 'bg-amber-100 text-amber-800', pinType: 'level_2' },
   { value: 3, label: 'High', color: 'bg-red-100 text-red-800', pinType: 'level_3' },
 ];
@@ -25,7 +25,8 @@ const emptyForm = {
 export default function LoginInfoPage() {
   const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [unlockedLevels, setUnlockedLevels] = useState({ 1: true });
+  const [pinStatus, setPinStatusState] = useState({});
+  const [unlockedLevels, setUnlockedLevels] = useState({});
   const [pinDialog, setPinDialog] = useState(false);
   const [pinInput, setPinInput] = useState('');
   const [pinTarget, setPinTarget] = useState(null);
@@ -35,10 +36,17 @@ export default function LoginInfoPage() {
   const [saving, setSaving] = useState(false);
   const [showPasswords, setShowPasswords] = useState({});
 
+  // PIN Settings state
+  const [setupDialog, setSetupDialog] = useState(false);
+  const [adminPinInput, setAdminPinInput] = useState('');
+  const [adminVerified, setAdminVerified] = useState(false);
+  const [setupLevel, setSetupLevel] = useState('level_1');
+  const [newPin, setNewPin] = useState('');
+
   const fetchData = useCallback(async () => {
     try {
-      const acc = await getLoginAccounts();
-      setAccounts(acc);
+      const [acc, ps] = await Promise.all([getLoginAccounts(), getPinStatus()]);
+      setAccounts(acc); setPinStatusState(ps);
     } catch { toast.error('Failed to load data'); }
     finally { setLoading(false); }
   }, []);
@@ -48,6 +56,11 @@ export default function LoginInfoPage() {
   const requestUnlock = (level) => {
     const lvl = LEVELS.find(l => l.value === level);
     if (!lvl?.pinType) return;
+    const pinField = `${lvl.pinType}_pin_set`;
+    if (!pinStatus[pinField]) {
+      toast.error(`No PIN set for ${lvl.label} level. Configure in PIN Settings.`);
+      return;
+    }
     setPinTarget(level); setPinInput(''); setPinDialog(true);
   };
 
@@ -58,7 +71,7 @@ export default function LoginInfoPage() {
       if (res.valid) {
         setUnlockedLevels(p => ({ ...p, [pinTarget]: true }));
         setPinDialog(false); toast.success(`${lvl.label} level unlocked`);
-      } else { toast.error('Incorrect PIN'); }
+      } else { toast.error(res.message || 'Incorrect PIN'); }
     } catch { toast.error('Verification failed'); }
   };
 
@@ -93,8 +106,30 @@ export default function LoginInfoPage() {
     catch { toast.error('Failed to delete'); }
   };
 
-  const copyToClipboard = (text) => { navigator.clipboard.writeText(text); toast.success('Copied'); };
+  const openSetup = () => {
+    setAdminPinInput(''); setAdminVerified(false); setNewPin(''); setSetupLevel('level_1');
+    setSetupDialog(true);
+  };
 
+  const handleAdminVerify = async () => {
+    try {
+      const res = await verifyPin({ pin: adminPinInput, pin_type: 'level_3' });
+      if (res.valid) {
+        setAdminVerified(true); toast.success('Admin verified');
+      } else { toast.error('Incorrect admin PIN'); }
+    } catch { toast.error('Verification failed'); }
+  };
+
+  const handleSetPin = async () => {
+    if (!newPin || newPin.length < 4) { toast.error('PIN must be at least 4 digits'); return; }
+    try {
+      await setPin({ pin: newPin, pin_type: setupLevel, admin_pin: adminPinInput });
+      toast.success('PIN saved');
+      setNewPin(''); fetchData();
+    } catch (e) { toast.error(e.response?.data?.detail || 'Failed to set PIN'); }
+  };
+
+  const copyToClipboard = (text) => { navigator.clipboard.writeText(text); toast.success('Copied'); };
   const togglePassword = (id) => setShowPasswords(p => ({ ...p, [id]: !p[id] }));
 
   return (
@@ -105,6 +140,9 @@ export default function LoginInfoPage() {
           <p className="text-sm text-muted-foreground mt-1">Securely store account credentials with sensitivity levels</p>
         </div>
         <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={openSetup} data-testid="login-info-pin-settings">
+            <Settings className="h-4 w-4 mr-2" />PIN Settings
+          </Button>
           <Button onClick={openCreate} data-testid="login-info-add-btn"><Plus className="h-4 w-4 mr-2" />Add Account</Button>
         </div>
       </div>
@@ -114,21 +152,27 @@ export default function LoginInfoPage() {
           {LEVELS.map(level => {
             const levelAccounts = accounts.filter(a => (a.sensitivity_level || 1) === level.value);
             const isUnlocked = unlockedLevels[level.value];
+            const pinField = `${level.pinType}_pin_set`;
+            const hasPinSet = pinStatus[pinField];
             return (
               <div key={level.value} data-testid={`login-info-level-${level.value}`}>
                 <div className="flex items-center gap-2 mb-2">
                   <Badge className={level.color}><Shield className="h-3 w-3 mr-1" />{level.label} Sensitivity</Badge>
                   <span className="text-xs text-muted-foreground">{levelAccounts.length} accounts</span>
-                  {!isUnlocked && level.pinType && (
+                  {!isUnlocked && (
                     <Button variant="outline" size="sm" className="h-6 text-xs ml-2" onClick={() => requestUnlock(level.value)} data-testid={`login-unlock-level-${level.value}`}>
                       <Lock className="h-3 w-3 mr-1" />Unlock
                     </Button>
                   )}
                 </div>
-                {!isUnlocked && level.pinType ? (
+                {!isUnlocked ? (
                   <div className="border border-dashed rounded-lg p-6 text-center bg-muted/20">
                     <Lock className="h-8 w-8 text-muted-foreground/40 mx-auto mb-2" />
-                    <p className="text-sm text-muted-foreground">Enter PIN to view {level.label.toLowerCase()} sensitivity accounts</p>
+                    <p className="text-sm text-muted-foreground">
+                      {hasPinSet
+                        ? `Enter PIN to view ${level.label.toLowerCase()} sensitivity accounts`
+                        : `No PIN set for ${level.label.toLowerCase()} level. Set one in PIN Settings.`}
+                    </p>
                   </div>
                 ) : levelAccounts.length === 0 ? (
                   <div className="border border-dashed rounded-lg p-4 text-center">
@@ -221,6 +265,60 @@ export default function LoginInfoPage() {
         </DialogContent>
       </Dialog>
 
+      {/* PIN Settings Dialog (gated behind High PIN) */}
+      <Dialog open={setupDialog} onOpenChange={setSetupDialog}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>PIN Settings</DialogTitle>
+            <DialogDescription>
+              {adminVerified
+                ? 'Set PINs for Low and Medium sensitivity levels.'
+                : 'Enter the High sensitivity PIN (admin) to manage PINs.'}
+            </DialogDescription>
+          </DialogHeader>
+          {!adminVerified ? (
+            <div className="py-3 space-y-3">
+              <div className="space-y-2">
+                <Label>High Sensitivity PIN (Admin)</Label>
+                <Input type="password" value={adminPinInput} onChange={e => setAdminPinInput(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleAdminVerify()}
+                  placeholder="Enter admin PIN" data-testid="login-pin-admin-verify-input" autoFocus />
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setSetupDialog(false)}>Cancel</Button>
+                <Button onClick={handleAdminVerify} data-testid="login-pin-admin-verify-btn">Verify</Button>
+              </DialogFooter>
+            </div>
+          ) : (
+            <div className="py-3 space-y-4">
+              <div className="space-y-2">
+                <Label>Level</Label>
+                <Select value={setupLevel} onValueChange={setSetupLevel}>
+                  <SelectTrigger data-testid="login-pin-level-select"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="level_1">Low Sensitivity</SelectItem>
+                    <SelectItem value="level_2">Medium Sensitivity</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>New PIN (min 4 digits)</Label>
+                <Input type="password" value={newPin} onChange={e => setNewPin(e.target.value)}
+                  placeholder="Enter new PIN" data-testid="login-pin-setup-input" />
+              </div>
+              <div className="text-xs text-muted-foreground space-y-1">
+                <p>Low PIN: {pinStatus.level_1_pin_set ? 'Set' : 'Not set'}</p>
+                <p>Medium PIN: {pinStatus.level_2_pin_set ? 'Set' : 'Not set'}</p>
+                <p>High PIN: Always set (admin)</p>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setSetupDialog(false)}>Cancel</Button>
+                <Button onClick={handleSetPin} data-testid="login-pin-setup-save-btn">Save PIN</Button>
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

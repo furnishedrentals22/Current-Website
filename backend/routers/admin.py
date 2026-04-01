@@ -5,7 +5,7 @@ from bson import ObjectId
 
 from database import db
 from helpers import serialize_doc, parse_date
-from schemas import TeamMemberCreate, PinVerify
+from schemas import TeamMemberCreate, PinSet, PinVerify
 from core_logic import dates_overlap
 
 router = APIRouter()
@@ -140,9 +140,36 @@ HARD_PIN = "3401"
 
 @router.get("/pins/status")
 async def get_pin_status():
-    return {"shared_pin_set": True, "level_2_pin_set": True, "level_3_pin_set": True}
+    config = await db.settings.find_one({"type": "pin_config"})
+    return {
+        "shared_pin_set": True,
+        "level_1_pin_set": bool(config.get("level_1_pin")) if config else False,
+        "level_2_pin_set": bool(config.get("level_2_pin")) if config else False,
+        "level_3_pin_set": True,
+    }
+
+
+@router.post("/pins/set")
+async def set_pin(data: PinSet):
+    if data.admin_pin != HARD_PIN:
+        raise HTTPException(status_code=403, detail="Invalid admin PIN")
+    if data.pin_type not in ("level_1", "level_2"):
+        raise HTTPException(status_code=400, detail="Can only set PINs for level_1 and level_2")
+    config = await db.settings.find_one({"type": "pin_config"})
+    if not config:
+        await db.settings.insert_one({"type": "pin_config"})
+    field = f"{data.pin_type}_pin"
+    await db.settings.update_one({"type": "pin_config"}, {"$set": {field: data.pin}})
+    return {"message": f"PIN set for {data.pin_type}"}
 
 
 @router.post("/pins/verify")
 async def verify_pin(data: PinVerify):
-    return {"valid": data.pin == HARD_PIN}
+    if data.pin_type in ("shared", "level_3"):
+        return {"valid": data.pin == HARD_PIN}
+    config = await db.settings.find_one({"type": "pin_config"})
+    field = f"{data.pin_type}_pin"
+    stored_pin = config.get(field, "") if config else ""
+    if not stored_pin:
+        return {"valid": False, "message": f"No PIN set for {data.pin_type}. Set one in PIN Settings."}
+    return {"valid": data.pin == stored_pin}

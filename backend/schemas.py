@@ -228,6 +228,7 @@ class PinVerify(BaseModel):
 class PinSet(BaseModel):
     pin: str
     pin_type: str = "shared"
+    admin_pin: str = ""
 
 
 class HousekeeperCreate(BaseModel):
