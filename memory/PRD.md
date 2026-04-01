@@ -102,6 +102,11 @@ Build and maintain a comprehensive property management application for furnished
   - Separated regular code editing from admin code editing on Door Codes page
   - "Edit Codes" for housekeeping/guest/backup codes (no PIN required)
   - "Edit Admin" for admin code (requires PIN 3401 verification)
+- P0: Login Info PIN Lock & Settings (Apr 2026)
+  - All three sensitivity levels (Low, Medium, High) now locked by default
+  - Low and Medium PINs are configurable via PIN Settings
+  - PIN Settings requires High sensitivity PIN (3401) to access
+  - High sensitivity PIN remains hard-coded at 3401
 
 ## Backlog
 - P2: Date range filters for Upcoming Cleanings table on Housekeeping page
