@@ -102,6 +102,7 @@ export const emptyForm = {
   partial_first_month: '', partial_last_month: '',
   pets: '', notes: '', total_rent: '',
   payment_method: '', rent_due_date: '',
+  is_m2m: false,
   moveout_confirmed: false, moveout_confirmed_date: null,
   deposit_return_date: '', deposit_return_amount: '', deposit_return_method: '',
 };

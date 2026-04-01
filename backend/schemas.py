@@ -49,6 +49,7 @@ class TenantCreate(BaseModel):
     total_rent: Optional[float] = None
     payment_method: Optional[str] = ""
     rent_due_date: Optional[str] = ""
+    is_m2m: bool = False
     moveout_confirmed: bool = False
     moveout_confirmed_date: Optional[str] = None
     deposit_return_date: Optional[str] = None

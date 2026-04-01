@@ -156,6 +156,7 @@ async def get_calendar_timeline(
                     'start_date': t_in.isoformat(),
                     'end_date': t_out.isoformat(),
                     'is_airbnb_vrbo': t.get('is_airbnb_vrbo', False),
+                    'is_m2m': t.get('is_m2m', False),
                     'rent_amount': rent_amount
                 })
             bookings.sort(key=lambda b: b['start_date'])

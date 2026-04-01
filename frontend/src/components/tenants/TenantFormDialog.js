@@ -82,9 +82,16 @@ export function TenantFormDialog({
             </div>
           </div>
           <div className="flex items-center gap-3 p-3 rounded-lg border bg-muted/20">
-            <Switch checked={form.is_airbnb_vrbo} onCheckedChange={v => setForm({ ...form, is_airbnb_vrbo: v })} data-testid="tenants-airbnb-toggle" />
+            <Switch checked={form.is_airbnb_vrbo} onCheckedChange={v => setForm({ ...form, is_airbnb_vrbo: v, is_m2m: false })} data-testid="tenants-airbnb-toggle" />
             <Label className="cursor-pointer">Airbnb / VRBO</Label>
           </div>
+
+          {!form.is_airbnb_vrbo && (
+            <div className="flex items-center gap-3 p-3 rounded-lg border bg-amber-50/60 border-amber-200/60">
+              <Switch checked={form.is_m2m || false} onCheckedChange={v => setForm({ ...form, is_m2m: v })} data-testid="tenants-m2m-toggle" />
+              <Label className="cursor-pointer">Month-to-Month (M2M)</Label>
+            </div>
+          )}
 
           {!form.is_airbnb_vrbo ? (
             <>

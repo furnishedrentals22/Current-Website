@@ -3,11 +3,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { CheckCircle2, Car } from 'lucide-react';
-import { getParkingAssignments } from '@/lib/api';
+import { CheckCircle2, Car, CalendarPlus } from 'lucide-react';
+import { getParkingAssignments, extendTenantMonth } from '@/lib/api';
+import { toast } from 'sonner';
 
-export function TenantDetailDialog({ tenant, onClose, propMap, unitMap, onEdit }) {
+export function TenantDetailDialog({ tenant, onClose, propMap, unitMap, onEdit, onRefresh }) {
   const [parkingAssignments, setParkingAssignments] = useState([]);
+  const [extending, setExtending] = useState(false);
 
   useEffect(() => {
     if (tenant?.id) {
@@ -29,6 +31,9 @@ export function TenantDetailDialog({ tenant, onClose, propMap, unitMap, onEdit }
               className={`text-xs ${tenant.is_airbnb_vrbo ? 'bg-sky-100 text-sky-900' : ''}`}>
               {tenant.is_airbnb_vrbo ? 'Airbnb/VRBO' : 'Long-term'}
             </Badge>
+            {!tenant.is_airbnb_vrbo && tenant.is_m2m && (
+              <Badge className="text-xs bg-amber-100 text-amber-900 border border-amber-200" data-testid="m2m-detail-badge">M2M</Badge>
+            )}
           </DialogTitle>
           <DialogDescription className="sr-only">Tenant details</DialogDescription>
         </DialogHeader>
@@ -64,6 +69,32 @@ export function TenantDetailDialog({ tenant, onClose, propMap, unitMap, onEdit }
               <p className="text-sm">{tenant.move_out_date}</p>
             </div>
           </div>
+
+          {!tenant.is_airbnb_vrbo && tenant.is_m2m && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="w-full gap-2 border-amber-300 text-amber-800 hover:bg-amber-50"
+              disabled={extending}
+              onClick={async () => {
+                setExtending(true);
+                try {
+                  await extendTenantMonth(tenant.id);
+                  toast.success(`Extended ${tenant.name}'s stay by 30 days`);
+                  if (onRefresh) onRefresh();
+                  onClose();
+                } catch (e) {
+                  toast.error(e.response?.data?.detail || 'Failed to extend');
+                } finally {
+                  setExtending(false);
+                }
+              }}
+              data-testid="m2m-extend-button"
+            >
+              <CalendarPlus className="h-4 w-4" />
+              {extending ? 'Extending...' : '+1 Month (add 30 days)'}
+            </Button>
+          )}
 
           {!tenant.is_airbnb_vrbo ? (
             <>

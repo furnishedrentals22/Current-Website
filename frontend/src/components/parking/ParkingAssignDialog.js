@@ -113,6 +113,7 @@ export function ParkingAssignDialog({
                     <div className="flex items-center justify-between">
                       <div>
                         <span>{t.name}</span>
+                        {t.is_m2m && <span className="ml-1.5 inline-flex items-center px-1 py-0 rounded text-[9px] font-medium bg-amber-100 text-amber-800 border border-amber-200">M2M</span>}
                         <span className="text-muted-foreground ml-2 text-xs">
                           ({prop?.name || ''} - Unit {unit?.unit_number || '?'})
                         </span>

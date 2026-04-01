@@ -31,6 +31,7 @@ export function BookingBar({ booking, rangeStart, rangeEnd, onTenantClick }) {
             <p className="text-sm font-semibold text-foreground">{booking.name}</p>
             <div className="flex items-center gap-1.5">
               <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{isAirbnb ? 'Airbnb/VRBO' : 'Long-term'}</Badge>
+              {!isAirbnb && booking.is_m2m && <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-amber-100 text-amber-800 border-amber-200">M2M</Badge>}
             </div>
             <p className="text-xs text-muted-foreground">
               {format(parseISO(booking.start_date), 'MMM d, yyyy')} — {format(parseISO(booking.end_date), 'MMM d, yyyy')}

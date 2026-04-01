@@ -131,6 +131,7 @@ export default function TenantsPage() {
       name: tenant.name || '', phone: tenant.phone || '', email: tenant.email || '',
       move_in_date: tenant.move_in_date || '', move_out_date: tenant.move_out_date || '',
       is_airbnb_vrbo: tenant.is_airbnb_vrbo || false,
+      is_m2m: tenant.is_m2m || false,
       deposit_amount: tenant.deposit_amount || '', deposit_date: tenant.deposit_date || '',
       monthly_rent: tenant.monthly_rent || '', partial_first_month: tenant.partial_first_month || '',
       partial_last_month: tenant.partial_last_month || '', pets: tenant.pets || '',
@@ -308,6 +309,7 @@ export default function TenantsPage() {
         propMap={propMap}
         unitMap={unitMap}
         onEdit={openEdit}
+        onRefresh={fetchData}
       />
 
       <TenantFormDialog

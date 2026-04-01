@@ -301,6 +301,66 @@ async def confirm_moveout(tenant_id: str):
     return serialize_doc(updated)
 
 
+@router.post("/tenants/{tenant_id}/extend-month")
+async def extend_tenant_month(tenant_id: str):
+    """Add 30 days to a M2M tenant's move-out date, keeping the same monthly rate."""
+    tenant = await db.tenants.find_one({"_id": ObjectId(tenant_id)})
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    if tenant.get("is_airbnb_vrbo"):
+        raise HTTPException(status_code=400, detail="Cannot extend Airbnb/VRBO tenants")
+    if not tenant.get("is_m2m"):
+        raise HTTPException(status_code=400, detail="Tenant is not month-to-month")
+
+    old_move_out = parse_date(tenant["move_out_date"])
+    new_move_out = old_move_out + timedelta(days=30)
+    new_move_out_str = new_move_out.isoformat()
+    now = datetime.now(timezone.utc).isoformat()
+
+    await db.tenants.update_one(
+        {"_id": ObjectId(tenant_id)},
+        {"$set": {"move_out_date": new_move_out_str, "updated_at": now}}
+    )
+
+    # Update cleaning records
+    await db.cleaning_records.update_many(
+        {"tenant_id": tenant_id},
+        {"$set": {"check_out_date": new_move_out_str, "updated_at": now}}
+    )
+
+    # Update notifications tied to move-out
+    unit_doc = await db.units.find_one({"_id": ObjectId(tenant["unit_id"])})
+    unit_num = unit_doc.get("unit_number", "") if unit_doc else ""
+    prop_doc = await db.properties.find_one({"_id": ObjectId(tenant["property_id"])})
+    prop_name = prop_doc.get("name", "") if prop_doc else ""
+
+    confirm_date = (new_move_out - timedelta(days=1)).isoformat()
+    warn_date = (new_move_out - timedelta(days=7)).isoformat()
+    tenant_name = tenant.get("name", "")
+
+    await db.notifications.update_many(
+        {"tenant_id": tenant_id, "notification_type": "housekeeping"},
+        {"$set": {"reminder_date": confirm_date, "notification_date": confirm_date,
+                  "name": f"Confirm housekeeping for Unit {unit_num} ({prop_name})",
+                  "tenant_name": tenant_name, "updated_at": now}}
+    )
+    await db.notifications.update_many(
+        {"tenant_id": tenant_id, "notification_type": "housekeeping_warning"},
+        {"$set": {"reminder_date": warn_date, "notification_date": warn_date,
+                  "name": f"No housekeeper assigned for Unit {unit_num} ({prop_name})",
+                  "tenant_name": tenant_name, "updated_at": now}}
+    )
+    await db.notifications.update_many(
+        {"tenant_id": tenant_id, "notification_type": "moveout_checklist"},
+        {"$set": {"reminder_date": new_move_out_str, "notification_date": new_move_out_str,
+                  "name": f"Move-Out Checklist - {tenant_name} (Unit {unit_num})",
+                  "tenant_name": tenant_name, "updated_at": now}}
+    )
+
+    updated = await db.tenants.find_one({"_id": ObjectId(tenant_id)})
+    return serialize_doc(updated)
+
+
 # ============================================================
 # MISC CHARGES (tenant sub-resource + global list)
 # ============================================================

@@ -18,6 +18,7 @@ export function TenantCurrentRow({ tenant, unitMap, idx, isFuture, isPending, on
       <td className={tdClass}>
         <span className="font-medium">{tenant.name}</span>
         {isAirbnb && <span className="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-sky-100 text-sky-800 border border-sky-200">Airbnb/VRBO</span>}
+        {!isAirbnb && tenant.is_m2m && <span className="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-800 border border-amber-200" data-testid="m2m-badge">M2M</span>}
         {isPending && <span className="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-800 border border-amber-200">Pending</span>}
       </td>
       <td className={`${tdClass} tabular-nums`}>{fmtDate(tenant.move_in_date)}</td>
@@ -56,6 +57,7 @@ export function TenantPastRow({ tenant, unitMap, idx, onDetail, onEdit, onDelete
       <td className={tdClass}>
         <span className="font-medium">{tenant.name}</span>
         {isAirbnb && <span className="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-sky-100 text-sky-800 border border-sky-200">Airbnb/VRBO</span>}
+        {!isAirbnb && tenant.is_m2m && <span className="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-800 border border-amber-200" data-testid="m2m-badge">M2M</span>}
       </td>
       <td className={`${tdClass} tabular-nums`}>{fmtDate(tenant.move_in_date)}</td>
       <td className={`${tdClass} tabular-nums`}>{fmtDate(tenant.move_out_date)}</td>

@@ -100,6 +100,9 @@ export function TenantDetailModal({ tenantId, tenantData, open, onClose }) {
               <Badge variant={isAirbnb ? 'secondary' : 'default'}>
                 {isAirbnb ? 'Airbnb/VRBO' : 'Long-term'}
               </Badge>
+              {!isAirbnb && tenant.is_m2m && (
+                <Badge className="text-xs bg-amber-100 text-amber-900 border border-amber-200">M2M</Badge>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-4">

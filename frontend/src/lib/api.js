@@ -32,6 +32,7 @@ export const createTenant = (data) => api.post('/tenants', data).then(r => r.dat
 export const updateTenant = (id, data) => api.put(`/tenants/${id}`, data).then(r => r.data);
 export const deleteTenant = (id) => api.delete(`/tenants/${id}`).then(r => r.data);
 export const confirmMoveout = (id) => api.post(`/tenants/${id}/confirm-moveout`).then(r => r.data);
+export const extendTenantMonth = (id) => api.post(`/tenants/${id}/extend-month`).then(r => r.data);
 export const getPendingMoveouts = () => api.get('/tenants/pending-moveouts').then(r => r.data);
 
 // Leads
