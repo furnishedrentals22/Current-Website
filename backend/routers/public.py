@@ -1,6 +1,6 @@
-from fastapi import APIRouter, HTTPException, UploadFile, File, Query
+from fastapi import APIRouter, HTTPException, UploadFile, File, Query, Form
 from fastapi.responses import Response
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime, timezone, date
 from bson import ObjectId
 import uuid
@@ -11,6 +11,30 @@ from core_logic import days_in_month, dates_overlap
 from object_storage import put_object, get_object, generate_path
 
 router = APIRouter()
+
+# ── 20 most common short-term rental amenities ────────────────────────────
+DEFAULT_AMENITIES = [
+    {"name": "WiFi", "icon": "wifi"},
+    {"name": "Air Conditioning", "icon": "snowflake"},
+    {"name": "Kitchen", "icon": "utensils-crossed"},
+    {"name": "Washer", "icon": "washing-machine"},
+    {"name": "Dryer", "icon": "wind"},
+    {"name": "TV", "icon": "tv"},
+    {"name": "Pool", "icon": "waves"},
+    {"name": "Hot Tub", "icon": "bath"},
+    {"name": "Free Parking", "icon": "car"},
+    {"name": "Gym", "icon": "dumbbell"},
+    {"name": "Elevator", "icon": "arrow-up-down"},
+    {"name": "Balcony", "icon": "fence"},
+    {"name": "Beach Access", "icon": "umbrella"},
+    {"name": "Pet Friendly", "icon": "paw-print"},
+    {"name": "Coffee Maker", "icon": "coffee"},
+    {"name": "Dishwasher", "icon": "sparkles"},
+    {"name": "Iron", "icon": "shirt"},
+    {"name": "Heating", "icon": "flame"},
+    {"name": "Security", "icon": "shield-check"},
+    {"name": "Workspace", "icon": "laptop"},
+]
 
 
 async def verify_admin_password(password):
@@ -28,16 +52,72 @@ async def verify_password(data: dict):
     return {"valid": valid}
 
 
+@router.get("/public/amenities/defaults")
+async def get_default_amenities():
+    """Return the 20 default amenity options."""
+    return DEFAULT_AMENITIES
+
+
 def _build_photo_list(detail):
+    """Build sorted photo list with order and cover info."""
     photos = []
     for photo in (detail or {}).get('photos', []):
         if not photo.get('is_deleted'):
             photos.append({
                 'id': photo.get('id', ''),
                 'url': f"/api/public/files/{photo['storage_path']}",
-                'filename': photo.get('original_filename', '')
+                'filename': photo.get('original_filename', ''),
+                'order': photo.get('order', 999),
+                'is_cover': photo.get('is_cover', False),
             })
+    # Sort: cover first, then by order, then by creation
+    photos.sort(key=lambda p: (0 if p['is_cover'] else 1, p['order']))
     return photos
+
+
+def _build_video_info(detail):
+    """Build video info from listing detail."""
+    video = (detail or {}).get('video')
+    if not video or video.get('is_deleted'):
+        return None
+    return {
+        'id': video.get('id', ''),
+        'url': f"/api/public/files/{video['storage_path']}",
+        'filename': video.get('original_filename', ''),
+        'content_type': video.get('content_type', ''),
+    }
+
+
+def _build_listing_response(unit, prop, detail, uid, pricing_list, today):
+    """Build a consistent listing response dict."""
+    detail = detail or {}
+    prop = prop or {}
+    title = detail.get('title') or f"{prop.get('name', 'Property')} - Unit {unit.get('unit_number', '')}"
+    current_price = None
+    for p in pricing_list:
+        if p['year'] == today.year and p['month'] == today.month:
+            current_price = p['price']
+            break
+
+    return {
+        'id': uid,
+        'title': title,
+        'description': detail.get('description', ''),
+        'photos': _build_photo_list(detail),
+        'video': _build_video_info(detail),
+        'amenities': detail.get('amenities', []),
+        'address': detail.get('address', ''),
+        'address_lat': detail.get('address_lat'),
+        'address_lng': detail.get('address_lng'),
+        'property_name': prop.get('name', ''),
+        'property_id': unit.get('property_id', ''),
+        'unit_number': unit.get('unit_number', ''),
+        'unit_size': unit.get('unit_size', ''),
+        'base_rent': unit.get('base_rent', 0),
+        'current_price': current_price,
+        'pricing': pricing_list,
+        'building_id': prop.get('building_id'),
+    }
 
 
 @router.get("/public/listings")
@@ -99,27 +179,8 @@ async def get_public_listings(
                 pass
 
         detail = details_map.get(uid, {})
-        title = detail.get('title') or f"{prop.get('name', 'Property')} - Unit {unit.get('unit_number', '')}"
         unit_pricing = pricing_map.get(uid, [])
-        current_price = None
-        for p in unit_pricing:
-            if p['year'] == today.year and p['month'] == today.month:
-                current_price = p['price']
-                break
-
-        listings.append({
-            'id': uid, 'title': title,
-            'description': detail.get('description', ''),
-            'photos': _build_photo_list(detail),
-            'property_name': prop.get('name', ''),
-            'property_id': unit.get('property_id', ''),
-            'unit_number': unit.get('unit_number', ''),
-            'unit_size': unit.get('unit_size', ''),
-            'base_rent': unit.get('base_rent', 0),
-            'current_price': current_price,
-            'pricing': unit_pricing,
-            'building_id': prop.get('building_id')
-        })
+        listings.append(_build_listing_response(unit, prop, detail, uid, unit_pricing, today))
 
     def sort_key(item):
         bid = item.get('building_id')
@@ -142,29 +203,8 @@ async def get_single_listing(unit_id: str):
     pricing_docs = await db.listing_pricing.find({"unit_id": unit_id}, {"_id": 0}).to_list(100)
 
     today = date.today()
-    detail = detail or {}
-    prop = prop or {}
-    title = detail.get('title') or f"{prop.get('name', 'Property')} - Unit {unit.get('unit_number', '')}"
-    current_price = None
-    pricing = []
-    for p in pricing_docs:
-        pricing.append({'year': p['year'], 'month': p['month'], 'price': p['price']})
-        if p['year'] == today.year and p['month'] == today.month:
-            current_price = p['price']
-
-    return {
-        'id': unit_id, 'title': title,
-        'description': detail.get('description', ''),
-        'photos': _build_photo_list(detail),
-        'property_name': prop.get('name', ''),
-        'property_id': unit.get('property_id', ''),
-        'unit_number': unit.get('unit_number', ''),
-        'unit_size': unit.get('unit_size', ''),
-        'base_rent': unit.get('base_rent', 0),
-        'current_price': current_price,
-        'pricing': pricing,
-        'building_id': prop.get('building_id')
-    }
+    pricing = [{'year': p['year'], 'month': p['month'], 'price': p['price']} for p in pricing_docs]
+    return _build_listing_response(unit, prop, detail, unit_id, pricing, today)
 
 
 @router.get("/public/listings/{unit_id}/availability")
@@ -219,6 +259,8 @@ async def get_listing_availability(
         title = f"{prop_name} - Unit {unit.get('unit_number', '')}"
     return {'unit_id': unit_id, 'title': title, 'unit_size': unit.get('unit_size', ''), 'months': months_data}
 
+
+# ── Admin endpoints ────────────────────────────────────────────────────────
 
 @router.post("/public/admin/pricing")
 async def set_listing_pricing(data: dict):
@@ -275,6 +317,14 @@ async def update_listing_details(unit_id: str, data: dict):
         update_fields['title'] = data['title']
     if 'description' in data:
         update_fields['description'] = data['description']
+    if 'amenities' in data:
+        update_fields['amenities'] = data['amenities']
+    if 'address' in data:
+        update_fields['address'] = data['address']
+    if 'address_lat' in data:
+        update_fields['address_lat'] = data['address_lat']
+    if 'address_lng' in data:
+        update_fields['address_lng'] = data['address_lng']
     if update_fields:
         update_fields['updated_at'] = datetime.now(timezone.utc).isoformat()
         await db.listing_details.update_one(
@@ -285,6 +335,8 @@ async def update_listing_details(unit_id: str, data: dict):
     return {"message": "Listing updated"}
 
 
+# ── Photo endpoints ────────────────────────────────────────────────────────
+
 @router.post("/public/admin/listings/{unit_id}/photos")
 async def upload_listing_photo(unit_id: str, file: UploadFile = File(...), password: str = Query(...)):
     if not await verify_admin_password(password):
@@ -292,6 +344,15 @@ async def upload_listing_photo(unit_id: str, file: UploadFile = File(...), passw
     unit = await db.units.find_one({"_id": ObjectId(unit_id)})
     if not unit:
         raise HTTPException(status_code=404, detail="Unit not found")
+
+    # Get current highest order
+    detail = await db.listing_details.find_one({"unit_id": unit_id})
+    max_order = 0
+    if detail and detail.get('photos'):
+        for p in detail['photos']:
+            if not p.get('is_deleted') and p.get('order', 0) > max_order:
+                max_order = p.get('order', 0)
+
     data = await file.read()
     path = generate_path(file.filename)
     result = put_object(path, data, file.content_type or "application/octet-stream")
@@ -301,6 +362,8 @@ async def upload_listing_photo(unit_id: str, file: UploadFile = File(...), passw
         "original_filename": file.filename,
         "content_type": file.content_type,
         "is_deleted": False,
+        "is_cover": False,
+        "order": max_order + 1,
         "created_at": datetime.now(timezone.utc).isoformat()
     }
     await db.listing_details.update_one(
@@ -309,6 +372,108 @@ async def upload_listing_photo(unit_id: str, file: UploadFile = File(...), passw
         upsert=True
     )
     return {"id": photo_entry["id"], "url": f"/api/public/files/{result['path']}", "filename": file.filename}
+
+
+@router.post("/public/admin/listings/{unit_id}/photos/batch")
+async def upload_listing_photos_batch(
+    unit_id: str,
+    files: List[UploadFile] = File(...),
+    password: str = Query(...)
+):
+    """Upload multiple photos at once."""
+    if not await verify_admin_password(password):
+        raise HTTPException(status_code=401, detail="Invalid password")
+    unit = await db.units.find_one({"_id": ObjectId(unit_id)})
+    if not unit:
+        raise HTTPException(status_code=404, detail="Unit not found")
+
+    # Get current highest order
+    detail = await db.listing_details.find_one({"unit_id": unit_id})
+    max_order = 0
+    if detail and detail.get('photos'):
+        for p in detail['photos']:
+            if not p.get('is_deleted') and p.get('order', 0) > max_order:
+                max_order = p.get('order', 0)
+
+    uploaded = []
+    for i, file in enumerate(files):
+        data = await file.read()
+        path = generate_path(file.filename)
+        result = put_object(path, data, file.content_type or "application/octet-stream")
+        photo_entry = {
+            "id": str(uuid.uuid4()),
+            "storage_path": result["path"],
+            "original_filename": file.filename,
+            "content_type": file.content_type,
+            "is_deleted": False,
+            "is_cover": False,
+            "order": max_order + 1 + i,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+        await db.listing_details.update_one(
+            {"unit_id": unit_id},
+            {"$push": {"photos": photo_entry}, "$set": {"updated_at": datetime.now(timezone.utc).isoformat()}},
+            upsert=True
+        )
+        uploaded.append({
+            "id": photo_entry["id"],
+            "url": f"/api/public/files/{result['path']}",
+            "filename": file.filename
+        })
+
+    return {"uploaded": uploaded, "count": len(uploaded)}
+
+
+@router.post("/public/admin/listings/{unit_id}/photos/reorder")
+async def reorder_listing_photos(unit_id: str, data: dict):
+    """Reorder photos. Expects {password, photo_ids: [id1, id2, ...]}."""
+    password = data.get('password', '')
+    if not await verify_admin_password(password):
+        raise HTTPException(status_code=401, detail="Invalid password")
+    photo_ids = data.get('photo_ids', [])
+    if not photo_ids:
+        raise HTTPException(status_code=400, detail="Missing photo_ids")
+
+    detail = await db.listing_details.find_one({"unit_id": unit_id})
+    if not detail or not detail.get('photos'):
+        raise HTTPException(status_code=404, detail="No photos found")
+
+    # Update order for each photo
+    for order_idx, photo_id in enumerate(photo_ids):
+        await db.listing_details.update_one(
+            {"unit_id": unit_id, "photos.id": photo_id},
+            {"$set": {"photos.$.order": order_idx}}
+        )
+
+    return {"message": "Photos reordered"}
+
+
+@router.post("/public/admin/listings/{unit_id}/photos/cover")
+async def set_cover_photo(unit_id: str, data: dict):
+    """Set a photo as cover. Expects {password, photo_id}."""
+    password = data.get('password', '')
+    if not await verify_admin_password(password):
+        raise HTTPException(status_code=401, detail="Invalid password")
+    photo_id = data.get('photo_id', '')
+    if not photo_id:
+        raise HTTPException(status_code=400, detail="Missing photo_id")
+
+    detail = await db.listing_details.find_one({"unit_id": unit_id})
+    if not detail or not detail.get('photos'):
+        raise HTTPException(status_code=404, detail="No photos found")
+
+    # Unset all covers, then set the requested one
+    for photo in detail.get('photos', []):
+        await db.listing_details.update_one(
+            {"unit_id": unit_id, "photos.id": photo['id']},
+            {"$set": {"photos.$.is_cover": False}}
+        )
+    await db.listing_details.update_one(
+        {"unit_id": unit_id, "photos.id": photo_id},
+        {"$set": {"photos.$.is_cover": True}}
+    )
+
+    return {"message": "Cover photo set"}
 
 
 @router.post("/public/admin/listings/{unit_id}/photos/delete")
@@ -326,10 +491,66 @@ async def delete_listing_photo(unit_id: str, data: dict):
     return {"message": "Photo deleted"}
 
 
+# ── Video endpoints ────────────────────────────────────────────────────────
+
+@router.post("/public/admin/listings/{unit_id}/video")
+async def upload_listing_video(
+    unit_id: str,
+    file: UploadFile = File(...),
+    password: str = Query(...)
+):
+    """Upload a video for a listing (replaces existing)."""
+    if not await verify_admin_password(password):
+        raise HTTPException(status_code=401, detail="Invalid password")
+    unit = await db.units.find_one({"_id": ObjectId(unit_id)})
+    if not unit:
+        raise HTTPException(status_code=404, detail="Unit not found")
+
+    data = await file.read()
+    path = generate_path(file.filename)
+    result = put_object(path, data, file.content_type or "application/octet-stream")
+    video_entry = {
+        "id": str(uuid.uuid4()),
+        "storage_path": result["path"],
+        "original_filename": file.filename,
+        "content_type": file.content_type,
+        "is_deleted": False,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.listing_details.update_one(
+        {"unit_id": unit_id},
+        {"$set": {"video": video_entry, "updated_at": datetime.now(timezone.utc).isoformat()}},
+        upsert=True
+    )
+    return {"id": video_entry["id"], "url": f"/api/public/files/{result['path']}", "filename": file.filename}
+
+
+@router.post("/public/admin/listings/{unit_id}/video/delete")
+async def delete_listing_video(unit_id: str, data: dict):
+    """Delete the video from a listing."""
+    password = data.get('password', '')
+    if not await verify_admin_password(password):
+        raise HTTPException(status_code=401, detail="Invalid password")
+    await db.listing_details.update_one(
+        {"unit_id": unit_id},
+        {"$set": {"video.is_deleted": True, "updated_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    return {"message": "Video deleted"}
+
+
+# ── File serving ───────────────────────────────────────────────────────────
+
 @router.get("/public/files/{path:path}")
 async def serve_file(path: str):
     try:
         data, content_type = get_object(path)
-        return Response(content=data, media_type=content_type)
+        return Response(
+            content=data,
+            media_type=content_type,
+            headers={
+                "Cache-Control": "public, max-age=31536000, immutable",
+                "Accept-Ranges": "bytes",
+            }
+        )
     except Exception:
         raise HTTPException(status_code=404, detail="File not found")

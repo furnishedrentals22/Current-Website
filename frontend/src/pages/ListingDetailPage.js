@@ -1,23 +1,69 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { Toaster } from '@/components/ui/sonner';
-import { ChevronLeft, ChevronRight, MapPin, Lock, Unlock, Calendar, Loader2, Upload, X, ArrowLeft, Pencil, Trash2, Save, Settings, LogOut } from 'lucide-react';
+import {
+  ChevronLeft, ChevronRight, MapPin, Lock, Unlock, Calendar, Loader2,
+  Upload, X, ArrowLeft, Pencil, Trash2, Save, Settings, LogOut,
+  Star, GripVertical, ArrowUp, ArrowDown, Image, Video, Plus, Check,
+  Wifi, Snowflake, UtensilsCrossed, WashingMachine, Wind, Tv, Waves,
+  Bath, Car, Dumbbell, ArrowUpDown, Fence, Umbrella, PawPrint, Coffee,
+  Sparkles, Shirt, Flame, ShieldCheck, Laptop, Bold, Type
+} from 'lucide-react';
+import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+
+// Fix leaflet default marker icon
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
+  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+});
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 const PLACEHOLDER_IMAGES = [
-  'https://images.unsplash.com/photo-1759238136859-b6fe007fe126?w=1200&h=900&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1759722667849-1a08d026db89?w=1200&h=900&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1759722668109-0ce25491240a?w=1200&h=900&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=1200&h=900&fit=crop&q=90',
+  'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=1200&h=900&fit=crop&q=90',
+  'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=1200&h=900&fit=crop&q=90',
 ];
+
+// Icon mapping for amenities
+const AMENITY_ICONS = {
+  'wifi': Wifi,
+  'snowflake': Snowflake,
+  'utensils-crossed': UtensilsCrossed,
+  'washing-machine': WashingMachine,
+  'wind': Wind,
+  'tv': Tv,
+  'waves': Waves,
+  'bath': Bath,
+  'car': Car,
+  'dumbbell': Dumbbell,
+  'arrow-up-down': ArrowUpDown,
+  'fence': Fence,
+  'umbrella': Umbrella,
+  'paw-print': PawPrint,
+  'coffee': Coffee,
+  'sparkles': Sparkles,
+  'shirt': Shirt,
+  'flame': Flame,
+  'shield-check': ShieldCheck,
+  'laptop': Laptop,
+};
+
+function AmenityIcon({ icon, className = "h-5 w-5" }) {
+  const IconComp = AMENITY_ICONS[icon] || Sparkles;
+  return <IconComp className={className} />;
+}
 
 const getFirstDayOfWeek = (year, month) => new Date(year, month - 1, 1).getDay();
 
@@ -61,9 +107,207 @@ function getNext18Months() {
   return months;
 }
 
+// ─── Rich Text Editor ─────────────────────────────────────────────────────
+function RichTextEditor({ value, onChange }) {
+  const editorRef = useRef(null);
+  const isInitialMount = useRef(true);
+
+  useEffect(() => {
+    if (isInitialMount.current && editorRef.current) {
+      editorRef.current.innerHTML = value || '';
+      isInitialMount.current = false;
+    }
+  }, [value]);
+
+  const handleInput = () => {
+    if (editorRef.current) {
+      onChange(editorRef.current.innerHTML);
+    }
+  };
+
+  const execCmd = (cmd, val = null) => {
+    document.execCommand(cmd, false, val);
+    editorRef.current?.focus();
+    handleInput();
+  };
+
+  return (
+    <div className="border border-border rounded-lg overflow-hidden">
+      <div className="flex items-center gap-1 px-2 py-1.5 border-b border-border bg-muted/30">
+        <button
+          type="button"
+          onClick={() => execCmd('bold')}
+          className="p-1.5 rounded hover:bg-muted transition-colors"
+          title="Bold (Ctrl+B)"
+        >
+          <Bold className="h-4 w-4" />
+        </button>
+        <div className="w-px h-5 bg-border mx-1" />
+        <button
+          type="button"
+          onClick={() => execCmd('insertParagraph')}
+          className="p-1.5 rounded hover:bg-muted transition-colors"
+          title="New Paragraph"
+        >
+          <Type className="h-4 w-4" />
+        </button>
+      </div>
+      <div
+        ref={editorRef}
+        contentEditable
+        onInput={handleInput}
+        className="min-h-[120px] max-h-[300px] overflow-y-auto p-3 text-sm leading-relaxed focus:outline-none prose prose-sm max-w-none"
+        data-testid="rich-text-editor"
+        style={{ whiteSpace: 'pre-wrap' }}
+      />
+    </div>
+  );
+}
+
+// ─── Description Renderer ──────────────────────────────────────────────────
+function DescriptionDisplay({ html }) {
+  if (!html) return null;
+  return (
+    <div
+      className="text-sm text-muted-foreground leading-relaxed prose prose-sm max-w-none"
+      dangerouslySetInnerHTML={{ __html: html }}
+      data-testid="listing-description"
+    />
+  );
+}
+
+// ─── Map Component ─────────────────────────────────────────────────────────
+function LocationMap({ lat, lng, address }) {
+  if (!lat || !lng) return null;
+  const position = [lat, lng];
+  return (
+    <div className="rounded-xl overflow-hidden border border-border/70 mt-6" data-testid="location-map">
+      <MapContainer center={position} zoom={15} scrollWheelZoom={true} style={{ height: '300px', width: '100%' }}>
+        <TileLayer
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        />
+        <Marker position={position}>
+          <Popup>{address}</Popup>
+        </Marker>
+      </MapContainer>
+    </div>
+  );
+}
+
+// ─── Amenity Picker Dialog ─────────────────────────────────────────────────
+function AmenityPicker({ open, onOpenChange, currentAmenities, onSave, adminPass }) {
+  const [defaults, setDefaults] = useState([]);
+  const [selected, setSelected] = useState([]);
+  const [customName, setCustomName] = useState('');
+
+  useEffect(() => {
+    fetch(`${API}/api/public/amenities/defaults`)
+      .then(r => r.json())
+      .then(setDefaults)
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (open) {
+      setSelected(currentAmenities.map(a => ({ ...a })));
+    }
+  }, [open, currentAmenities]);
+
+  const isSelected = (name) => selected.some(s => s.name === name);
+
+  const toggleDefault = (amenity) => {
+    if (isSelected(amenity.name)) {
+      setSelected(prev => prev.filter(s => s.name !== amenity.name));
+    } else {
+      setSelected(prev => [...prev, { name: amenity.name, icon: amenity.icon }]);
+    }
+  };
+
+  const addCustom = () => {
+    const name = customName.trim();
+    if (!name || isSelected(name)) return;
+    setSelected(prev => [...prev, { name, icon: 'sparkles' }]);
+    setCustomName('');
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="font-heading">Manage Amenities</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div>
+            <Label className="text-sm font-medium mb-2 block">Common Amenities</Label>
+            <div className="grid grid-cols-2 gap-2">
+              {defaults.map(amenity => (
+                <button
+                  key={amenity.name}
+                  onClick={() => toggleDefault(amenity)}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm text-left transition-colors ${
+                    isSelected(amenity.name)
+                      ? 'bg-primary/10 border-primary text-primary'
+                      : 'border-border hover:bg-muted'
+                  }`}
+                >
+                  <AmenityIcon icon={amenity.icon} className="h-4 w-4 flex-shrink-0" />
+                  <span className="flex-1">{amenity.name}</span>
+                  {isSelected(amenity.name) && <Check className="h-4 w-4" />}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <Label className="text-sm font-medium mb-2 block">Add Custom Amenity</Label>
+            <div className="flex gap-2">
+              <Input
+                value={customName}
+                onChange={e => setCustomName(e.target.value)}
+                placeholder="e.g., Rooftop Access"
+                onKeyDown={e => e.key === 'Enter' && addCustom()}
+              />
+              <Button variant="outline" onClick={addCustom} disabled={!customName.trim()}>
+                <Plus className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+
+          {selected.filter(s => !defaults.some(d => d.name === s.name)).length > 0 && (
+            <div>
+              <Label className="text-xs text-muted-foreground mb-1.5 block">Custom Amenities</Label>
+              <div className="flex flex-wrap gap-2">
+                {selected.filter(s => !defaults.some(d => d.name === s.name)).map(s => (
+                  <div key={s.name} className="flex items-center gap-1.5 bg-muted rounded-full px-3 py-1 text-xs">
+                    <AmenityIcon icon={s.icon} className="h-3 w-3" />
+                    <span>{s.name}</span>
+                    <button onClick={() => setSelected(prev => prev.filter(p => p.name !== s.name))} className="text-destructive hover:text-destructive/80 ml-0.5">
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+            <Button onClick={() => { onSave(selected); onOpenChange(false); }}>
+              Save Amenities ({selected.length})
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+
 export default function ListingDetailPage() {
   const { id } = useParams();
   const fileInputRef = useRef(null);
+  const videoInputRef = useRef(null);
 
   const [listing, setListing] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -83,12 +327,19 @@ export default function ListingDetailPage() {
   const [editing, setEditing] = useState(false);
   const [editTitle, setEditTitle] = useState('');
   const [editDesc, setEditDesc] = useState('');
+  const [editAddress, setEditAddress] = useState('');
   const [savingDetails, setSavingDetails] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [uploadingVideo, setUploadingVideo] = useState(false);
 
   const [selectedMonths, setSelectedMonths] = useState([]);
   const [priceInput, setPriceInput] = useState('');
   const [savingPrice, setSavingPrice] = useState(false);
+
+  const [showAmenityPicker, setShowAmenityPicker] = useState(false);
+  const [savingAmenities, setSavingAmenities] = useState(false);
+  const [settingCover, setSettingCover] = useState(null);
+  const [reordering, setReordering] = useState(false);
 
   useEffect(() => {
     const stored = sessionStorage.getItem('listings_admin_pass');
@@ -100,7 +351,7 @@ export default function ListingDetailPage() {
     }
   }, []);
 
-  const fetchListing = async () => {
+  const fetchListing = useCallback(async () => {
     try {
       const res = await fetch(`${API}/api/public/listings/${id}`);
       if (!res.ok) throw new Error('Not found');
@@ -108,15 +359,19 @@ export default function ListingDetailPage() {
       setListing(data);
       setEditTitle(data.title);
       setEditDesc(data.description || '');
+      setEditAddress(data.address || '');
     } catch { toast.error('Failed to load listing'); }
     finally { setLoading(false); }
-  };
+  }, [id]);
 
-  useEffect(() => { fetchListing(); }, [id]);
+  useEffect(() => { fetchListing(); }, [fetchListing]);
 
-  const photos = listing?.photos?.length > 0
-    ? listing.photos.map(p => ({ ...p, src: p.url.startsWith('http') ? p.url : `${API}${p.url}` }))
-    : PLACEHOLDER_IMAGES.map((url, i) => ({ id: `ph-${i}`, src: url, filename: 'Placeholder', isPlaceholder: true }));
+  const photos = useMemo(() => {
+    if (listing?.photos?.length > 0) {
+      return listing.photos.map(p => ({ ...p, src: p.url.startsWith('http') ? p.url : `${API}${p.url}` }));
+    }
+    return PLACEHOLDER_IMAGES.map((url, i) => ({ id: `ph-${i}`, src: url, filename: 'Placeholder', isPlaceholder: true }));
+  }, [listing]);
 
   const fetchAvailability = async (sy, sm, count) => {
     setLoadingAvail(true);
@@ -179,9 +434,32 @@ export default function ListingDetailPage() {
   const handleSaveDetails = async () => {
     setSavingDetails(true);
     try {
+      // Geocode address if provided
+      let lat = listing?.address_lat;
+      let lng = listing?.address_lng;
+      if (editAddress && editAddress !== listing?.address) {
+        try {
+          const geoRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(editAddress)}&limit=1`, {
+            headers: { 'User-Agent': 'FurnishedRentals/1.0' }
+          });
+          const geoData = await geoRes.json();
+          if (geoData.length > 0) {
+            lat = parseFloat(geoData[0].lat);
+            lng = parseFloat(geoData[0].lon);
+          }
+        } catch { /* geocoding failed, save without coords */ }
+      }
+
       const res = await fetch(`${API}/api/public/admin/listings/${id}`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password: adminPass, title: editTitle, description: editDesc })
+        body: JSON.stringify({
+          password: adminPass,
+          title: editTitle,
+          description: editDesc,
+          address: editAddress,
+          address_lat: lat,
+          address_lng: lng,
+        })
       });
       if (res.ok) { toast.success('Listing updated'); setEditing(false); fetchListing(); }
       else toast.error('Failed to update');
@@ -189,18 +467,33 @@ export default function ListingDetailPage() {
     finally { setSavingDetails(false); }
   };
 
+  // Multi-file upload
   const handlePhotoUpload = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
     setUploading(true);
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      const res = await fetch(`${API}/api/public/admin/listings/${id}/photos?password=${encodeURIComponent(adminPass)}`, {
-        method: 'POST', body: formData
-      });
-      if (res.ok) { toast.success('Photo uploaded'); setCurrentPhotoIdx(0); fetchListing(); }
-      else toast.error('Upload failed');
+      if (files.length === 1) {
+        const formData = new FormData();
+        formData.append('file', files[0]);
+        const res = await fetch(`${API}/api/public/admin/listings/${id}/photos?password=${encodeURIComponent(adminPass)}`, {
+          method: 'POST', body: formData
+        });
+        if (res.ok) toast.success('Photo uploaded');
+        else toast.error('Upload failed');
+      } else {
+        const formData = new FormData();
+        files.forEach(f => formData.append('files', f));
+        const res = await fetch(`${API}/api/public/admin/listings/${id}/photos/batch?password=${encodeURIComponent(adminPass)}`, {
+          method: 'POST', body: formData
+        });
+        if (res.ok) {
+          const data = await res.json();
+          toast.success(`${data.count} photos uploaded`);
+        } else toast.error('Upload failed');
+      }
+      setCurrentPhotoIdx(0);
+      fetchListing();
     } catch { toast.error('Upload failed'); }
     finally { setUploading(false); if (fileInputRef.current) fileInputRef.current.value = ''; }
   };
@@ -213,6 +506,83 @@ export default function ListingDetailPage() {
       });
       if (res.ok) { toast.success('Photo removed'); setCurrentPhotoIdx(0); fetchListing(); }
     } catch { toast.error('Failed to delete'); }
+  };
+
+  const handleSetCover = async (photoId) => {
+    setSettingCover(photoId);
+    try {
+      const res = await fetch(`${API}/api/public/admin/listings/${id}/photos/cover`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: adminPass, photo_id: photoId })
+      });
+      if (res.ok) { toast.success('Cover photo set'); fetchListing(); }
+      else toast.error('Failed to set cover');
+    } catch { toast.error('Failed to set cover'); }
+    finally { setSettingCover(null); }
+  };
+
+  const handleMovePhoto = async (photoId, direction) => {
+    const currentPhotos = listing?.photos || [];
+    const idx = currentPhotos.findIndex(p => p.id === photoId);
+    if (idx < 0) return;
+    const newIdx = idx + direction;
+    if (newIdx < 0 || newIdx >= currentPhotos.length) return;
+
+    const newOrder = [...currentPhotos];
+    [newOrder[idx], newOrder[newIdx]] = [newOrder[newIdx], newOrder[idx]];
+    const photoIds = newOrder.map(p => p.id);
+
+    setReordering(true);
+    try {
+      const res = await fetch(`${API}/api/public/admin/listings/${id}/photos/reorder`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: adminPass, photo_ids: photoIds })
+      });
+      if (res.ok) { fetchListing(); }
+      else toast.error('Failed to reorder');
+    } catch { toast.error('Failed to reorder'); }
+    finally { setReordering(false); }
+  };
+
+  // Video
+  const handleVideoUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingVideo(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch(`${API}/api/public/admin/listings/${id}/video?password=${encodeURIComponent(adminPass)}`, {
+        method: 'POST', body: formData
+      });
+      if (res.ok) { toast.success('Video uploaded'); fetchListing(); }
+      else toast.error('Video upload failed');
+    } catch { toast.error('Video upload failed'); }
+    finally { setUploadingVideo(false); if (videoInputRef.current) videoInputRef.current.value = ''; }
+  };
+
+  const handleVideoDelete = async () => {
+    try {
+      const res = await fetch(`${API}/api/public/admin/listings/${id}/video/delete`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: adminPass })
+      });
+      if (res.ok) { toast.success('Video removed'); fetchListing(); }
+    } catch { toast.error('Failed to delete video'); }
+  };
+
+  // Amenities
+  const handleSaveAmenities = async (amenities) => {
+    setSavingAmenities(true);
+    try {
+      const res = await fetch(`${API}/api/public/admin/listings/${id}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: adminPass, amenities })
+      });
+      if (res.ok) { toast.success('Amenities updated'); fetchListing(); }
+      else toast.error('Failed to save amenities');
+    } catch { toast.error('Failed to save amenities'); }
+    finally { setSavingAmenities(false); }
   };
 
   const toggleMonth = (year, month) => {
@@ -232,7 +602,7 @@ export default function ListingDetailPage() {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ password: adminPass, unit_id: id, entries })
       });
-      if (res.ok) { toast.success(`Price set for ${selectedMonths.length} month(s)`); setSelectedMonths([]); setPriceInput(''); fetchListing(); fetchAvailability(availStartYear, availStartMonth, availMonthCount); }
+      if (res.ok) { toast.success(`Price set for ${selectedMonths.length} month(s)`); setSelectedMonths([]); setPriceInput(''); fetchListing(); }
     } catch { toast.error('Failed to save'); }
     finally { setSavingPrice(false); }
   };
@@ -243,7 +613,7 @@ export default function ListingDetailPage() {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ password: adminPass, unit_id: id, year, month })
       });
-      if (res.ok) { toast.success('Price removed'); fetchListing(); fetchAvailability(availStartYear, availStartMonth, availMonthCount); }
+      if (res.ok) { toast.success('Price removed'); fetchListing(); }
     } catch { toast.error('Failed to delete'); }
   };
 
@@ -258,6 +628,8 @@ export default function ListingDetailPage() {
     </div>
   );
 
+  const videoUrl = listing.video?.url ? (listing.video.url.startsWith('http') ? listing.video.url : `${API}${listing.video.url}`) : null;
+
   return (
     <div className="min-h-screen bg-background" data-testid="listing-detail-page">
       <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-border/60">
@@ -265,7 +637,7 @@ export default function ListingDetailPage() {
           <Link to="/listings" className="font-heading text-xl font-bold text-primary tracking-tight">Furnished Rentals Miami</Link>
           <div className="flex items-center gap-2">
             <Link to="/listings" data-testid="see-all-listings-link">
-              <Button variant="outline" size="sm"><ArrowLeft className="h-4 w-4 mr-1" />See All Listings</Button>
+              <Button variant="outline" size="sm"><ArrowLeft className="h-4 w-4 mr-1" />All Listings</Button>
             </Link>
             {adminUnlocked ? (
               <>
@@ -287,10 +659,16 @@ export default function ListingDetailPage() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Image Carousel */}
+          {/* ─── Image Carousel ──────────────────────────────────────── */}
           <div className="relative" data-testid="image-carousel">
             <div className="aspect-[4/3] rounded-xl overflow-hidden bg-muted relative">
-              <img src={photos[currentPhotoIdx]?.src} alt={listing.title} className="w-full h-full object-cover" />
+              <img
+                src={photos[currentPhotoIdx]?.src}
+                alt={listing.title}
+                className="w-full h-full object-cover"
+                style={{ imageRendering: 'auto' }}
+                decoding="async"
+              />
               {photos.length > 1 && (
                 <>
                   <button onClick={() => setCurrentPhotoIdx(i => (i - 1 + photos.length) % photos.length)}
@@ -302,40 +680,116 @@ export default function ListingDetailPage() {
                 </>
               )}
               <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
-                {photos.map((_, i) => (
+                {photos.slice(0, 10).map((_, i) => (
                   <button key={i} onClick={() => setCurrentPhotoIdx(i)}
                     className={`w-2.5 h-2.5 rounded-full transition-colors ${i === currentPhotoIdx ? 'bg-white shadow' : 'bg-white/50'}`} />
                 ))}
+                {photos.length > 10 && <span className="text-white text-xs ml-1">+{photos.length - 10}</span>}
               </div>
               <div className="absolute top-3 right-3 bg-black/50 text-white rounded-full px-2.5 py-0.5 text-xs font-medium">
                 {currentPhotoIdx + 1} / {photos.length}
               </div>
+              {photos[currentPhotoIdx]?.is_cover && (
+                <div className="absolute top-3 left-3 bg-yellow-500/90 text-white rounded-full px-2.5 py-0.5 text-xs font-medium flex items-center gap-1">
+                  <Star className="h-3 w-3" /> Cover
+                </div>
+              )}
             </div>
+
+            {/* Thumbnail strip */}
+            {photos.length > 1 && (
+              <div className="flex gap-2 mt-3 overflow-x-auto pb-2">
+                {photos.map((photo, i) => (
+                  <button
+                    key={photo.id}
+                    onClick={() => setCurrentPhotoIdx(i)}
+                    className={`relative flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden border-2 transition-colors ${
+                      i === currentPhotoIdx ? 'border-primary' : 'border-transparent hover:border-border'
+                    }`}
+                  >
+                    <img src={photo.src} alt="" className="w-full h-full object-cover" loading="lazy" />
+                    {photo.is_cover && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-yellow-500/30">
+                        <Star className="h-3 w-3 text-yellow-600" />
+                      </div>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
-          {/* Unit Info */}
-          <div className="space-y-4" data-testid="listing-info">
+          {/* ─── Unit Info ───────────────────────────────────────────── */}
+          <div className="space-y-5" data-testid="listing-info">
             {listing.unit_size && (
               <span className="inline-block bg-muted rounded-full px-3 py-1 text-xs font-medium">{listing.unit_size}</span>
             )}
             <h1 className="font-heading text-2xl sm:text-3xl font-bold tracking-tight" data-testid="detail-title">{listing.title}</h1>
-            {listing.property_name && (
-              <p className="text-muted-foreground flex items-center gap-1.5"><MapPin className="h-4 w-4" />{listing.property_name}</p>
+            {(listing.address || listing.property_name) && (
+              <p className="text-muted-foreground flex items-center gap-1.5"><MapPin className="h-4 w-4" />{listing.address || listing.property_name}</p>
             )}
             {listing.current_price != null ? (
               <p className="text-primary font-bold text-2xl tabular-nums" data-testid="detail-price">${listing.current_price.toLocaleString()}/mo</p>
             ) : (
               <p className="text-muted-foreground">Contact for pricing</p>
             )}
-            {listing.description && <p className="text-sm text-muted-foreground leading-relaxed">{listing.description}</p>}
+
+            {/* Description */}
+            {listing.description && <DescriptionDisplay html={listing.description} />}
+
+            {/* Amenities */}
+            {listing.amenities?.length > 0 && (
+              <div data-testid="amenities-section">
+                <h3 className="font-heading text-lg font-semibold mb-3">What this place offers</h3>
+                <div className="grid grid-cols-2 gap-3">
+                  {listing.amenities.map((amenity, i) => (
+                    <div key={i} className="flex items-center gap-3 py-2">
+                      <div className="w-8 h-8 rounded-lg bg-muted/60 flex items-center justify-center flex-shrink-0">
+                        <AmenityIcon icon={amenity.icon} className="h-4 w-4 text-foreground" />
+                      </div>
+                      <span className="text-sm">{amenity.name}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <Button size="lg" className="w-full sm:w-auto" onClick={handleCheckAvailability} data-testid="check-availability-button">
               <Calendar className="h-4 w-4 mr-2" />Check Availability
             </Button>
           </div>
         </div>
+
+        {/* ─── Video Section ────────────────────────────────────────── */}
+        {videoUrl && (
+          <div className="mt-8" data-testid="video-section">
+            <h3 className="font-heading text-lg font-semibold mb-3">Property Video</h3>
+            <div className="rounded-xl overflow-hidden border border-border/70 bg-black max-w-3xl">
+              <video
+                controls
+                className="w-full"
+                preload="metadata"
+                style={{ maxHeight: '500px' }}
+              >
+                <source src={videoUrl} type={listing.video?.content_type || 'video/mp4'} />
+                Your browser does not support the video tag.
+              </video>
+            </div>
+          </div>
+        )}
+
+        {/* ─── Map Section ──────────────────────────────────────────── */}
+        {listing.address && listing.address_lat && listing.address_lng && (
+          <div className="mt-8">
+            <h3 className="font-heading text-lg font-semibold mb-3 flex items-center gap-2">
+              <MapPin className="h-5 w-5" /> Location
+            </h3>
+            <LocationMap lat={listing.address_lat} lng={listing.address_lng} address={listing.address} />
+          </div>
+        )}
       </div>
 
-      {/* Availability Dialog */}
+      {/* ─── Availability Dialog ─────────────────────────────────────── */}
       <Dialog open={showAvailDialog} onOpenChange={setShowAvailDialog}>
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto" data-testid="availability-dialog">
           <DialogHeader>
@@ -381,9 +835,9 @@ export default function ListingDetailPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Admin Dialog */}
+      {/* ─── Admin Dialog ────────────────────────────────────────────── */}
       <Dialog open={showAdminDialog} onOpenChange={setShowAdminDialog}>
-        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto" data-testid="detail-admin-section">
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto" data-testid="detail-admin-section">
           <DialogHeader>
             <DialogTitle className="font-heading text-lg flex items-center gap-2">
               {adminUnlocked ? <><Unlock className="h-5 w-5 text-primary" />Edit Listing</> : <><Lock className="h-5 w-5 text-muted-foreground" />Admin Access</>}
@@ -400,7 +854,7 @@ export default function ListingDetailPage() {
             </div>
           ) : (
             <div className="space-y-6">
-              {/* Edit Details */}
+              {/* ─── Edit Details ──────────────────────────────── */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <h4 className="font-medium text-sm flex items-center gap-1.5"><Pencil className="h-4 w-4 text-primary" />Details</h4>
@@ -413,58 +867,149 @@ export default function ListingDetailPage() {
                       <Input value={editTitle} onChange={e => setEditTitle(e.target.value)} data-testid="edit-title-input" />
                     </div>
                     <div>
-                      <Label className="text-sm mb-1 block">Description</Label>
-                      <Textarea value={editDesc} onChange={e => setEditDesc(e.target.value)} rows={3} data-testid="edit-description-input" />
+                      <Label className="text-sm mb-1 block">Description <span className="text-muted-foreground font-normal">(supports bold text & paragraphs)</span></Label>
+                      <RichTextEditor value={editDesc} onChange={setEditDesc} />
+                    </div>
+                    <div>
+                      <Label className="text-sm mb-1 block">Address</Label>
+                      <Input value={editAddress} onChange={e => setEditAddress(e.target.value)} placeholder="e.g., 123 Ocean Dr, Miami Beach, FL 33139" data-testid="edit-address-input" />
+                      <p className="text-xs text-muted-foreground mt-1">Address will be geocoded for map display</p>
                     </div>
                     <div className="flex gap-2">
                       <Button size="sm" onClick={handleSaveDetails} disabled={savingDetails} data-testid="save-details-button">
                         {savingDetails ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Save className="h-4 w-4 mr-1" />}Save
                       </Button>
-                      <Button size="sm" variant="outline" onClick={() => { setEditing(false); setEditTitle(listing.title); setEditDesc(listing.description || ''); }}>Cancel</Button>
+                      <Button size="sm" variant="outline" onClick={() => { setEditing(false); setEditTitle(listing.title); setEditDesc(listing.description || ''); setEditAddress(listing.address || ''); }}>Cancel</Button>
                     </div>
                   </div>
                 ) : (
-                  <div className="text-sm text-muted-foreground">
+                  <div className="text-sm text-muted-foreground space-y-1">
                     <p><strong>Title:</strong> {listing.title}</p>
-                    {listing.description && <p className="mt-1"><strong>Description:</strong> {listing.description}</p>}
+                    {listing.description && <div><strong>Description:</strong> <DescriptionDisplay html={listing.description} /></div>}
+                    {listing.address && <p><strong>Address:</strong> {listing.address}</p>}
                   </div>
                 )}
               </div>
 
               <hr />
 
-              {/* Photos Management */}
+              {/* ─── Amenities ────────────────────────────────── */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <h4 className="font-medium text-sm flex items-center gap-1.5"><Upload className="h-4 w-4 text-primary" />Photos</h4>
-                  <div>
-                    <input ref={fileInputRef} type="file" accept="image/*" onChange={handlePhotoUpload} className="hidden" />
-                    <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} disabled={uploading} data-testid="upload-photo-button">
-                      {uploading ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Upload className="h-3 w-3 mr-1" />}Upload
-                    </Button>
-                  </div>
+                  <h4 className="font-medium text-sm flex items-center gap-1.5"><Sparkles className="h-4 w-4 text-primary" />Amenities ({listing.amenities?.length || 0})</h4>
+                  <Button variant="outline" size="sm" onClick={() => setShowAmenityPicker(true)} data-testid="manage-amenities-button">
+                    <Plus className="h-3 w-3 mr-1" />Manage
+                  </Button>
                 </div>
-                {listing.photos?.length > 0 ? (
-                  <div className="grid grid-cols-3 gap-2">
-                    {listing.photos.map(photo => (
-                      <div key={photo.id} className="relative group aspect-square rounded-lg overflow-hidden bg-muted">
-                        <img src={`${API}${photo.url}`} alt={photo.filename} className="w-full h-full object-cover" />
-                        <button onClick={() => handlePhotoDelete(photo.id)}
-                          className="absolute top-1 right-1 w-6 h-6 rounded-full bg-destructive text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                          data-testid={`delete-photo-${photo.id}`}>
-                          <X className="h-3 w-3" />
-                        </button>
+                {listing.amenities?.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {listing.amenities.map((a, i) => (
+                      <div key={i} className="flex items-center gap-1.5 bg-muted rounded-full px-3 py-1.5 text-xs">
+                        <AmenityIcon icon={a.icon} className="h-3.5 w-3.5" />
+                        <span>{a.name}</span>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-sm text-muted-foreground">No photos uploaded yet.</p>
+                  <p className="text-sm text-muted-foreground">No amenities added yet.</p>
                 )}
               </div>
 
               <hr />
 
-              {/* Pricing Management */}
+              {/* ─── Photos Management ────────────────────────── */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-medium text-sm flex items-center gap-1.5"><Image className="h-4 w-4 text-primary" />Photos ({listing.photos?.length || 0})</h4>
+                  <div>
+                    <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={handlePhotoUpload} className="hidden" />
+                    <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} disabled={uploading} data-testid="upload-photo-button">
+                      {uploading ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Upload className="h-3 w-3 mr-1" />}
+                      Upload Photos
+                    </Button>
+                  </div>
+                </div>
+                {listing.photos?.length > 0 ? (
+                  <div className="space-y-2">
+                    {listing.photos.map((photo, idx) => (
+                      <div key={photo.id} className="flex items-center gap-3 p-2 rounded-lg border border-border/70 bg-card">
+                        <div className="w-16 h-16 rounded-lg overflow-hidden bg-muted flex-shrink-0">
+                          <img src={`${API}${photo.url}`} alt={photo.filename} className="w-full h-full object-cover" loading="lazy" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs text-muted-foreground truncate">{photo.filename}</p>
+                          <div className="flex items-center gap-1 mt-1">
+                            {photo.is_cover ? (
+                              <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full font-medium flex items-center gap-1"><Star className="h-3 w-3" />Cover</span>
+                            ) : (
+                              <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => handleSetCover(photo.id)} disabled={settingCover === photo.id}>
+                                {settingCover === photo.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Star className="h-3 w-3 mr-1" />}Set Cover
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => handleMovePhoto(photo.id, -1)} disabled={idx === 0 || reordering} title="Move up">
+                            <ArrowUp className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => handleMovePhoto(photo.id, 1)} disabled={idx === listing.photos.length - 1 || reordering} title="Move down">
+                            <ArrowDown className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive" onClick={() => handlePhotoDelete(photo.id)} title="Delete" data-testid={`delete-photo-${photo.id}`}>
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No photos uploaded yet. Upload multiple photos at once.</p>
+                )}
+              </div>
+
+              <hr />
+
+              {/* ─── Video Management ─────────────────────────── */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-medium text-sm flex items-center gap-1.5"><Video className="h-4 w-4 text-primary" />Video</h4>
+                  {!listing.video && (
+                    <div>
+                      <input ref={videoInputRef} type="file" accept="video/*" onChange={handleVideoUpload} className="hidden" />
+                      <Button variant="outline" size="sm" onClick={() => videoInputRef.current?.click()} disabled={uploadingVideo} data-testid="upload-video-button">
+                        {uploadingVideo ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Upload className="h-3 w-3 mr-1" />}Upload Video
+                      </Button>
+                    </div>
+                  )}
+                </div>
+                {listing.video ? (
+                  <div className="flex items-center gap-3 p-2 rounded-lg border border-border/70 bg-card">
+                    <div className="w-16 h-16 rounded-lg overflow-hidden bg-muted flex-shrink-0 flex items-center justify-center">
+                      <Video className="h-6 w-6 text-muted-foreground" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-muted-foreground truncate">{listing.video.filename}</p>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive" onClick={handleVideoDelete} title="Delete video">
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                      <div>
+                        <input ref={videoInputRef} type="file" accept="video/*" onChange={handleVideoUpload} className="hidden" />
+                        <Button variant="ghost" size="sm" className="h-7 text-xs px-2" onClick={() => videoInputRef.current?.click()} disabled={uploadingVideo}>
+                          {uploadingVideo ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Replace'}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No video uploaded.</p>
+                )}
+              </div>
+
+              <hr />
+
+              {/* ─── Pricing Management ───────────────────────── */}
               <div className="space-y-3">
                 <h4 className="font-medium text-sm flex items-center gap-1.5"><Unlock className="h-4 w-4 text-primary" />Pricing</h4>
                 <div>
@@ -515,7 +1060,16 @@ export default function ListingDetailPage() {
         </DialogContent>
       </Dialog>
 
-      <footer className="border-t bg-card py-8">
+      {/* ─── Amenity Picker ──────────────────────────────────────────── */}
+      <AmenityPicker
+        open={showAmenityPicker}
+        onOpenChange={setShowAmenityPicker}
+        currentAmenities={listing.amenities || []}
+        onSave={handleSaveAmenities}
+        adminPass={adminPass}
+      />
+
+      <footer className="border-t bg-card py-8 mt-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <p className="text-sm text-muted-foreground">&copy; {new Date().getFullYear()} Furnished Rentals Miami. All rights reserved.</p>
         </div>

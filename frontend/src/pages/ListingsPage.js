@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from 'sonner';
 import { Toaster } from '@/components/ui/sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { MapPin, Lock, Unlock, Search, Loader2, X, Settings, LogOut } from 'lucide-react';
+import { MapPin, Lock, Unlock, Search, Loader2, X, Settings, LogOut, ChevronLeft, ChevronRight } from 'lucide-react';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -17,32 +17,81 @@ const MONTH_NAMES = [
 ];
 
 const PLACEHOLDER_IMAGES = [
-  'https://images.unsplash.com/photo-1759238136859-b6fe007fe126?w=800&h=600&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1759722667849-1a08d026db89?w=800&h=600&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1759722668109-0ce25491240a?w=800&h=600&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1774716925888-190de2471de2?w=800&h=600&fit=crop&q=80',
-  'https://images.pexels.com/photos/7511701/pexels-photo-7511701.jpeg?auto=compress&cs=tinysrgb&w=800&h=600&fit=crop',
+  'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=1200&h=900&fit=crop&q=90',
+  'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=1200&h=900&fit=crop&q=90',
+  'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=1200&h=900&fit=crop&q=90',
+  'https://images.unsplash.com/photo-1493809842364-78817add7ffb?w=1200&h=900&fit=crop&q=90',
+  'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=1200&h=900&fit=crop&q=90',
 ];
 
 function ListingCard({ listing, index }) {
-  const image = listing.photos?.[0]
-    ? `${API}${listing.photos[0].url}`
-    : PLACEHOLDER_IMAGES[index % PLACEHOLDER_IMAGES.length];
+  const allImages = listing.photos?.length > 0
+    ? listing.photos.map(p => (p.url.startsWith('http') ? p.url : `${API}${p.url}`))
+    : [PLACEHOLDER_IMAGES[index % PLACEHOLDER_IMAGES.length]];
+
+  const [currentIdx, setCurrentIdx] = useState(0);
+
+  const goPrev = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setCurrentIdx(i => (i - 1 + allImages.length) % allImages.length);
+  };
+
+  const goNext = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setCurrentIdx(i => (i + 1) % allImages.length);
+  };
 
   return (
-    <Link to={`/listings/${listing.id}`} className="block" data-testid="listing-card-link">
-      <div className="group bg-card rounded-xl border border-border/70 overflow-hidden transition-shadow duration-300 hover:shadow-lg">
-        <div className="aspect-[4/3] overflow-hidden bg-muted relative">
-          <img src={image} alt={listing.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" loading="lazy" />
-          {listing.unit_size && (
-            <div className="absolute top-3 left-3 bg-white/90 backdrop-blur-sm rounded-full px-3 py-1 text-xs font-medium shadow-sm">{listing.unit_size}</div>
-          )}
-        </div>
+    <div className="group bg-card rounded-xl border border-border/70 overflow-hidden transition-shadow duration-300 hover:shadow-lg" data-testid="listing-card">
+      <div className="aspect-[4/3] overflow-hidden bg-muted relative">
+        <Link to={`/listings/${listing.id}`} data-testid="listing-card-link">
+          <img
+            src={allImages[currentIdx]}
+            alt={listing.title}
+            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.02]"
+            loading="lazy"
+            decoding="async"
+            style={{ imageRendering: 'auto' }}
+          />
+        </Link>
+        {allImages.length > 1 && (
+          <>
+            <button
+              onClick={goPrev}
+              className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/80 backdrop-blur-sm flex items-center justify-center shadow-md hover:bg-white transition-all opacity-0 group-hover:opacity-100 z-10"
+              data-testid="card-carousel-prev"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <button
+              onClick={goNext}
+              className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/80 backdrop-blur-sm flex items-center justify-center shadow-md hover:bg-white transition-all opacity-0 group-hover:opacity-100 z-10"
+              data-testid="card-carousel-next"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1 z-10">
+              {allImages.map((_, i) => (
+                <div
+                  key={i}
+                  className={`w-1.5 h-1.5 rounded-full transition-colors ${i === currentIdx ? 'bg-white' : 'bg-white/50'}`}
+                />
+              ))}
+            </div>
+          </>
+        )}
+        {listing.unit_size && (
+          <div className="absolute top-3 left-3 bg-white/90 backdrop-blur-sm rounded-full px-3 py-1 text-xs font-medium shadow-sm z-10">{listing.unit_size}</div>
+        )}
+      </div>
+      <Link to={`/listings/${listing.id}`}>
         <div className="p-5">
           <h3 className="font-heading text-lg font-semibold tracking-tight" data-testid="listing-title">{listing.title}</h3>
-          {listing.property_name && (
+          {(listing.address || listing.property_name) && (
             <p className="text-sm text-muted-foreground mt-1 flex items-center gap-1">
-              <MapPin className="h-3.5 w-3.5 flex-shrink-0" />{listing.property_name}
+              <MapPin className="h-3.5 w-3.5 flex-shrink-0" />{listing.address || listing.property_name}
             </p>
           )}
           {listing.current_price != null ? (
@@ -51,8 +100,8 @@ function ListingCard({ listing, index }) {
             <p className="text-muted-foreground text-sm mt-2">Contact for pricing</p>
           )}
         </div>
-      </div>
-    </Link>
+      </Link>
+    </div>
   );
 }
 
@@ -94,7 +143,7 @@ export default function ListingsPage() {
     }
   }, []);
 
-  const fetchListings = async (start, end) => {
+  const fetchListings = useCallback(async (start, end) => {
     setSearching(true);
     try {
       let url = `${API}/api/public/listings`;
@@ -107,9 +156,9 @@ export default function ListingsPage() {
       setListings(data);
     } catch { console.error('Failed to load listings'); }
     finally { setLoading(false); setSearching(false); }
-  };
+  }, []);
 
-  useEffect(() => { fetchListings(); }, []);
+  useEffect(() => { fetchListings(); }, [fetchListings]);
 
   const handleSearch = () => {
     if (searchStart && searchEnd) fetchListings(searchStart, searchEnd);
