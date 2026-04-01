@@ -70,6 +70,7 @@ async def parking_timeline():
             "decal_year": spot.get("decal_year", ""),
             "location": spot.get("location", ""),
             "needs_tag": spot.get("needs_tag", False),
+            "tag_info": spot.get("tag_info", ""),
             "notes": spot.get("notes", ""),
             "assignments": enriched,
         })
@@ -163,10 +164,11 @@ async def create_parking_assignment(data: ParkingAssignmentCreate):
         raise HTTPException(status_code=404, detail="Parking spot not found")
 
     # Check for overlapping assignments on the same spot
+    # Use strict comparison ($lt/$gt) to allow 1-day overlap (transfer day)
     overlaps = await db.parking_assignments.find({
         "parking_spot_id": data.parking_spot_id,
-        "start_date": {"$lte": data.end_date},
-        "end_date": {"$gte": data.start_date},
+        "start_date": {"$lt": data.end_date},
+        "end_date": {"$gt": data.start_date},
     }).to_list(100)
     if overlaps:
         names = ", ".join(a.get("tenant_name", "Unknown") for a in overlaps)
@@ -183,11 +185,12 @@ async def create_parking_assignment(data: ParkingAssignmentCreate):
 @router.put("/parking-assignments/{assignment_id}")
 async def update_parking_assignment(assignment_id: str, data: ParkingAssignmentCreate):
     # Check for overlapping assignments on the same spot (excluding self)
+    # Use strict comparison ($lt/$gt) to allow 1-day overlap (transfer day)
     overlaps = await db.parking_assignments.find({
         "_id": {"$ne": ObjectId(assignment_id)},
         "parking_spot_id": data.parking_spot_id,
-        "start_date": {"$lte": data.end_date},
-        "end_date": {"$gte": data.start_date},
+        "start_date": {"$lt": data.end_date},
+        "end_date": {"$gt": data.start_date},
     }).to_list(100)
     if overlaps:
         names = ", ".join(a.get("tenant_name", "Unknown") for a in overlaps)

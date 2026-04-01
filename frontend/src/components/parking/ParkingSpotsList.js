@@ -26,7 +26,11 @@ export function ParkingSpotsList({ spots, onEdit, onDelete }) {
               </span>
               {isDecal && s.decal_year && <span className="text-xs text-muted-foreground">Year: {s.decal_year}</span>}
               {!isDecal && s.location && <span className="text-xs text-muted-foreground">{s.location}</span>}
-              {!isDecal && s.needs_tag && <Badge variant="outline" className="text-[10px]">Tag</Badge>}
+              {!isDecal && s.needs_tag && (
+                <Badge variant="outline" className="text-[10px]">
+                  Tag{s.tag_info ? `: ${s.tag_info}` : ''}
+                </Badge>
+              )}
               {s.notes && <span className="text-xs text-muted-foreground italic truncate max-w-[200px]">{s.notes}</span>}
             </div>
             <div className="flex gap-1 flex-shrink-0">

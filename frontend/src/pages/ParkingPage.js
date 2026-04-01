@@ -18,7 +18,7 @@ import { Car, Plus, ChevronLeft, ChevronRight, ChevronDown, ChevronUp } from 'lu
 import { toast } from 'sonner';
 import { differenceInDays, parseISO, eachMonthOfInterval } from 'date-fns';
 
-const emptySpotForm = { spot_type: 'designated', spot_number: '', location: '', needs_tag: false, decal_number: '', decal_year: '', notes: '' };
+const emptySpotForm = { spot_type: 'designated', spot_number: '', location: '', needs_tag: false, tag_info: '', decal_number: '', decal_year: '', notes: '' };
 const emptyAssignForm = { parking_spot_id: '', tenant_id: '', tenant_name: '', property_id: '', unit_id: '', start_date: '', end_date: '', notes: '', is_active: true };
 
 export default function ParkingPage() {
@@ -104,7 +104,7 @@ export default function ParkingPage() {
     setEditingSpot(s);
     setSpotForm({
       spot_type: s.spot_type || 'designated', spot_number: s.spot_number || '', location: s.location || '',
-      needs_tag: s.needs_tag || false, decal_number: s.decal_number || '', decal_year: s.decal_year || '', notes: s.notes || '',
+      needs_tag: s.needs_tag || false, tag_info: s.tag_info || '', decal_number: s.decal_number || '', decal_year: s.decal_year || '', notes: s.notes || '',
     });
     setSpotDialog(true);
   };

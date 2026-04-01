@@ -5,6 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tag } from 'lucide-react';
 
 const currentYear = new Date().getFullYear();
 const yearOptions = Array.from({ length: 5 }, (_, i) => String(currentYear + i));
@@ -41,13 +42,29 @@ export function ParkingSpotDialog({ open, onClose, editing, spotForm, setSpotFor
                 <Label>Location</Label>
                 <Input value={spotForm.location} onChange={e => setSpotForm({ ...spotForm, location: e.target.value })} placeholder="e.g. Garage Level 2" />
               </div>
-              <div className="flex items-center gap-3 p-3 rounded-lg border bg-muted/20">
-                <Switch
-                  checked={spotForm.needs_tag}
-                  onCheckedChange={v => setSpotForm({ ...spotForm, needs_tag: v })}
-                  data-testid="parking-spot-needs-tag"
-                />
-                <Label className="cursor-pointer">Needs Tag</Label>
+              <div className="space-y-2">
+                <div className="flex items-center gap-3 p-3 rounded-lg border bg-muted/20">
+                  <Switch
+                    checked={spotForm.needs_tag}
+                    onCheckedChange={v => setSpotForm({ ...spotForm, needs_tag: v, tag_info: v ? spotForm.tag_info : '' })}
+                    data-testid="parking-spot-needs-tag"
+                  />
+                  <Label className="cursor-pointer flex items-center gap-1.5">
+                    <Tag className="h-4 w-4" />
+                    Needs Tag
+                  </Label>
+                </div>
+                {spotForm.needs_tag && (
+                  <div className="space-y-2 pl-1">
+                    <Label className="text-sm">Tag Information</Label>
+                    <Input
+                      value={spotForm.tag_info || ''}
+                      onChange={e => setSpotForm({ ...spotForm, tag_info: e.target.value })}
+                      placeholder="e.g. Tag #1234, Blue sticker, etc."
+                      data-testid="parking-spot-tag-info"
+                    />
+                  </div>
+                )}
               </div>
             </>
           ) : (

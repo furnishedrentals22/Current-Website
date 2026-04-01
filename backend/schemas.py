@@ -162,6 +162,7 @@ class ParkingSpotCreate(BaseModel):
     spot_number: Optional[str] = ""
     location: Optional[str] = ""
     needs_tag: bool = False
+    tag_info: Optional[str] = ""
     decal_number: Optional[str] = ""
     decal_year: Optional[str] = ""
     notes: Optional[str] = ""
