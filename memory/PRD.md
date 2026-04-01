@@ -107,6 +107,10 @@ Build and maintain a comprehensive property management application for furnished
   - Low and Medium PINs are configurable via PIN Settings
   - PIN Settings requires High sensitivity PIN (3401) to access
   - High sensitivity PIN remains hard-coded at 3401
+- P0: Relock, Nav Restructure & Login Info Relocation (Apr 2026)
+  - Added relock buttons for unlocked sensitivity levels (Login Info) and admin codes (Door Codes)
+  - Removed Login Info from sidebar nav, embedded as toggle button at bottom of Marketing page
+  - Moved Notes in nav to between Notifications and Features
 
 ## Backlog
 - P2: Date range filters for Upcoming Cleanings table on Housekeeping page
